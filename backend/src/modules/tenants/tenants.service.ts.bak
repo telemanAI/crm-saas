@@ -1,0 +1,383 @@
+﻿import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Not } from 'typeorm';
+import { Tenant } from './entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
+import { Customer } from '../customers/entities/customer.entity';
+import { AuditLog } from '../audit/entities/audit-log.entity';
+import { UpdateTenantAdminDto } from './dto/update-tenant-admin.dto';
+
+@Injectable()
+export class TenantsService {
+  constructor(
+    @InjectRepository(Tenant)
+    private tenantsRepository: Repository<Tenant>,
+    @InjectRepository(User)
+    private usersRepository: Repository<User>,
+    @InjectRepository(Customer)
+    private customersRepository: Repository<Customer>,
+    @InjectRepository(AuditLog)
+    private auditLogRepository: Repository<AuditLog>,
+  ) {}
+
+  // ... metodi esistenti (findBySlug, findBySubscriptionCode, findById, findAll, create) ...
+
+  /**
+   * ADMIN: Lista negozi con statistiche aggregate
+   */
+  async findAllForAdmin(filters: {
+    status?: string;
+    plan?: string;
+    search?: string;
+    page: number;
+    limit: number;
+  }) {
+    const { status, plan, search, page, limit } = filters;
+    const skip = (page - 1) * limit;
+
+    const query = this.tenantsRepository.createQueryBuilder('tenant')
+      .leftJoin('users', 'u', 'u.tenant_id = tenant.id')
+      .leftJoin('customers', 'c', 'c.tenant_id = tenant.id')
+      .select([
+        'tenant.id',
+        'tenant.name',
+        'tenant.slug',
+        'tenant.subscriptionCode',
+        'tenant.subscriptionStatus',
+        'tenant.planType',
+        'tenant.isActive',
+        'tenant.createdAt',
+        'tenant.updatedAt',
+        'COUNT(DISTINCT u.id) as userCount',
+        'COUNT(DISTINCT c.id) as customerCount',
+      ])
+      .groupBy('tenant.id');
+
+    // Filtri
+    if (status) {
+      if (status === 'active') {
+        query.andWhere('tenant.is_active = :active', { active: true });
+      } else if (status === 'inactive') {
+        query.andWhere('tenant.is_active = :active', { active: false });
+      } else {
+        query.andWhere('tenant.subscription_status = :status', { status });
+      }
+    }
+
+    if (plan) {
+      query.andWhere('tenant.plan_type = :plan', { plan });
+    }
+
+    if (search) {
+      query.andWhere(
+        '(tenant.name ILIKE :search OR tenant.slug ILIKE :search OR tenant.subscriptioncode ILIKE :search)',
+        { search: `%${search}%` }
+      );
+    }
+
+    // Ordinamento e paginazione
+    query.orderBy('tenant.created_at', 'DESC');
+    query.offset(skip).limit(limit);
+
+    const [data, total] = await Promise.all([
+      query.getRawMany(),
+      query.getCount(),
+    ]);
+
+    return {
+      data: data.map(row => ({
+        id: row.tenant_id,
+        name: row.tenant_name,
+        slug: row.tenant_slug,
+        subscriptionCode: row.tenant_subscriptioncode,
+        subscriptionStatus: row.tenant_subscription_status,
+        planType: row.tenant_plan_type,
+        isActive: row.tenant_is_active,
+        createdAt: row.tenant_created_at,
+        updatedAt: row.tenant_updated_at,
+        stats: {
+          userCount: parseInt(row.usercount) || 0,
+          customerCount: parseInt(row.customercount) || 0,
+        },
+      })),
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * ADMIN: Dettaglio negozio con statistiche complete
+   */
+  async getTenantDetailsWithStats(tenantId: string) {
+    const tenant = await this.tenantsRepository.findOne({
+      where: { id: tenantId },
+    });
+
+    if (!tenant) {
+      throw new NotFoundException('Tenant non trovato');
+    }
+
+    // Statistiche dettagliate
+    const [
+      userCount,
+      activeUserCount,
+      customerCount,
+      activeCustomerCount,
+      recentUsers,
+    ] = await Promise.all([
+      this.usersRepository.count({ where: { tenantId } }),
+      this.usersRepository.count({ where: { tenantId, isActive: true } }),
+      this.customersRepository.count({ where: { tenantId } }),
+      this.customersRepository.count({ where: { tenantId, status: 'active' } }),
+      this.usersRepository.find({
+        where: { tenantId },
+        order: { createdAt: 'DESC' },
+        take: 5,
+        select: ['id', 'email', 'firstName', 'lastName', 'role', 'createdAt'],
+      }),
+    ]);
+
+    return {
+      tenant,
+      stats: {
+        users: {
+          total: userCount,
+          active: activeUserCount,
+          recent: recentUsers,
+        },
+        customers: {
+          total: customerCount,
+          active: activeCustomerCount,
+        },
+      },
+    };
+  }
+
+  /**
+   * ADMIN: Aggiorna stato negozio (attiva/disattiva/sospendi)
+   */
+  async updateTenantStatus(
+    tenantId: string, 
+    status: 'active' | 'inactive' | 'suspended',
+    reason?: string,
+  ) {
+    const tenant = await this.findById(tenantId);
+    
+    const oldStatus = tenant.isActive;
+    const oldSubStatus = tenant.subscriptionStatus;
+
+    // Aggiorna campi
+    tenant.isActive = status === 'active';
+    if (status === 'suspended') {
+      tenant.subscriptionStatus = 'suspended';
+    } else if (status === 'active') {
+      tenant.subscriptionStatus = 'active';
+    }
+
+    await this.tenantsRepository.save(tenant);
+
+    // Log audit
+    await this.auditLogRepository.save({
+      tenantId,
+      action: 'TENANT_STATUS_CHANGE',
+      entityType: 'Tenant',
+      entityId: tenantId,
+      oldValues: { isActive: oldStatus, subscriptionStatus: oldSubStatus },
+      newValues: { isActive: tenant.isActive, subscriptionStatus: tenant.subscriptionStatus },
+      metadata: { reason, changedBy: 'SUPER_ADMIN' },
+    });
+
+    return {
+      message: `Stato negozio aggiornato a: ${status}`,
+      tenant: {
+        id: tenant.id,
+        isActive: tenant.isActive,
+        subscriptionStatus: tenant.subscriptionStatus,
+      },
+    };
+  }
+
+  /**
+   * ADMIN: Cambia piano abbonamento
+   */
+  async updateTenantPlan(tenantId: string, dto: UpdateTenantAdminDto) {
+    const tenant = await this.findById(tenantId);
+    
+    const oldPlan = tenant.planType;
+    const oldLimits = tenant.planLimits;
+
+    // Aggiorna piano
+    tenant.planType = dto.plan;
+    if (dto.planLimits) {
+      tenant.planLimits = { ...tenant.planLimits, ...dto.planLimits };
+    }
+    if (dto.settings) {
+      tenant.settings = { ...tenant.settings, ...dto.settings };
+    }
+
+    await this.tenantsRepository.save(tenant);
+
+    // Log audit
+    await this.auditLogRepository.save({
+      tenantId,
+      action: 'TENANT_PLAN_CHANGE',
+      entityType: 'Tenant',
+      entityId: tenantId,
+      oldValues: { planType: oldPlan, planLimits: oldLimits },
+      newValues: { planType: tenant.planType, planLimits: tenant.planLimits },
+    });
+
+    return {
+      message: 'Piano aggiornato con successo',
+      tenant: {
+        id: tenant.id,
+        planType: tenant.planType,
+        planLimits: tenant.planLimits,
+      },
+    };
+  }
+
+  /**
+   * ADMIN: Soft delete negozio (disattiva e marca come deleted)
+   */
+  async softDeleteTenant(tenantId: string) {
+    const tenant = await this.findById(tenantId);
+
+    // Verifica se ha clienti (opzionale: impedisci cancellazione se ha dati)
+    const customerCount = await this.customersRepository.count({ where: { tenantId } });
+    
+    if (customerCount > 0) {
+      // Invece di cancellare, sospendi e marca
+      tenant.isActive = false;
+      tenant.subscriptionStatus = 'cancelled';
+      tenant.subscriptionCode = `DELETED_${tenant.subscriptionCode}_${Date.now()}`; // Invalida codice
+      await this.tenantsRepository.save(tenant);
+    } else {
+      // Se vuoto, cancella davvero (o mantieni soft delete)
+      tenant.isActive = false;
+      tenant.subscriptionStatus = 'deleted';
+      await this.tenantsRepository.save(tenant);
+    }
+
+    // Log audit
+    await this.auditLogRepository.save({
+      tenantId,
+      action: 'TENANT_DELETED',
+      entityType: 'Tenant',
+      entityId: tenantId,
+      oldValues: { isActive: true },
+      newValues: { isActive: false, status: 'deleted' },
+      metadata: { customerCount, deletedAt: new Date() },
+    });
+  }
+
+  /**
+   * ADMIN: Statistiche globali sistema
+   */
+  async getGlobalStats() {
+    const [
+      totalTenants,
+      activeTenants,
+      totalUsers,
+      totalCustomers,
+      recentTenants,
+    ] = await Promise.all([
+      this.tenantsRepository.count(),
+      this.tenantsRepository.count({ where: { isActive: true } }),
+      this.usersRepository.count({ where: { tenantId: Not(null) } }),
+      this.customersRepository.count(),
+      this.tenantsRepository.find({
+        order: { createdAt: 'DESC' },
+        take: 5,
+        select: ['id', 'name', 'subscriptionCode', 'planType', 'createdAt'],
+      }),
+    ]);
+
+    // Distribuzione piani
+    const planDistribution = await this.tenantsRepository
+      .createQueryBuilder('tenant')
+      .select('tenant.plan_type', 'plan')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('tenant.plan_type')
+      .getRawMany();
+
+    return {
+      overview: {
+        totalTenants,
+        activeTenants,
+        totalUsers,
+        totalCustomers,
+        avgCustomersPerTenant: totalTenants > 0 ? Math.round(totalCustomers / totalTenants) : 0,
+      },
+      planDistribution: planDistribution.map(p => ({
+        plan: p.plan,
+        count: parseInt(p.count),
+      })),
+      recentTenants,
+    };
+  }
+
+  /**
+   * ADMIN: Lista utenti di un negozio
+   */
+  async getTenantUsers(tenantId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+    
+    const [users, total] = await this.usersRepository.findAndCount({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+      select: ['id', 'email', 'firstName', 'lastName', 'role', 'isActive', 'createdAt', 'phone'],
+    });
+
+    return {
+      data: users,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * ADMIN: Lista clienti di un negozio
+   */
+  async getTenantCustomers(tenantId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+    
+    const [customers, total] = await this.customersRepository.findAndCount({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+      skip,
+      take: limit,
+      relations: ['assignedUser'],
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phonePrimary: true,
+        status: true,
+        customerSegment: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      data: customers,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+}

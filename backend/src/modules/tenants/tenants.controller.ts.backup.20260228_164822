@@ -1,0 +1,37 @@
+﻿import { Controller, Get, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { TenantsService } from './tenants.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+interface RegisterTenantDto {
+  businessName: string;
+  vatNumber: string;
+  phone: string;
+  email: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  adminFirstName: string;
+  adminLastName: string;
+  adminEmail: string;
+  adminPassword: string;
+}
+
+@Controller('tenants')
+export class TenantsController {
+  constructor(private readonly tenantsService: TenantsService) {}
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  async register(@Body() registerDto: RegisterTenantDto) {
+    return this.tenantsService.register(registerDto);
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async findAll() {
+    return this.tenantsService.findAll();
+  }
+}

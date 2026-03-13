@@ -1,0 +1,266 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  body {
+    @apply bg-slate-950 text-slate-200;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-slate-900 border border-slate-800 rounded-xl shadow-sm;
+  }
+  .input-kolme {
+    @apply w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 
+           text-slate-200 placeholder-slate-500
+           focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500
+           transition-all duration-200;
+  }
+  .btn-primary {
+    @apply bg-indigo-600 hover:bg-indigo-500 text-white font-medium 
+           px-6 py-3 rounded-lg transition-all duration-200 
+           focus:outline-none focus:ring-2 focus:ring-indigo-500/50
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium 
+           px-6 py-3 rounded-lg border border-slate-700
+           transition-all duration-200;
+  }
+  .btn-ghost {
+    @apply text-slate-400 hover:text-slate-200 font-medium 
+           px-4 py-2 rounded-lg transition-all duration-200;
+  }
+}
+/* ============================================
+   TEMA SCURO - FORZATURA GLOBALE
+   Sovrascrive tutte le classi chiare quando siamo in dark mode
+   ============================================ */
+
+.dark {
+  background-color: #020617 !important; /* slate-950 */
+}
+
+.dark .bg-white,
+.dark [class*="bg-white"] {
+  background-color: rgba(15, 23, 42, 0.8) !important; /* slate-900/80 */
+  border-color: rgb(30, 41, 59) !important; /* slate-800 */
+}
+
+.dark .bg-gray-50 {
+  background-color: #020617 !important; /* slate-950 */
+}
+
+.dark .bg-gray-100 {
+  background-color: #1e293b !important; /* slate-800 */
+}
+
+.dark .text-gray-900,
+.dark [class*="text-gray-900"] {
+  color: white !important;
+}
+
+.dark .text-gray-500,
+.dark [class*="text-gray-500"] {
+  color: #94a3b8 !important; /* slate-400 */
+}
+
+.dark .text-gray-600 {
+  color: #cbd5e1 !important; /* slate-300 */
+}
+
+.dark .border-gray-200,
+.dark [class*="border-gray-200"] {
+  border-color: #1e293b !important; /* slate-800 */
+}
+
+.dark .border-gray-300 {
+  border-color: #334155 !important; /* slate-700 */
+}
+
+/* Fix specifico per card */
+.dark .rounded-2xl,
+.dark [class*="rounded-2xl"] {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgb(30, 41, 59) !important;
+}
+
+/* Input e form */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #020617 !important;
+  border-color: #334155 !important;
+  color: white !important;
+}
+
+.dark input::placeholder {
+  color: #64748b !important;
+}
+/* ============================================
+   TEMA CHIARO - FORZATURA GLOBALE
+   Sovrascrive tutte le classi scure quando NON siamo in dark mode
+   ============================================ */
+
+/* Background scuri → Bianchi/Chiari */
+html:not(.dark) .bg-slate-800,
+html:not(.dark) [class*="bg-slate-800"],
+html:not(.dark) .bg-slate-900,
+html:not(.dark) [class*="bg-slate-900"],
+html:not(.dark) .bg-slate-950,
+html:not(.dark) [class*="bg-slate-950"] {
+  background-color: white !important;
+  border-color: #e5e7eb !important; /* gray-200 */
+}
+
+/* Background con opacità (es. bg-slate-900/80) → Bianco trasparente */
+html:not(.dark) .bg-slate-900\/50,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) [class*="bg-slate-900\/"] {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e5e7eb !important;
+}
+
+/* Testo chiaro → Scuro */
+html:not(.dark) .text-slate-200,
+html:not(.dark) [class*="text-slate-200"],
+html:not(.dark) .text-slate-100,
+html:not(.dark) [class*="text-slate-100"] {
+  color: #111827 !important; /* gray-900 */
+}
+
+html:not(.dark) .text-slate-300,
+html:not(.dark) [class*="text-slate-300"] {
+  color: #374151 !important; /* gray-700 */
+}
+
+html:not(.dark) .text-slate-400,
+html:not(.dark) [class*="text-slate-400"],
+html:not(.dark) .text-slate-500,
+html:not(.dark) [class*="text-slate-500"] {
+  color: #6b7280 !important; /* gray-500 */
+}
+
+/* Bordi scuri → Chiari */
+html:not(.dark) .border-slate-700,
+html:not(.dark) [class*="border-slate-700"],
+html:not(.dark) .border-slate-800,
+html:not(.dark) [class*="border-slate-800"] {
+  border-color: #e5e7eb !important; /* gray-200 */
+}
+
+/* Input e form scuri → Chiari */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) [class*="bg-slate-950"] {
+  background-color: #f9fafb !important; /* gray-50 */
+  border-color: #d1d5db !important; /* gray-300 */
+  color: #111827 !important; /* gray-900 */
+}
+
+/* Hover states scuri → Chiari */
+html:not(.dark) .hover\:bg-slate-800:hover,
+html:not(.dark) [class*="hover\:bg-slate-800"]:hover {
+  background-color: #f3f4f6 !important; /* gray-100 */
+}
+
+/* Fix specifico per icone e bottoni che devono rimanere colorati */
+html:not(.dark) .text-indigo-400,
+html:not(.dark) [class*="text-indigo-400"],
+html:not(.dark) .text-violet-400,
+html:not(.dark) [class*="text-violet-400"] {
+  color: #4f46e5 !important; /* indigo-600 */
+}
+/* ============================================
+   FIX TESTO INVISIBILE IN TEMA CHIARO
+   Forza TUTTO il testo a diventare scuro
+   ============================================ */
+
+/* Tutti i testi slate chiari → Grigi scuri/neri */
+html:not(.dark) * {
+  color: #111827 !important; /* gray-900 - quasi nero */
+}
+
+/* Eccezioni: mantieni i colori degli elementi UI colorati (bottoni, badge, icone) */
+html:not(.dark) .text-indigo-400,
+html:not(.dark) .text-indigo-500,
+html:not(.dark) .text-indigo-600,
+html:not(.dark) .text-violet-400,
+html:not(.dark) .text-violet-500,
+html:not(.dark) .text-violet-600,
+html:not(.dark) .text-amber-400,
+html:not(.dark) .text-amber-500,
+html:not(.dark) .text-amber-600,
+html:not(.dark) .text-emerald-400,
+html:not(.dark) .text-emerald-500,
+html:not(.dark) .text-emerald-600,
+html:not(.dark) .text-rose-400,
+html:not(.dark) .text-rose-500,
+html:not(.dark) .text-rose-600,
+html:not(.dark) .text-blue-400,
+html:not(.dark) .text-blue-500,
+html:not(.dark) .text-blue-600,
+html:not(.dark) .text-cyan-400,
+html:not(.dark) .text-cyan-500,
+html:not(.dark) .text-cyan-600,
+html:not(.dark) [class*="text-indigo-"],
+html:not(.dark) [class*="text-violet-"],
+html:not(.dark) [class*="text-amber-"],
+html:not(.dark) [class*="text-emerald-"],
+html:not(.dark) [class*="text-rose-"],
+html:not(.dark) [class*="text-blue-"],
+html:not(.dark) [class*="text-cyan-"] {
+  color: inherit !important;
+}
+
+/* Placeholder grigio scuro */
+html:not(.dark) ::placeholder,
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #6b7280 !important; /* gray-500 */
+  opacity: 1 !important;
+}
+
+/* Label e testi secondari leggermente più chiari ma leggibili */
+html:not(.dark) .text-xs,
+html:not(.dark) .text-sm {
+  color: #374151 !important; /* gray-700 */
+}
+
+/* Link */
+html:not(.dark) a {
+  color: #4f46e5 !important; /* indigo-600 */
+}
+
+html:not(.dark) a:hover {
+  color: #4338ca !important; /* indigo-700 */
+}
+
+/* Input e select con testo scuro */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea,
+html:not(.dark) button {
+  color: #111827 !important; /* gray-900 */
+}
+
+/* Fix specifico per icone e simboli */
+html:not(.dark) svg {
+  color: inherit !important;
+}
+
+/* Testo nei badge/tag specifici */
+html:not(.dark) .bg-amber-100,
+html:not(.dark) .bg-violet-100,
+html:not(.dark) .bg-emerald-100,
+html:not(.dark) .bg-rose-100,
+html:not(.dark) .bg-indigo-100 {
+  color: #111827 !important;
+}

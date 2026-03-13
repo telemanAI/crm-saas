@@ -1,0 +1,908 @@
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Check, 
+  CaretDown, 
+  CaretUp, 
+  ArrowLeft, 
+  ArrowRight,
+  Buildings,
+  User,
+  MapPin,
+  Phone,
+  CreditCard,
+  FileText,
+  Eye,
+  CheckCircle,
+  Warning,
+  MagnifyingGlass,
+  X
+} from 'phosphor-react';
+import { useRouter } from 'next/router';
+import { useAuthStore } from '@/stores/authStore';
+import { usePracticeWizardStore } from '@/stores/practiceWizardStore';
+import axios from 'axios';
+import OperatorLayout from '@/components/layout/OperatorLayout';
+
+const validateFiscalCode = (cf: string): boolean => {
+  if (!cf || cf.length !== 16) return false;
+  cf = cf.toUpperCase();
+  const regex = /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/;
+  if (!regex.test(cf)) return false;
+  
+  const odds: { [key: string]: number } = {
+    '0': 1, '1': 0, '2': 5, '3': 7, '4': 9, '5': 13, '6': 15, '7': 17, '8': 19, '9': 21,
+    'A': 1, 'B': 0, 'C': 5, 'D': 7, 'E': 9, 'F': 13, 'G': 15, 'H': 17, 'I': 19, 'J': 21,
+    'K': 2, 'L': 4, 'M': 18, 'N': 20, 'O': 11, 'P': 3, 'Q': 6, 'R': 8, 'S': 12, 'T': 14,
+    'U': 16, 'V': 10, 'W': 22, 'X': 25, 'Y': 24, 'Z': 23
+  };
+  
+  const evens: { [key: string]: number } = {
+    '0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+    'A': 0, 'B': 1, 'C': 2, 'D': 3, 'E': 4, 'F': 5, 'G': 6, 'H': 7, 'I': 8, 'J': 9,
+    'K': 10, 'L': 11, 'M': 12, 'N': 13, 'O': 14, 'P': 15, 'Q': 16, 'R': 17, 'S': 18, 'T': 19,
+    'U': 20, 'V': 21, 'W': 22, 'X': 23, 'Y': 24, 'Z': 25
+  };
+  
+  let sum = 0;
+  for (let i = 0; i < 15; i++) {
+    const char = cf[i];
+    if (i % 2 === 0) sum += odds[char] || 0;
+    else sum += evens[char] || 0;
+  }
+  
+  const controlChar = String.fromCharCode(65 + (sum % 26));
+  return cf[15] === controlChar;
+};
+
+const validatePhone = (phone: string): boolean => {
+  if (!phone) return false;
+  const cleaned = phone.replace(/[\s\-\.\(\)]/g, '');
+  const regex = /^(\+[0-9]{1,4}|00[0-9]{1,4})?[0-9]{6,15}$/;
+  return regex.test(cleaned) && cleaned.replace(/\D/g, '').length >= 8;
+};
+
+function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {
+  const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
+  const [loading, setLoading] = useState(true);
+  const { token } = useAuthStore();
+
+  useEffect(() => {
+    const fetchOperators = async () => {
+      try {
+        const response = await axios.get('http://localhost:3001/api/users/operators', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setOperators(response.data);
+      } catch (err) {
+        console.error('Errore caricamento operatori:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOperators();
+  }, [token]);
+
+  if (loading) return <div className="text-slate-400">Caricamento...</div>;
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-300 mb-2">{label}</label>
+      <select
+        value={value || ''}
+        onChange={(e) => {
+          const selected = operators.find(o => o.id === e.target.value);
+          onChange(e.target.value, selected ? `${selected.firstName} ${selected.lastName}` : '');
+        }}
+        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+      >
+        <option value="">-- Seleziona --</option>
+        {operators.map((op) => (
+          <option key={op.id} value={op.id}>{op.firstName} {op.lastName}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+const steps = [
+  { id: 1, title: 'Tipo & Offerta', icon: Buildings },
+  { id: 2, title: 'Venditore', icon: User },
+  { id: 3, title: 'Anagrafica Cliente', icon: User },
+  { id: 4, title: 'Nuova Linea', icon: MapPin },
+  { id: 5, title: 'Vecchia Linea', icon: Phone },
+  { id: 6, title: 'Pagamento', icon: CreditCard },
+  { id: 7, title: 'Privacy', icon: FileText },
+  { id: 8, title: 'Riepilogo', icon: Eye },
+];
+
+const timOffers = [
+  { code: 'TIM-WIFI-24-90', name: 'TIM WIFI CASA 24,90 IN CONVERGENZA' },
+  { code: 'TIM-WIFI-VISION-S', name: 'TIM WIFI CASA + TIM VISION S 27,90' },
+  { code: 'TIM-WIFI-VISION-M', name: 'TIM WIFI CASA + TIM VISION M 30,90' },
+  { code: 'TIM-WIFI-VISION-L', name: 'TIM WIFI CASA + TIM VISION L 32,90' },
+];
+
+const skyOffers = [
+  { code: 'SKY-WIFI-25-90', name: 'SKY WIFI 25,90' },
+  { code: 'SKY-TRIPLE-TV', name: 'TRIPLE PLAY CON SKY TV 29,90' },
+  { code: 'SKY-TRIPLE-SPORT', name: 'TRIPLE PLAY CON SPORT 35,80' },
+  { code: 'SKY-TRIPLE-CINEMA', name: 'TRIPLE PLAY CON CINEMA 35,80' },
+];
+
+export default function NewPractice() {
+  const router = useRouter();
+  const { token } = useAuthStore();
+  const { data, setData, currentStep, setStep, reset, practiceId, setPracticeId } = usePracticeWizardStore();
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedStep, setExpandedStep] = useState(1);
+  
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [draftPractices, setDraftPractices] = useState<any[]>([]);
+  const [checkingDrafts, setCheckingDrafts] = useState(true);
+  
+  const [cfSuggestions, setCfSuggestions] = useState<any[]>([]);
+  const [showCfSuggestions, setShowCfSuggestions] = useState(false);
+  const [isSearchingCf, setIsSearchingCf] = useState(false);
+
+  useEffect(() => {
+    const checkDrafts = async () => {
+      if (!token || practiceId) {
+        setCheckingDrafts(false);
+        return;
+      }
+      
+      try {
+        const response = await axios.get('http://localhost:3001/api/practices?status=draft', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        if (response.data && response.data.length > 0) {
+          setDraftPractices(response.data);
+          setShowResumeModal(true);
+        }
+      } catch (err) {
+        console.error('Errore controllo pratiche:', err);
+      } finally {
+        setCheckingDrafts(false);
+      }
+    };
+    
+    checkDrafts();
+  }, [token, practiceId]);
+
+  useEffect(() => {
+    if (practiceId && token) {
+      loadPracticeData(practiceId);
+    }
+  }, [practiceId, token]);
+
+  const loadPracticeData = async (id: string) => {
+    try {
+      const response = await axios.get(`http://localhost:3001/api/practices/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const practice = response.data;
+      
+      setData({
+        type: practice.type,
+        offerCode: practice.offerCode,
+        offerName: practice.offerName,
+        soldById: practice.soldById,
+        soldBy: practice.soldBy,
+        enteredById: practice.enteredById,
+        enteredBy: practice.enteredBy,
+        firstName: practice.customerSnapshot?.firstName,
+        lastName: practice.customerSnapshot?.lastName,
+        fiscalCode: practice.customer?.fiscalCode || practice.customerSnapshot?.fiscalCode,
+        phone: practice.customerSnapshot?.phonePrimary || practice.customerSnapshot?.phone,
+        email: practice.customerSnapshot?.email,
+        notes: practice.notes,
+        lineType: practice.lineType,
+        installationAddress: practice.installationAddress,
+        technology: practice.technology,
+        oldPhoneNumber: practice.oldLineData?.oldPhoneNumber,
+        migrationCode: practice.oldLineData?.migrationCode,
+        iban: practice.paymentMethod?.iban,
+        postePay: practice.paymentMethod?.postePay,
+        bollettino: practice.paymentMethod?.bollettino,
+        gdprConsent: practice.paymentMethod?.gdprConsent || false,
+        privacyMarketing: practice.paymentMethod?.privacyMarketing || false,
+      });
+      
+      if (practice.completedSteps) {
+        setCompletedSteps(practice.completedSteps);
+        const nextStep = Math.max(...practice.completedSteps, 0) + 1;
+        setExpandedStep(nextStep > 8 ? 8 : nextStep);
+        setStep(nextStep > 8 ? 8 : nextStep);
+      }
+    } catch (err) {
+      console.error('Errore caricamento:', err);
+      alert('Errore nel caricamento della pratica');
+      handleNewPractice();
+    }
+  };
+
+  const handleResumePractice = (practice: any) => {
+    setPracticeId(practice.id);
+    setShowResumeModal(false);
+  };
+
+  const handleNewPractice = () => {
+    reset();
+    setCompletedSteps([]);
+    setExpandedStep(1);
+    setStep(1);
+    setShowResumeModal(false);
+    setPracticeId(null);
+  };
+
+  useEffect(() => {
+    const searchFiscalCode = async () => {
+      if (!data.fiscalCode || data.fiscalCode.length < 3) {
+        setCfSuggestions([]);
+        setShowCfSuggestions(false);
+        return;
+      }
+      
+      setIsSearchingCf(true);
+      try {
+        const response = await axios.get(`http://localhost:3001/api/customers/search/by-fiscal-code?code=${data.fiscalCode}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setCfSuggestions(response.data);
+        setShowCfSuggestions(response.data.length > 0);
+      } catch (err) {
+        console.error('Errore ricerca CF:', err);
+      } finally {
+        setIsSearchingCf(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchFiscalCode, 300);
+    return () => clearTimeout(timeoutId);
+  }, [data.fiscalCode, token]);
+
+  const handleSelectCustomer = (customer: any) => {
+    setData({
+      fiscalCode: customer.fiscalCode,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      phone: customer.phonePrimary || customer.phone || '',
+      email: customer.email || '',
+      installationAddress: customer.address ? { street: customer.address } : data.installationAddress
+    });
+    setShowCfSuggestions(false);
+  };
+
+  const saveStep = async (stepNumber: number) => {
+    try {
+      if (stepNumber === 1 && !practiceId) {
+        const response = await axios.post('http://localhost:3001/api/practices', {
+          type: data.type,
+          offerCode: data.offerCode,
+          offerName: data.offerName,
+          soldById: data.soldById,
+          soldBy: data.soldBy,
+          enteredById: data.enteredById,
+          enteredBy: data.enteredBy,
+          customerData: {
+            firstName: data.firstName || '',
+            lastName: data.lastName || '',
+            fiscalCode: data.fiscalCode || '',
+            phone: data.phone || '',
+            email: data.email || '',
+          }
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        setPracticeId(response.data.id);
+      } else if (practiceId) {
+        const stepData = getStepData(stepNumber);
+        await axios.put(`http://localhost:3001/api/practices/${practiceId}/step`, {
+          stepNumber: stepNumber,
+          data: stepData
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } catch (err) {
+      console.error('Errore salvataggio:', err);
+    }
+  };
+
+  const getStepData = (stepNumber: number) => {
+    switch (stepNumber) {
+      case 2: return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
+      case 3: return { customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email }, notes: data.notes };
+      case 4: return { lineType: data.lineType, installationAddress: data.installationAddress, technology: data.technology };
+      case 5: return { oldLineData: data.lineType === 'MIGRAZIONE' ? { oldPhoneNumber: data.oldPhoneNumber, migrationCode: data.migrationCode } : {} };
+      case 6: return { paymentMethod: { iban: data.iban, postePay: data.postePay, bollettino: data.bollettino } };
+      case 7: return { privacyData: { gdprConsent: data.gdprConsent, marketingConsent: data.privacyMarketing } };
+      default: return {};
+    }
+  };
+
+  const handleStepComplete = async (stepId: number) => {
+    await saveStep(stepId);
+
+    if (!completedSteps.includes(stepId)) {
+      setCompletedSteps([...completedSteps, stepId]);
+    }
+    if (stepId < 8) {
+      setExpandedStep(stepId + 1);
+      setStep(stepId + 1);
+    }
+  };
+
+  const handleStepClick = (stepId: number) => {
+    if (completedSteps.includes(stepId) || stepId === Math.max(...completedSteps, 0) + 1) {
+      setExpandedStep(stepId);
+      setStep(stepId);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!practiceId) {
+      alert('Errore: ID pratica mancante');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await axios.put(`http://localhost:3001/api/practices/${practiceId}/step`, {
+        stepNumber: 8,
+        data: {}
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      reset();
+      router.push('/operator/practices');
+    } catch (err) {
+      console.error('Errore finalizzazione:', err);
+      alert('Errore durante il salvataggio');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isStepValid = (stepId: number) => {
+    switch (stepId) {
+      case 1: return data.type && data.offerCode && data.offerName;
+      case 2: return data.soldById && data.enteredById;
+      case 3: return data.firstName && data.lastName && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone && validatePhone(data.phone);
+      case 4: return data.lineType && data.installationAddress?.street && data.technology;
+      case 5: return data.lineType === 'NUOVA' || (data.oldPhoneNumber && data.migrationCode);
+      case 6: return data.iban || data.postePay || data.bollettino;
+      case 7: return data.gdprConsent === true;
+      case 8: return true;
+      default: return false;
+    }
+  };
+
+  if (checkingDrafts) {
+    return (
+      <OperatorLayout title="Nuova Pratica">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full" />
+        </div>
+      </OperatorLayout>
+    );
+  }
+
+  return (
+    <OperatorLayout title="Nuova Pratica">
+      <AnimatePresence>
+        {showResumeModal && draftPractices.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">Riprendi Pratica</h3>
+                <button onClick={() => setShowResumeModal(false)} className="text-slate-400 hover:text-white">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <p className="text-slate-400 mb-4">
+                Abbiamo trovato una pratica non completata. Vuoi riprenderla o iniziare una nuova?
+              </p>
+              
+              <div className="space-y-3 mb-6">
+                {draftPractices.slice(0, 1).map((practice) => (
+                  <div 
+                    key={practice.id}
+                    onClick={() => handleResumePractice(practice)}
+                    className="p-4 bg-indigo-600/20 border border-indigo-500/50 rounded-xl cursor-pointer hover:bg-indigo-600/30 transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-white font-medium">{practice.offerName || 'Nuova Pratica'}</p>
+                        <p className="text-sm text-slate-400">
+                          {practice.customerSnapshot?.firstName} {practice.customerSnapshot?.lastName}
+                        </p>
+                        <p className="text-xs text-indigo-400 mt-1">
+                          Step {practice.currentStep}/8 • Clicca per riprendere
+                        </p>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-indigo-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleNewPractice}
+                  className="flex-1 px-4 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors text-sm"
+                >
+                  Inizia Nuova
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="p-8 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-white mb-2">Nuova Pratica</h1>
+          <p className="text-slate-400">Compila tutti i passaggi per completare la pratica</p>
+        </div>
+
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-slate-400">Progresso</span>
+            <span className="text-sm text-indigo-400">{completedSteps.length}/8 completati</span>
+          </div>
+          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-gradient-to-r from-indigo-600 to-purple-600"
+              initial={{ width: 0 }}
+              animate={{ width: `${(completedSteps.length / 8) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {steps.map((step) => {
+            const Icon = step.icon;
+            const isCompleted = completedSteps.includes(step.id);
+            const isExpanded = expandedStep === step.id;
+            const isValid = isStepValid(step.id);
+            const canAccess = completedSteps.includes(step.id) || step.id === Math.max(...completedSteps, 0) + 1;
+
+            return (
+              <motion.div
+                key={step.id}
+                className={`bg-slate-900/80 backdrop-blur-xl border rounded-2xl overflow-hidden transition-all ${
+                  isExpanded ? 'border-indigo-600/50' : 'border-slate-800'
+                } ${!canAccess ? 'opacity-50' : ''}`}
+              >
+                <button
+                  onClick={() => handleStepClick(step.id)}
+                  disabled={!canAccess}
+                  className="w-full p-6 flex items-center justify-between text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                      isCompleted ? 'bg-emerald-600/20 text-emerald-400' :
+                      isExpanded ? 'bg-indigo-600/20 text-indigo-400' :
+                      'bg-slate-800 text-slate-400'
+                    }`}>
+                      {isCompleted ? <Check className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-slate-500">Step {step.id}</span>
+                        {isCompleted && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+                      </div>
+                      <h3 className={`font-semibold ${isExpanded ? 'text-white' : 'text-slate-300'}`}>
+                        {step.title}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? <CaretUp className="w-5 h-5 text-slate-400" /> : <CaretDown className="w-5 h-5 text-slate-400" />}
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-slate-800"
+                    >
+                      <div className="p-6">
+                        {step.id === 1 && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Tipo Pratica</label>
+                              <div className="flex gap-4">
+                                <button
+                                  onClick={() => setData({ type: 'TIM_FIBRA', offerCode: '', offerName: '' })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                    data.type === 'TIM_FIBRA' 
+                                      ? 'border-blue-500 bg-blue-600/10 text-blue-400' 
+                                      : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                                  }`}
+                                >
+                                  <div className="font-bold text-lg">TIM</div>
+                                  <div className="text-sm">Fibra</div>
+                                </button>
+                                <button
+                                  onClick={() => setData({ type: 'SKY', offerCode: '', offerName: '' })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                    data.type === 'SKY' 
+                                      ? 'border-cyan-500 bg-cyan-600/10 text-cyan-400' 
+                                      : 'border-slate-700 text-slate-400 hover:border-slate-600'
+                                  }`}
+                                >
+                                  <div className="font-bold text-lg">SKY</div>
+                                  <div className="text-sm">TV & Internet</div>
+                                </button>
+                              </div>
+                            </div>
+
+                            {data.type && (
+                              <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Seleziona Offerta</label>
+                                <select
+                                  value={data.offerCode || ''}
+                                  onChange={(e) => {
+                                    const selectedOffer = (data.type === 'TIM_FIBRA' ? timOffers : skyOffers)
+                                      .find(o => o.code === e.target.value);
+                                    setData({ 
+                                      offerCode: e.target.value,
+                                      offerName: selectedOffer?.name || ''
+                                    });
+                                  }}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                                >
+                                  <option value="">-- Seleziona un offerta --</option>
+                                  {(data.type === 'TIM_FIBRA' ? timOffers : skyOffers).map((offer) => (
+                                    <option key={offer.code} value={offer.code}>{offer.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {step.id === 2 && (
+                          <div className="space-y-4">
+                            <OperatorsDropdown 
+                              label="Venduto Da"
+                              value={data.soldById}
+                              onChange={(id, name) => setData({ soldById: id, soldBy: name })}
+                            />
+                            <OperatorsDropdown 
+                              label="Inserito Da"
+                              value={data.enteredById}
+                              onChange={(id, name) => setData({ enteredById: id, enteredBy: name })}
+                            />
+                          </div>
+                        )}
+
+                        {step.id === 3 && (
+                          <div className="space-y-4">
+                            <div className="relative">
+                              <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Codice Fiscale <span className="text-rose-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={data.fiscalCode || ''}
+                                  onChange={(e) => setData({ fiscalCode: e.target.value.toUpperCase().slice(0, 16) })}
+                                  className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
+                                    data.fiscalCode && !validateFiscalCode(data.fiscalCode) 
+                                      ? 'border-rose-600' 
+                                      : 'border-slate-700'
+                                  }`}
+                                />
+                                {isSearchingCf && <MagnifyingGlass className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 animate-pulse" />}
+                              </div>
+                              
+                              {showCfSuggestions && cfSuggestions.length > 0 && (
+                                <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                                  {cfSuggestions.map((customer) => (
+                                    <button
+                                      key={customer.id}
+                                      onClick={() => handleSelectCustomer(customer)}
+                                      className="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
+                                    >
+                                      <p className="text-white font-medium">{customer.fiscalCode}</p>
+                                      <p className="text-sm text-slate-400">{customer.firstName} {customer.lastName}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Nome</label>
+                                <input
+                                  type="text"
+                                  value={data.firstName || ''}
+                                  onChange={(e) => setData({ firstName: e.target.value })}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">Cognome</label>
+                                <input
+                                  type="text"
+                                  value={data.lastName || ''}
+                                  onChange={(e) => setData({ lastName: e.target.value })}
+                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Telefono <span className="text-rose-500">*</span>
+                              </label>
+                              <input
+                                type="tel"
+                                value={data.phone || ''}
+                                onChange={(e) => setData({ phone: e.target.value })}
+                                className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
+                                  data.phone && !validatePhone(data.phone) ? 'border-rose-600' : 'border-slate-700'
+                                }`}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                              <input
+                                type="email"
+                                value={data.email || ''}
+                                onChange={(e) => setData({ email: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {step.id === 4 && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Tipo Linea</label>
+                              <div className="flex gap-4">
+                                <button
+                                  onClick={() => setData({ lineType: 'NUOVA' })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                    data.lineType === 'NUOVA' 
+                                      ? 'border-emerald-500 bg-emerald-600/10 text-emerald-400' 
+                                      : 'border-slate-700 text-slate-400'
+                                  }`}
+                                >
+                                  <div className="font-bold">Nuova Attivazione</div>
+                                </button>
+                                <button
+                                  onClick={() => setData({ lineType: 'MIGRAZIONE' })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                    data.lineType === 'MIGRAZIONE' 
+                                      ? 'border-amber-500 bg-amber-600/10 text-amber-400' 
+                                      : 'border-slate-700 text-slate-400'
+                                  }`}
+                                >
+                                  <div className="font-bold">Migrazione</div>
+                                </button>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Indirizzo Installazione</label>
+                              <input
+                                type="text"
+                                value={data.installationAddress?.street || ''}
+                                onChange={(e) => setData({ installationAddress: { ...data.installationAddress, street: e.target.value } })}
+                                placeholder="Via Roma 123, Milano"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Tecnologia</label>
+                              <div className="flex gap-2">
+                                {['FTTH', 'FTTC', 'FWA'].map((tech) => (
+                                  <button
+                                    key={tech}
+                                    onClick={() => setData({ technology: tech as any })}
+                                    className={`px-4 py-2 rounded-xl border transition-all ${
+                                      data.technology === tech 
+                                        ? 'border-indigo-500 bg-indigo-600/10 text-indigo-400' 
+                                        : 'border-slate-700 text-slate-400'
+                                    }`}
+                                  >
+                                    {tech}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {step.id === 5 && (
+                          <div className="space-y-4">
+                            {data.lineType === 'NUOVA' ? (
+                              <div className="text-center py-8">
+                                <CheckCircle className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
+                                <p className="text-slate-400">Nuova attivazione - nessun dato richiesto</p>
+                              </div>
+                            ) : (
+                              <>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Numero Attuale</label>
+                                  <input
+                                    type="tel"
+                                    value={data.oldPhoneNumber || ''}
+                                    onChange={(e) => setData({ oldPhoneNumber: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Codice Migrazione</label>
+                                  <input
+                                    type="text"
+                                    value={data.migrationCode || ''}
+                                    onChange={(e) => setData({ migrationCode: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {step.id === 6 && (
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">IBAN</label>
+                              <input
+                                type="text"
+                                value={data.iban || ''}
+                                onChange={(e) => setData({ iban: e.target.value.toUpperCase() })}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              />
+                            </div>
+                            <div className="text-center text-slate-500">oppure</div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">PostePay</label>
+                              <input
+                                type="text"
+                                value={data.postePay || ''}
+                                onChange={(e) => setData({ postePay: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              />
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                id="bollettino"
+                                checked={data.bollettino || false}
+                                onChange={(e) => setData({ bollettino: e.target.checked })}
+                                className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                              />
+                              <label htmlFor="bollettino" className="text-slate-300">Bollettino postale</label>
+                            </div>
+                          </div>
+                        )}
+
+                        {step.id === 7 && (
+                          <div className="space-y-4">
+                            <div className="bg-slate-800/50 rounded-xl p-4 border border-amber-500/30">
+                              <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                                <Warning className="w-5 h-5 text-amber-400" />
+                                Consensi Privacy
+                              </h4>
+                              <div className="space-y-4">
+                                <div className="flex items-start gap-3 p-3 bg-slate-900/50 rounded-lg border border-rose-500/30">
+                                  <input 
+                                    type="checkbox" 
+                                    id="gdpr"
+                                    checked={data.gdprConsent || false}
+                                    onChange={(e) => setData({ gdprConsent: e.target.checked })}
+                                    className="mt-1 w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                                  />
+                                  <div className="flex-1">
+                                    <label htmlFor="gdpr" className="text-slate-200 text-sm font-medium cursor-pointer">
+                                      Trattamento dati personali <span className="text-rose-500">*</span>
+                                    </label>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex items-start gap-3 p-3 rounded-lg">
+                                  <input 
+                                    type="checkbox" 
+                                    id="marketing"
+                                    checked={data.privacyMarketing || false}
+                                    onChange={(e) => setData({ privacyMarketing: e.target.checked })}
+                                    className="mt-1 w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                                  />
+                                  <div>
+                                    <label htmlFor="marketing" className="text-slate-300 text-sm cursor-pointer">
+                                      Marketing (opzionale)
+                                    </label>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {step.id === 8 && (
+                          <div className="space-y-4">
+                            <div className="bg-slate-800/50 rounded-xl p-6">
+                              <h4 className="font-semibold text-white mb-4">Riepilogo</h4>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-400">Tipo:</span><span className="text-white">{data.type}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Offerta:</span><span className="text-white">{data.offerName}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Cliente:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Linea:</span><span className="text-white">{data.lineType}</span></div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={handleSubmit}
+                              disabled={loading}
+                              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              {loading ? 'Salvataggio...' : <><Check className="w-5 h-5" /> Completa Pratica</>}
+                            </button>
+                          </div>
+                        )}
+
+                        {step.id !== 8 && (
+                          <div className="flex justify-between mt-6 pt-6 border-t border-slate-800">
+                            <button
+                              onClick={() => {
+                                if (step.id > 1) {
+                                  setExpandedStep(step.id - 1);
+                                  setStep(step.id - 1);
+                                }
+                              }}
+                              disabled={step.id === 1}
+                              className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white disabled:opacity-30"
+                            >
+                              <ArrowLeft className="w-5 h-5" />
+                              Indietro
+                            </button>
+                            <button
+                              onClick={() => isValid && handleStepComplete(step.id)}
+                              disabled={!isValid}
+                              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white px-6 py-2 rounded-xl"
+                            >
+                              Avanti
+                              <ArrowRight className="w-5 h-5" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </OperatorLayout>
+  );
+}

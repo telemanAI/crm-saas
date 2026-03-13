@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Database
+postgres_data/
+*.sql.backup
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/
+
+# Node
+node_modules/
+dist/
+.next/

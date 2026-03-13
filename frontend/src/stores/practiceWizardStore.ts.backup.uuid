@@ -1,0 +1,52 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+
+interface PracticeData {
+  type?: 'TIM_FIBRA' | 'SKY';
+  offerCode?: string;
+  offerName?: string;
+  soldBy?: string;
+  enteredBy?: string;
+  firstName?: string;
+  lastName?: string;
+  fiscalCode?: string;
+  phone?: string;
+  email?: string;
+  lineType?: 'NUOVA' | 'MIGRAZIONE';
+  installationAddress?: {
+    street?: string;
+    city?: string;
+    zip?: string;
+  };
+  technology?: 'FTTH' | 'FTTC' | 'FWA';
+  oldPhoneNumber?: string;
+  migrationCode?: string;
+  iban?: string;
+  postePay?: string;
+  bollettino?: boolean;
+}
+
+interface PracticeWizardState {
+  data: PracticeData;
+  currentStep: number;
+  setData: (data: Partial<PracticeData>) => void;
+  setStep: (step: number) => void;
+  reset: () => void;
+}
+
+export const usePracticeWizardStore = create<PracticeWizardState>()(
+  persist(
+    (set) => ({
+      data: {},
+      currentStep: 1,
+      setData: (newData) => set((state) => ({ 
+        data: { ...state.data, ...newData } 
+      })),
+      setStep: (step) => set({ currentStep: step }),
+      reset: () => set({ data: {}, currentStep: 1 }),
+    }),
+    {
+      name: 'practice-wizard-storage',
+    }
+  )
+);

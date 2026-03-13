@@ -1,0 +1,130 @@
+import { IsEnum, IsOptional, IsString, ValidateNested, IsUUID, IsBoolean } from 'class-validator';
+import { Type } from 'class-transformer';
+
+class CustomerDataDto {
+  @IsString()
+  firstName: string;
+
+  @IsString()
+  lastName: string;
+
+  @IsString()
+  fiscalCode: string;
+
+  @IsString()
+  phone: string;
+
+  @IsOptional()
+  @IsString()
+  email?: string;
+}
+
+class LineDataDto {
+  @IsEnum(['NUOVA', 'MIGRAZIONE'])
+  lineType: 'NUOVA' | 'MIGRAZIONE';
+
+  @ValidateNested()
+  @Type(() => Object)
+  installationAddress: { street: string };
+
+  @IsEnum(['FTTH', 'FTTC', 'FWA'])
+  technology: 'FTTH' | 'FTTC' | 'FWA';
+}
+
+class PaymentDataDto {
+  @IsOptional()
+  @IsString()
+  iban?: string;
+
+  @IsOptional()
+  @IsString()
+  postePay?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  bollettino?: boolean;
+}
+
+// NUOVA CLASSE per i dati della linea precedente (migrazione)
+class OldLineDataDto {
+  @IsOptional()
+  @IsString()
+  oldPhoneNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  migrationCode?: string;
+
+  @IsOptional()
+  @IsString()
+  gestore?: string;
+
+  @IsOptional()
+  @IsString()
+  gestoreAltro?: string;
+
+  @IsOptional()
+  @IsString()
+  fiscalCodeOldLine?: string;
+
+  @IsOptional()
+  @IsString()
+  prodottiRestituire?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CreatePracticeDto {
+  @IsEnum(['TIM_FIBRA', 'SKY'])
+  type: 'TIM_FIBRA' | 'SKY';
+
+  @IsOptional()
+  @IsString()
+  offerCode?: string;
+
+  @IsOptional()
+  @IsString()
+  offerName?: string;
+
+  // Step 2: Operatori (ID UUID) - ORA OPZIONALI per permettere creazione allo Step 1
+  @IsOptional()
+  @IsUUID()
+  soldById?: string;
+
+  @IsString()
+  @IsOptional()
+  soldBy?: string;
+
+  @IsOptional()
+  @IsUUID()
+  enteredById?: string;
+
+  @IsString()
+  @IsOptional()
+  enteredBy?: string;
+
+  // Step 3: Anagrafica + Note
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CustomerDataDto)
+  customerData?: CustomerDataDto;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @ValidateNested()
+  @Type(() => LineDataDto)
+  lineData: LineDataDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OldLineDataDto)  // Cambiato da Object a OldLineDataDto
+  oldLineData?: OldLineDataDto;  // Tipo aggiornato con tutte le proprietà
+
+  @ValidateNested()
+  @Type(() => PaymentDataDto)
+  paymentData: PaymentDataDto;
+}

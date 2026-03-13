@@ -1,0 +1,41 @@
+﻿import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthModule } from './modules/auth/auth.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
+import { DatabaseModule } from './database/database.module';
+import { User } from './entities/user.entity';
+import { Tenant } from './entities/tenant.entity';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      username: process.env.DB_USERNAME || 'crm_user',
+      password: process.env.DB_PASSWORD || 'crm_password',
+      database: process.env.DB_NAME || 'crm_db',
+      entities: [User, Tenant],
+      synchronize: process.env.NODE_ENV === 'development',
+      logging: process.env.NODE_ENV === 'development',
+    }),
+
+    JwtModule.register({
+      global: true,
+      secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production',
+      signOptions: { expiresIn: '8h' },
+    }),
+
+    AuthModule,
+    TenantsModule,
+    DatabaseModule,
+  ],
+})
+export class AppModule {}

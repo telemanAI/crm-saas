@@ -1,5 +1,5 @@
 // API Configuration - URL diretto del backend
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 // Legge il token dallo storage locale
 function getToken(): string | null {

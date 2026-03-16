@@ -12,7 +12,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    # init.sql rimosso - TypeORM crea le tabelle automaticamente
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U crm -d crm_db"]
       interval: 5s
@@ -32,9 +32,13 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://crm:crm_password@postgres:5432/crm_db
-      - REDIS_URL=redis://redis:6379
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=crm
+      - DB_PASSWORD=crm_password
+      - DB_NAME=crm_db
       - JWT_SECRET=super-secret-key-change-in-production
+      - REDIS_URL=redis://redis:6379
       - GOOGLE_PLACES_API_KEY=INSERISCI_QUI_LA_TUA_API_KEY
     volumes:
       - ./backend:/app

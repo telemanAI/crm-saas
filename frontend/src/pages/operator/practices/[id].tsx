@@ -23,7 +23,7 @@ import {
   Tag
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
 
@@ -100,7 +100,7 @@ export default function PracticeDetail() {
   const handleDeleteNote = async (noteIndex: number) => {
     if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
     try {
-      await axios.delete(`http://localhost:3001/api/practices/${id}/notes/${noteIndex}`, {
+      await api.delete(`/practices/${id}/notes/${noteIndex}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchPractice();
@@ -111,7 +111,7 @@ export default function PracticeDetail() {
 
   const fetchPractice = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/practices/${id}`, {
+      const response = await api.get(`/practices/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -139,7 +139,7 @@ export default function PracticeDetail() {
     
     setDeleteLoading(true);
     try {
-      await axios.delete(`http://localhost:3001/api/practices/${id}`, {
+      await api.delete(`/practices/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       router.push('/operator/practices');
@@ -154,7 +154,7 @@ export default function PracticeDetail() {
   const handleSaveNotes = async () => {
     setNotesLoading(true);
     try {
-      await axios.put(`http://localhost:3001/api/practices/${id}/step`, {
+      await api.put(`/practices/${id}/step`, {
         stepNumber: 3,
         data: { notes: notes }
       }, {
@@ -174,7 +174,7 @@ export default function PracticeDetail() {
     if (!practice || statusLoading) return;
     setStatusLoading(true);
     try {
-      await axios.put(`http://localhost:3001/api/practices/${id}/operational-status`, 
+      await api.put(`/practices/${id}/operational-status`, 
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -337,7 +337,7 @@ export default function PracticeDetail() {
               onClick={async () => {
                 if (!confirm('Forzare il completamento?')) return;
                 try {
-                  await axios.post(`http://localhost:3001/api/practices/${id}/force-complete`, {}, {
+                  await api.post(`/practices/${id}/force-complete`, {}, {
                     headers: { Authorization: `Bearer ${token}` }
                   });
                   alert('Completata!');
@@ -409,7 +409,7 @@ export default function PracticeDetail() {
                     if (!notes.trim()) return;
                     setNotesLoading(true);
                     try {
-                      await axios.put(`http://localhost:3001/api/practices/${id}/step`, {
+                      await api.put(`/practices/${id}/step`, {
                         stepNumber: 3,
                         data: { notes: notes }
                       }, {

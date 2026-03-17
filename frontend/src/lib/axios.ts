@@ -1,7 +1,7 @@
-import axios from 'axios';
+import api from '@/lib/axios';
 
 // API URL configurabile via environment variable
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 // Crea istanza axios pre-configurata
 const api = axios.create({

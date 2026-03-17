@@ -15,7 +15,7 @@ import {
   Clock
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
 
@@ -65,7 +65,7 @@ export default function CustomerDetail() {
 
   const fetchCustomer = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/customers/${id}`, {
+      const response = await api.get(`/customers/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCustomer(response.data);
@@ -78,7 +78,7 @@ export default function CustomerDetail() {
 
   const fetchCustomerPractices = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/practices', {
+      const response = await api.get('/practices', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const customerPractices = response.data.filter((p: any) => 
@@ -93,7 +93,7 @@ export default function CustomerDetail() {
     if (!noteText.trim()) return;
     setNoteLoading(true);
     try {
-      await axios.post(`http://localhost:3001/api/customers/${id}/notes`, {
+      await api.post(`/customers/${id}/notes`, {
         text: noteText
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -110,7 +110,7 @@ export default function CustomerDetail() {
   const handleDeleteNote = async (index: number) => {
     if (!confirm('Eliminare questa nota?')) return;
     try {
-      await axios.delete(`http://localhost:3001/api/customers/${id}/notes/${index}`, {
+      await api.delete(`/customers/${id}/notes/${index}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchCustomer();
@@ -123,7 +123,7 @@ export default function CustomerDetail() {
     
     setDeleteLoading(true);
     try {
-      await axios.delete(`http://localhost:3001/api/customers/${id}`, {
+      await api.delete(`/customers/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       router.push('/operator/customers');

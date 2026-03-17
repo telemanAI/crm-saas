@@ -12,7 +12,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
 interface UserData {
@@ -50,7 +50,7 @@ export default function EditUser() {
 
   const fetchUser = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/users/${id}`, {
+      const response = await api.get(`/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = response.data;
@@ -88,7 +88,7 @@ export default function EditUser() {
         updateData.password = formData.password;
       }
 
-      await axios.put(`http://localhost:3001/api/users/${id}`, updateData, {
+      await api.put(`/users/${id}`, updateData, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

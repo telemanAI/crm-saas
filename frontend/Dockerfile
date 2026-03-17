@@ -7,8 +7,12 @@ RUN npm install
 
 COPY . .
 
+# Variabile d'ambiente per il build di Next.js
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD [\"npm\", \"start\"]

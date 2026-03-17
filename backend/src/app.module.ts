@@ -53,7 +53,7 @@ import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
         InventoryMovement,
         SalesPractice
       ],
-      synchronize: process.env.NODE_ENV === 'development',
+      synchronize:  process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
     }),
 

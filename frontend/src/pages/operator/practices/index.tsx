@@ -11,7 +11,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
@@ -51,7 +51,7 @@ export default function PracticesList() {
 
   const fetchPractices = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/practices', {
+      const response = await api.get('/practices', {
         headers: { Authorization: `Bearer ${token}` }
       });
       

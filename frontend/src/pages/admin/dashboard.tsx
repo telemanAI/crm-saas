@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/lib/api';
@@ -20,7 +20,7 @@ export default function AdminDashboard() {
   const fetchTenants = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/tenants', {
+      const res = await fetch('/tenants', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Errore nel caricamento');
@@ -33,7 +33,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ ENTRA NEL CRM DEL NEGOZIO
+  // ? ENTRA NEL CRM DEL NEGOZIO
   const enterTenantCRM = async (tenantId: string) => {
     try {
       const response = await authApi.impersonate(tenantId);

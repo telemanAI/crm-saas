@@ -12,7 +12,7 @@ import {
   ArrowLeft
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
-import axios from 'axios';
+import api from '@/lib/axios';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -53,7 +53,7 @@ export default function Register() {
 
     try {
       // ✅ FIX: Aggiunto confirmPassword nella richiesta
-      const response = await axios.post('http://localhost:3001/api/auth/register', {
+      const response = await api.post('/auth/register', {
         name: formData.name,
         email: formData.email,
         password: formData.password,

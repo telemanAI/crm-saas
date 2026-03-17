@@ -11,7 +11,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
@@ -33,7 +33,7 @@ export default function NewCustomer() {
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:3001/api/customers', formData, {
+      await api.post('/customers', formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

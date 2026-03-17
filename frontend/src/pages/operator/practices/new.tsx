@@ -21,7 +21,7 @@ import {
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import { usePracticeWizardStore } from '@/stores/practiceWizardStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
 const validateFiscalCode = (cf: string): boolean => {
@@ -87,7 +87,7 @@ function OperatorsDropdown({ label, value, onChange }: { label: string; value?: 
   useEffect(() => {
     const fetchOperators = async () => {
       try {
-        const response = await axios.get('http://localhost:3001/api/users/operators', {
+        const response = await api.get('/users/operators', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setOperators(response.data);
@@ -223,7 +223,7 @@ export default function NewPractice() {
       }
       
       try {
-        const response = await axios.get(`http://localhost:3001/api/customers/search/by-fiscal-code?code=${cf}`, {
+        const response = await api.get(`/customers/search/by-fiscal-code?code=${cf}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCfOldLineSuggestions(response.data || []);
@@ -266,7 +266,7 @@ export default function NewPractice() {
 
   const loadPracticeData = async (id: string) => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/practices/${id}`, {
+      const response = await api.get(`/practices/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -342,7 +342,7 @@ export default function NewPractice() {
       
       setIsSearchingCf(true);
       try {
-        const response = await axios.get(`http://localhost:3001/api/customers/search/by-fiscal-code?code=${data.fiscalCode}`, {
+        const response = await api.get(`/customers/search/by-fiscal-code?code=${data.fiscalCode}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setCfSuggestions(response.data);
@@ -372,7 +372,7 @@ export default function NewPractice() {
       
       setIsSearchingPhone(true);
       try {
-        const response = await axios.get(`http://localhost:3001/api/customers/search/by-phone?q=${data.phone}`, {
+        const response = await api.get(`/customers/search/by-phone?q=${data.phone}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setPhoneSuggestions(response.data);
@@ -402,7 +402,7 @@ export default function NewPractice() {
       
       setIsSearchingName(true);
       try {
-        const response = await axios.get(`http://localhost:3001/api/customers/search/by-name?q=${searchTerm}`, {
+        const response = await api.get(`/customers/search/by-name?q=${searchTerm}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setNameSuggestions(response.data);
@@ -439,7 +439,7 @@ export default function NewPractice() {
   const saveStep = async (stepNumber: number) => {
     try {
       if (stepNumber === 1 && !practiceId) {
-        const response = await axios.post('http://localhost:3001/api/practices', {
+        const response = await api.post('/practices', {
           type: data.type,
           offerCode: data.offerCode,
           offerName: data.offerName,
@@ -473,7 +473,7 @@ export default function NewPractice() {
         return response.data.id;
       } else if (practiceId) {
         const stepData = getStepData(stepNumber);
-        await axios.put(`http://localhost:3001/api/practices/${practiceId}/step`, {
+        await api.put(`/practices/${practiceId}/step`, {
           stepNumber: stepNumber,
           data: stepData
         }, {
@@ -553,14 +553,14 @@ export default function NewPractice() {
     
     setLoading(true);
     try {
-      await axios.put(`http://localhost:3001/api/practices/${practiceId}/step`, {
+      await api.put(`/practices/${practiceId}/step`, {
         stepNumber: 9,
         data: { completed: true }
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      await axios.post(`http://localhost:3001/api/practices/${practiceId}/force-complete`, {}, {
+      await api.post(`/practices/${practiceId}/force-complete`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

@@ -9,7 +9,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import { Layout } from '@/components/layout/Layout';
 
 interface Customer {
@@ -36,7 +36,7 @@ export default function Anagrafica() {
 
   const fetchCustomers = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/customers', {
+      const response = await api.get('/customers', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCustomers(response.data);

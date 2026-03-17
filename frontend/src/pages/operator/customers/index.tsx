@@ -10,7 +10,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import axios from 'axios';
+import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
@@ -39,7 +39,7 @@ export default function CustomersList() {
 
   const fetchCustomers = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/customers', {
+      const response = await api.get('/customers', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCustomers(response.data);
@@ -55,7 +55,7 @@ export default function CustomersList() {
     
     setDeleteLoading(customerId);
     try {
-      await axios.delete(`http://localhost:3001/api/customers/${customerId}`, {
+      await api.delete(`/customers/${customerId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchCustomers(); // Ricarica la lista

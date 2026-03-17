@@ -1,5 +1,4 @@
-import api from '@/lib/axios';
-
+import axios from 'axios';
 // API URL configurabile via environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 

@@ -47,6 +47,12 @@ interface PracticeData {
   appointmentOraFine?: string;
   appointmentAccordi?: string;
   appointmentLavorazioni?: string;
+  ragioneSociale?: string;
+partitaIva?: string;
+formaGiuridica?: string;
+sedeLegale?: string;
+codiceRea?: string;
+pec?: string;
 }
 
 interface PracticeWizardState {

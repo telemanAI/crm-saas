@@ -286,7 +286,7 @@ export default function NewPractice() {
         phone: practice.customerSnapshot?.phonePrimary || practice.customerSnapshot?.phone,
         email: practice.customerSnapshot?.email,
         notes: practice.notes,
-		  offerCanone: practice.offerCanone,
+        offerCanone: practice.offerCanone,
         offerAttivazione: practice.offerAttivazione,
         offerVincolo: practice.offerVincolo,
         offerNote: practice.offerNote,
@@ -314,7 +314,19 @@ export default function NewPractice() {
         appointmentOraFine: practice.appointmentData?.oraFine,
         appointmentAccordi: practice.appointmentData?.accordi,
         appointmentLavorazioni: practice.appointmentData?.lavorazioniPost,
+        // Business fields
+        ragioneSociale: practice.customerSnapshot?.ragioneSociale,
+        partitaIva: practice.customerSnapshot?.partitaIva,
+        formaGiuridica: practice.customerSnapshot?.formaGiuridica,
+        sedeLegale: practice.customerSnapshot?.sedeLegale,
+        codiceRea: practice.customerSnapshot?.codiceRea,
+        pec: practice.customerSnapshot?.pec,
       });
+      
+      // Restore business filter state based on offer type
+      if (practice.offerType === 'business') {
+        setShowBusinessOnly(true);
+      }
       
       const stepsFromBackend = practice.completedSteps || [];
       setCompletedSteps(stepsFromBackend);
@@ -443,7 +455,7 @@ export default function NewPractice() {
           type: data.type,
           offerCode: data.offerCode,
           offerName: data.offerName,
-		  offerCanone: data.offerCanone,
+          offerCanone: data.offerCanone,
           offerAttivazione: data.offerAttivazione,
           offerVincolo: data.offerVincolo,
           offerNote: data.offerNote,
@@ -460,6 +472,13 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode || '',
             phone: data.phone || '',
             email: data.email || '',
+            // Include business fields if present
+            ragioneSociale: data.ragioneSociale,
+            partitaIva: data.partitaIva,
+            formaGiuridica: data.formaGiuridica,
+            sedeLegale: data.sedeLegale,
+            codiceRea: data.codiceRea,
+            pec: data.pec,
           }
         }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -497,7 +516,23 @@ export default function NewPractice() {
   const getStepData = (stepNumber: number) => {
     switch (stepNumber) {
       case 2: return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
-      case 3: return { customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email }, notes: data.notes };
+      case 3: return { 
+        customerData: { 
+          firstName: data.firstName, 
+          lastName: data.lastName, 
+          fiscalCode: data.fiscalCode, 
+          phone: data.phone, 
+          email: data.email,
+          // Business fields
+          ragioneSociale: data.ragioneSociale,
+          partitaIva: data.partitaIva,
+          formaGiuridica: data.formaGiuridica,
+          sedeLegale: data.sedeLegale,
+          codiceRea: data.codiceRea,
+          pec: data.pec,
+        }, 
+        notes: data.notes 
+      };
       case 4: return { lineType: data.lineType, installationAddress: data.installationAddress, technology: data.technology, notes: data.newLineNotes };
       case 5: return { 
         oldLineData: data.lineType === 'MIGRAZIONE' ? { 
@@ -579,7 +614,18 @@ export default function NewPractice() {
     switch (stepId) {
       case 1: return data.type && data.offerCode && data.offerName;
       case 2: return data.soldById && data.enteredById && validateUUID(data.soldById) && validateUUID(data.enteredById);
-      case 3: return data.firstName && data.lastName && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone && validatePhone(data.phone);
+      case 3: {
+        // Base validation for all customers
+        const baseValid = data.firstName && data.lastName && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone && validatePhone(data.phone);
+        if (!baseValid) return false;
+        
+        // Additional validation for business customers
+        if (showBusinessOnly || data.offerType === 'business') {
+          return !!(data.ragioneSociale && data.partitaIva && data.formaGiuridica && data.sedeLegale && data.pec);
+        }
+        
+        return true;
+      }
       case 4: return data.lineType && data.installationAddress?.street && data.technology;
       case 5: return data.lineType === 'NUOVA' || (data.oldPhoneNumber && data.migrationCode && (data.gestore || data.gestoreAltro));
       case 6: return data.iban || data.postePay || data.bollettino;
@@ -679,7 +725,7 @@ export default function NewPractice() {
                       className="border-t border-slate-800"
                     >
                       <div className="p-6">
-                                               {step.id === 1 && (
+                        {step.id === 1 && (
                           <div className="space-y-6">
                             {/* Toggle Business */}
                             <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
@@ -756,10 +802,10 @@ export default function NewPractice() {
                                         });
                                       }}
                                       disabled={!hasOffers}
-                                    className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-  isSelected 
-    ? 'border-cyan-500 bg-cyan-600/20 text-cyan-400' 
-    : hasOffers
+                                      className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                        isSelected 
+                                          ? 'border-cyan-500 bg-cyan-600/20 text-cyan-400' 
+                                          : hasOffers
                                             ? 'border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800'
                                             : 'border-slate-800 text-slate-600 opacity-50 cursor-not-allowed'
                                       }`}
@@ -782,7 +828,7 @@ export default function NewPractice() {
                                   <select
                                     value={data.offerCode || ''}
                                     onChange={(e) => {
-										if (!data.type) return;
+                                      if (!data.type) return;
                                       const providerName = {
                                         'TIM_FIBRA': 'TIM',
                                         'VODAFONE': 'Vodafone',
@@ -1037,6 +1083,102 @@ export default function NewPractice() {
                                 placeholder="email@esempio.com"
                               />
                             </div>
+
+                            {/* Campi Business - visibili solo se showBusinessOnly è attivo */}
+                            {(showBusinessOnly || data.offerType === 'business') && (
+                              <>
+                                <div className="border-t border-slate-700 pt-4 mt-4">
+                                  <h4 className="text-sm font-semibold text-indigo-400 mb-4">Dati Aziendali</h4>
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Ragione Sociale <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input 
+                                    type="text" 
+                                    value={data.ragioneSociale || ''} 
+                                    onChange={(e) => setData({ ragioneSociale: e.target.value })} 
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                    placeholder="Nome Azienda Srl"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                                      Partita IVA <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      value={data.partitaIva || ''} 
+                                      onChange={(e) => setData({ partitaIva: e.target.value.toUpperCase().slice(0, 11) })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="12345678901"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                                      Forma Giuridica <span className="text-rose-500">*</span>
+                                    </label>
+                                    <select 
+                                      value={data.formaGiuridica || ''} 
+                                      onChange={(e) => setData({ formaGiuridica: e.target.value })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                    >
+                                      <option value="">-- Seleziona --</option>
+                                      <option value="SRL">Srl</option>
+                                      <option value="SRLS">Srls</option>
+                                      <option value="SPA">Spa</option>
+                                      <option value="SAS">Sas</option>
+                                      <option value="SNC">Snc</option>
+                                      <option value="DITTA_INDIVIDUALE">Ditta Individuale</option>
+                                      <option value="ALTRO">Altro</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Sede Legale <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input 
+                                    type="text" 
+                                    value={data.sedeLegale || ''} 
+                                    onChange={(e) => setData({ sedeLegale: e.target.value })} 
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                    placeholder="Via Roma 1, 00100 Roma (RM)"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                                      Codice REA
+                                    </label>
+                                    <input 
+                                      type="text" 
+                                      value={data.codiceRea || ''} 
+                                      onChange={(e) => setData({ codiceRea: e.target.value })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="RM-123456"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                                      PEC <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input 
+                                      type="email" 
+                                      value={data.pec || ''} 
+                                      onChange={(e) => setData({ pec: e.target.value })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="azienda@pec.it"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -1059,21 +1201,21 @@ export default function NewPractice() {
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Tecnologia</label>
-                              <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">Note Nuova Linea</label>
-                                <textarea
-                                  value={data.newLineNotes || ''}
-                                  onChange={(e) => setData({ newLineNotes: e.target.value })}
-                                  rows={3}
-                                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                                  placeholder="Note aggiuntive..."
-                                />
-                              </div>
                               <div className="flex gap-2">
                                 {['FTTH', 'FTTC', 'FWA'].map((tech) => (
                                   <button key={tech} onClick={() => setData({ technology: tech as any })} className={`px-4 py-2 rounded-xl border transition-all ${data.technology === tech ? 'border-indigo-500 bg-indigo-600/10 text-indigo-400' : 'border-slate-700 text-slate-400'}`}>{tech}</button>
                                 ))}
                               </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-300 mb-2">Note Nuova Linea</label>
+                              <textarea
+                                value={data.newLineNotes || ''}
+                                onChange={(e) => setData({ newLineNotes: e.target.value })}
+                                rows={3}
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                placeholder="Note aggiuntive..."
+                              />
                             </div>
                           </div>
                         )}
@@ -1337,7 +1479,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                                            {isLastStep(step.id) && (
+                        {isLastStep(step.id) && (
                           <div className="space-y-4">
                             {/* Dettaglio Offerta Selezionata */}
                             {data.offerName && (

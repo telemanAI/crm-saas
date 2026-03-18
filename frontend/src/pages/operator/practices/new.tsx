@@ -1100,7 +1100,7 @@ export default function NewPractice() {
                                     value={data.ragioneSociale || ''} 
                                     onChange={(e) => setData({ ragioneSociale: e.target.value })} 
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
-                                    placeholder="Nome Azienda Srl"
+                                    placeholder="Nome Azienda"
                                   />
                                 </div>
 

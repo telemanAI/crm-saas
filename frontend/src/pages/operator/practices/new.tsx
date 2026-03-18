@@ -724,13 +724,13 @@ export default function NewPractice() {
                               <label className="block text-sm font-medium text-slate-300 mb-3">Seleziona Gestore</label>
                               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                                 {[
-                                  { key: 'TIM_FIBRA', name: 'TIM', color: 'blue', icon: '📡' },
-                                  { key: 'VODAFONE', name: 'Vodafone', color: 'rose', icon: '📶' },
-                                  { key: 'WINDTRE', name: 'WindTre', color: 'orange', icon: '🌐' },
-                                  { key: 'ILIAD', name: 'Iliad', color: 'red', icon: '📱' },
-                                  { key: 'OPTIMA', name: 'Optima', color: 'emerald', icon: '⚡' },
-                                  { key: 'IREN', name: 'Iren', color: 'amber', icon: '🔌' },
-                                  { key: 'SKY', name: 'SKY', color: 'cyan', icon: '📺' },
+                                  { key: 'TIM_FIBRA', name: 'TIM', logo: '/logos/tim.png' },
+                                  { key: 'VODAFONE', name: 'Vodafone', logo: '/logos/vodafone.png' },
+                                  { key: 'WINDTRE', name: 'WindTre', logo: '/logos/windtre.png' },
+                                  { key: 'ILIAD', name: 'Iliad', logo: '/logos/iliad.png' },
+                                  { key: 'OPTIMA', name: 'Optima', logo: '/logos/optima.png' },
+                                  { key: 'IREN', name: 'Iren', logo: '/logos/iren.png' },
+                                  { key: 'SKY', name: 'SKY', logo: '/logos/sky.png' },
                                 ].map((provider) => {
                                   const isSelected = data.type === provider.key;
                                   const hasOffers = offersCatalog[provider.name as keyof typeof offersCatalog]?.some(o => 
@@ -756,15 +756,15 @@ export default function NewPractice() {
                                         });
                                       }}
                                       disabled={!hasOffers}
-                                      className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                        isSelected 
-                                          ? `border-${provider.color}-500 bg-${provider.color}-600/20 text-${provider.color}-400` 
-                                          : hasOffers
+                                    className={`p-4 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+  isSelected 
+    ? 'border-cyan-500 bg-cyan-600/20 text-cyan-400' 
+    : hasOffers
                                             ? 'border-slate-700 text-slate-400 hover:border-slate-600 hover:bg-slate-800'
                                             : 'border-slate-800 text-slate-600 opacity-50 cursor-not-allowed'
                                       }`}
                                     >
-                                      <span className="text-2xl">{provider.icon}</span>
+                                      <img src={provider.logo} alt={provider.name} className="w-12 h-12 object-contain" />
                                       <span className="font-bold text-sm text-center leading-tight">{provider.name}</span>
                                     </button>
                                   );
@@ -824,7 +824,7 @@ export default function NewPractice() {
                                     }[data.type] as keyof typeof offersCatalog]
                                       ?.filter(o => showBusinessOnly ? o.type === 'business' : o.type === 'consumer')
                                       ?.map((offer) => (
-                                        <option key={offer.name} value={offer.name}>{offer.name}</option>
+                                        <option key={offer.name} value={offer.name}>{offer.name} - {offer.canone}/mese</option>
                                       ))}
                                   </select>
                                 </div>

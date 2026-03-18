@@ -137,7 +137,7 @@ export default function Login() {
             <span className={`text-sm ${isSuperAdmin ? 'text-amber-400' : 'text-slate-400'}`}>
               {isSuperAdmin 
                 ? 'Modalità SuperAdmin - Nessun codice negozio richiesto' 
-                : 'Modalità Utente - Inserisci il codice negozio'}
+                : 'Bentornato'}
             </span>
           </div>
 
@@ -213,7 +213,7 @@ export default function Login() {
                         required: !isSuperAdmin ? 'Codice negozio obbligatorio' : false
                       })}
                       className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-                      placeholder="ES: NEG001"
+                      placeholder="ES: 12345"
                     />
                   </div>
                   {errors.subscriptionCode && (
@@ -279,7 +279,7 @@ export default function Login() {
           transition={{ delay: 0.3 }}
           className="text-center text-slate-500 text-sm mt-8"
         >
-          CRM Telecom © 2024 - Tutti i diritti riservati
+          TELEMANAI © 2026 - Tutti i diritti riservati
         </motion.p>
       </div>
     </div>

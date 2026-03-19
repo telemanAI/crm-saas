@@ -99,6 +99,25 @@ export class AdminTenantsController {
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.tenantsService.softDeleteTenant(id);
   }
+  /**
+   * Riattiva negozio disattivato
+   * PUT /api/admin/tenants/:id/reactivate
+   */
+  @Put(':id/reactivate')
+  @HttpCode(HttpStatus.OK)
+  async reactivate(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tenantsService.reactivateTenant(id);
+  }
+
+  /**
+   * Elimina definitivamente negozio (hard delete)
+   * DELETE /api/admin/tenants/:id/permanent
+   */
+  @Delete(':id/permanent')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async hardDelete(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tenantsService.hardDeleteTenant(id);
+  }
 
   /**
    * Lista utenti di un specifico negozio

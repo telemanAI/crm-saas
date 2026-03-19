@@ -72,6 +72,18 @@ export class TenantsService {
     tenant.isActive = false;
     return this.tenantsRepository.save(tenant);
   }
+   // Riattiva un tenant disattivato
+  async reactivateTenant(id: string): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    tenant.isActive = true;
+    return this.tenantsRepository.save(tenant);
+  }
+
+  // Elimina definitivamente un tenant (hard delete)
+  async hardDeleteTenant(id: string): Promise<void> {
+    const tenant = await this.findById(id);
+    await this.tenantsRepository.remove(tenant);
+  }
 
   async getTenantUsers(id: string, page: number, limit: number): Promise<any> {
     return { data: [], total: 0, page, limit };

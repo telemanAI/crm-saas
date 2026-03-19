@@ -46,14 +46,38 @@ export default function AdminDashboard() {
     }
   };
 
-  const deleteTenant = async (tenantId: string, tenantName: string) => {
-    if (!confirm(`Sei sicuro di voler eliminare "${tenantName}"? Questa azione è irreversibile.`)) {
+ // Disattiva/Riattiva negozio (soft)
+  const toggleTenantStatus = async (tenantId: string, tenantName: string, isActive: boolean) => {
+    const action = isActive ? 'disattivare' : 'riattivare';
+    if (!confirm(`Sei sicuro di voler ${action} "${tenantName}"?`)) {
       return;
     }
     
     try {
-      await api.delete(`/admin/tenants/${tenantId}`);
-      alert('Negozio eliminato con successo');
+      if (isActive) {
+        await api.delete(`/admin/tenants/${tenantId}`);
+      } else {
+        await api.put(`/admin/tenants/${tenantId}/reactivate`);
+      }
+      fetchTenants();
+    } catch (error: any) {
+      console.error('Errore:', error);
+      alert(error.response?.data?.message || 'Errore durante l\'operazione');
+    }
+  };
+
+  // Elimina definitivamente (hard delete)
+  const hardDeleteTenant = async (tenantId: string, tenantName: string) => {
+    if (!confirm(`⚠️ ATTENZIONE: Stai per ELIMINARE DEFINITIVAMENTE "${tenantName}".\n\nTutti i dati verranno persi!\n\nSei sicuro?`)) {
+      return;
+    }
+    if (!confirm(`CONFERMA FINALE: Scrivi SI per eliminare definitivamente "${tenantName}"`)) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/admin/tenants/${tenantId}/permanent`);
+      alert('Negozio eliminato definitivamente');
       fetchTenants();
     } catch (error: any) {
       console.error('Errore eliminazione:', error);
@@ -104,20 +128,26 @@ export default function AdminDashboard() {
                       {tenant.isActive ? 'Attivo' : 'Disattivato'}
                     </span>
                   </td>
-                  <td className="p-4 flex gap-3">
-                    <button 
-                      onClick={() => enterTenantCRM(tenant.id)} 
-                      className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
-                    >
-                      Entra nel CRM
-                    </button>
-                    <button 
-                      onClick={() => deleteTenant(tenant.id, tenant.name)} 
-                      className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
-                    >
-                      Elimina
-                    </button>
-                  </td>
+                 <td className="p-4 flex gap-3">
+  <button 
+    onClick={() => enterTenantCRM(tenant.id)} 
+    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+  >
+    Entra nel CRM
+  </button>
+  <button 
+    onClick={() => toggleTenantStatus(tenant.id, tenant.name, tenant.isActive)} 
+    className={`${tenant.isActive ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'} text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg`}
+  >
+    {tenant.isActive ? 'Disattiva' : 'Riattiva'}
+  </button>
+  <button 
+    onClick={() => hardDeleteTenant(tenant.id, tenant.name)} 
+    className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+  >
+    Elimina
+  </button>
+</td>
                 </tr>
               ))}
             </tbody>

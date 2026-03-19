@@ -213,6 +213,7 @@ export default function NewPractice() {
   const [isSearchingName, setIsSearchingName] = useState(false);
   const [cfOldLineSuggestions, setCfOldLineSuggestions] = useState<CustomerSuggestion[]>([]);
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
+  const [dbOffers, setDbOffers] = useState<Record<string, any[]> | null>(null);
   
   useEffect(() => {
     const searchOldLineCF = async () => {
@@ -237,7 +238,21 @@ export default function NewPractice() {
   }, [data.fiscalCodeOldLine, token, data.fiscalCode]);
   
   const [blockSearch, setBlockSearch] = useState(false);
+// Carica offerte dal database
+  useEffect(() => {
+    const loadOffers = async () => {
+      try {
+        const response = await api.get('/offers/grouped');
+        setDbOffers(response.data);
+      } catch (err) {
+        console.log('Fallback a offerte locali');
+      }
+    };
+    loadOffers();
+  }, []);
 
+  // Usa offerte DB se disponibili, altrimenti fallback a hardcoded
+  const activeOffersCatalog = dbOffers || offersCatalog;
   const totalSteps = 9;
   const isLastStep = (stepId: number) => stepId === totalSteps;
 
@@ -779,7 +794,7 @@ export default function NewPractice() {
                                   { key: 'SKY', name: 'SKY', logo: '/logos/sky.png' },
                                 ].map((provider) => {
                                   const isSelected = data.type === provider.key;
-                                  const hasOffers = offersCatalog[provider.name as keyof typeof offersCatalog]?.some(o => 
+                                  const hasOffers = activeOffersCatalog[provider.name as keyof typeof activeOffersCatalog]?.some(o => 
                                     showBusinessOnly ? o.type === 'business' : o.type === 'consumer'
                                   );
                                   
@@ -839,7 +854,7 @@ export default function NewPractice() {
                                         'SKY': 'SKY'
                                       }[data.type];
                                       
-                                      const selectedOffer = offersCatalog[providerName as keyof typeof offersCatalog]
+                                      const selectedOffer = activeOffersCatalog[providerName as keyof typeof activeOffersCatalog]
                                         ?.find(o => o.name === e.target.value);
                                       
                                       if (selectedOffer) {
@@ -859,7 +874,7 @@ export default function NewPractice() {
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                                   >
                                     <option value="">-- Seleziona offerta --</option>
-                                    {offersCatalog[{
+                                    {activeOffersCatalog[{
                                       'TIM_FIBRA': 'TIM',
                                       'VODAFONE': 'Vodafone',
                                       'WINDTRE': 'WindTre',
@@ -867,7 +882,7 @@ export default function NewPractice() {
                                       'OPTIMA': 'Optima',
                                       'IREN': 'Iren',
                                       'SKY': 'SKY'
-                                    }[data.type] as keyof typeof offersCatalog]
+                                   }[data.type] as keyof typeof activeOffersCatalog]
                                       ?.filter(o => showBusinessOnly ? o.type === 'business' : o.type === 'consumer')
                                       ?.map((offer) => (
                                         <option key={offer.name} value={offer.name}>{offer.name} - {offer.canone}/mese</option>

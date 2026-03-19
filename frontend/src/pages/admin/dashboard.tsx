@@ -46,7 +46,8 @@ export default function AdminDashboard() {
       alert(error.message || 'Errore durante l\'accesso al CRM');
     }
   };
-// 🗑️ ELIMINA NEGOZIO
+
+  // 🗑️ ELIMINA NEGOZIO
   const deleteTenant = async (tenantId: string, tenantName: string) => {
     if (!confirm(`Sei sicuro di voler eliminare "${tenantName}"? Questa azione è irreversibile.`)) {
       return;
@@ -61,54 +62,65 @@ export default function AdminDashboard() {
       alert(error.response?.data?.message || 'Errore durante l\'eliminazione');
     }
   };
-  if (loading) return <div className="p-8">Caricamento...</div>;
+
+  if (loading) return <div className="p-8 text-white">Caricamento...</div>;
 
   return (
     <div className="p-8 bg-gray-900 text-white min-h-screen">
-      <h1 className="text-2xl font-bold mb-6">Super Admin Dashboard</h1>
-	  <div className="flex gap-4 mb-6">
-          <Link href="/admin/offers" className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded">
-            📋 Gestione Offerte
-          </Link>
-        </div>
-      <p className="mb-4">Benvenuto, {user?.firstName} {user?.lastName}</p>
+      <h1 className="text-2xl font-bold mb-6 text-white">Super Admin Dashboard</h1>
+      <div className="flex gap-4 mb-6">
+        <Link href="/admin/offers" className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white">
+          📋 Gestione Offerte
+        </Link>
+      </div>
+      <p className="mb-4 text-gray-200">Benvenuto, {user?.firstName} {user?.lastName}</p>
       
       {tenants.length === 0 ? (
-        <p>Nessun negozio registrato.</p>
+        <p className="text-gray-300">Nessun negozio registrato.</p>
       ) : (
-        <table className="w-full border border-gray-700">
-          <thead className="bg-gray-800">
-            <tr>
-              <th className="p-2 text-left">Negozio</th>
-              <th className="p-2 text-left">Codice</th>
-              <th className="p-2 text-left">Stato</th>
-              <th className="p-2 text-left">Azioni</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tenants.map((tenant: any) => (
-              <tr key={tenant.id} className="border-b border-gray-700">
-                <td className="p-2">{tenant.name}</td>
-                <td className="p-2">{tenant.subscriptionCode}</td>
-                <td className="p-2">{tenant.isActive ? 'Attivo' : 'Disattivato'}</td>
-<td className="p-2 flex gap-2">
-                  <button 
-                    onClick={() => enterTenantCRM(tenant.id)} 
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded transition-colors"
-                  >
-                    Entra nel CRM
-                  </button>
-                  <button 
-                    onClick={() => deleteTenant(tenant.id, tenant.name)} 
-                    className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded transition-colors"
-                  >
-                    Elimina
-                  </button>
-                </td>
+        <div className="overflow-x-auto rounded-lg border border-gray-700">
+          <table className="w-full border-collapse">
+            <thead className="bg-gray-800">
+              <tr>
+                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Negozio</th>
+                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Codice</th>
+                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Stato</th>
+                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Azioni</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-gray-900">
+              {tenants.map((tenant: any) => (
+                <tr key={tenant.id} className="border-b border-gray-700 hover:bg-gray-800 transition-colors">
+                  <td className="p-3 text-gray-100 font-medium">{tenant.name}</td>
+                  <td className="p-3 text-gray-300 font-mono text-sm">{tenant.subscriptionCode}</td>
+                  <td className="p-3">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                      tenant.isActive 
+                        ? 'bg-green-900 text-green-200 border border-green-700' 
+                        : 'bg-red-900 text-red-200 border border-red-700'
+                    }`}>
+                      {tenant.isActive ? 'Attivo' : 'Disattivato'}
+                    </span>
+                  </td>
+                  <td className="p-3 flex gap-2">
+                    <button 
+                      onClick={() => enterTenantCRM(tenant.id)} 
+                      className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition-colors text-sm font-medium"
+                    >
+                      Entra nel CRM
+                    </button>
+                    <button 
+                      onClick={() => deleteTenant(tenant.id, tenant.name)} 
+                      className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded transition-colors text-sm font-medium"
+                    >
+                      Elimina
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

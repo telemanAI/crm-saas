@@ -9,8 +9,7 @@ import {
   ArrowRight,
   Eye,
   EyeSlash,
-  Warning,
-  Crown
+  Warning
 } from 'phosphor-react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/authStore';
@@ -28,15 +27,12 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSuperAdminMode, setIsSuperAdminMode] = useState(false);
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
-    clearErrors
   } = useForm<LoginForm>();
 
   const onSubmit = async (data: LoginForm) => {
@@ -44,11 +40,8 @@ export default function Login() {
     setError(null);
 
     try {
-      // Il backend riconosce automaticamente il super admin dal codice
-      // Se in modalità super admin, passiamo stringa vuota o un codice speciale
-      const code = isSuperAdminMode ? data.subscriptionCode || 'SUPER_ADMIN' : data.subscriptionCode;
-      
-      const result = await authApi.login(data.email, data.password, code);
+      // Il backend riconosce automaticamente il super admin dal codice (9 cifre vs 5 cifre)
+      const result = await authApi.login(data.email, data.password, data.subscriptionCode);
 
       const { user, access_token } = result;
 
@@ -59,7 +52,7 @@ export default function Login() {
       // Store auth data
       setAuth(user, access_token);
 
-      // Redirect based on role
+      // Redirect based on role - gestito automaticamente dal backend
       if (user.role === 'SUPER_ADMIN') {
         router.push('/admin/dashboard');
       } else {
@@ -96,27 +89,6 @@ export default function Login() {
         >
           <div className="text-center mb-6">
             <span className="text-sm text-slate-400">Bentornato</span>
-          </div>
-
-          {/* Toggle Super Admin */}
-          <div className="mb-6 p-3 bg-slate-800/30 border border-slate-700/50 rounded-xl">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isSuperAdminMode}
-                onChange={(e) => {
-                  setIsSuperAdminMode(e.target.checked);
-                  clearErrors('subscriptionCode');
-                }}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-indigo-500 focus:ring-indigo-500/50"
-              />
-              <div className="flex items-center gap-2">
-                <Crown className={`w-4 h-4 ${isSuperAdminMode ? 'text-amber-400' : 'text-slate-500'}`} />
-                <span className={`text-sm font-medium ${isSuperAdminMode ? 'text-amber-400' : 'text-slate-400'}`}>
-                  Accedi come Super Admin
-                </span>
-              </div>
-            </label>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -173,31 +145,22 @@ export default function Login() {
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                {isSuperAdminMode ? 'Codice Super Admin' : 'Codice Negozio'} 
-                {!isSuperAdminMode && <span className="text-red-400">*</span>}
+                Codice Negozio <span className="text-red-400">*</span>
               </label>
               <div className="relative">
-                <Buildings className={`absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 ${isSuperAdminMode ? 'text-amber-500' : 'text-slate-500'}`} />
+                <Buildings className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                 <input
                   type="text"
+                  inputMode="numeric"
                   {...register('subscriptionCode', { 
-                    required: !isSuperAdminMode ? 'Codice negozio obbligatorio' : false
+                    required: 'Codice negozio obbligatorio'
                   })}
-                  className={`w-full pl-10 pr-4 py-3 bg-slate-800/50 border rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 transition-all ${
-                    isSuperAdminMode 
-                      ? 'border-amber-500/30 focus:border-amber-500 focus:ring-amber-500/50' 
-                      : 'border-slate-700 focus:border-indigo-500 focus:ring-indigo-500/50'
-                  }`}
-                  placeholder={isSuperAdminMode ? "Codice admin (opzionale)" : "ES: 12345"}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
+                  placeholder="ES: 12345"
                 />
               </div>
               {errors.subscriptionCode && (
                 <p className="mt-1 text-sm text-red-400">{errors.subscriptionCode.message}</p>
-              )}
-              {isSuperAdminMode && (
-                <p className="mt-1 text-xs text-slate-500">
-                  I super admin possono accedere senza codice negozio specifico
-                </p>
               )}
             </div>
 
@@ -220,11 +183,7 @@ export default function Login() {
               disabled={isLoading}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className={`w-full flex items-center justify-center gap-2 py-3 px-4 font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                isSuperAdminMode
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white'
-                  : 'bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white'
-              }`}
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 text-white font-medium rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <motion.div
@@ -234,7 +193,7 @@ export default function Login() {
                 />
               ) : (
                 <>
-                  {isSuperAdminMode ? 'Accedi come Admin' : 'Accedi'}
+                  Accedi
                   <ArrowRight className="w-5 h-5" />
                 </>
               )}

@@ -12,6 +12,9 @@ import { CashModule } from './modules/cash/cash.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { StatsModule } from './modules/stats/stats.module'; // ✅ Mantenuto qui
+import { OffersModule } from './modules/offers/offers.module';
+import { Offer } from './modules/offers/entities/offer.entity';
+
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -51,7 +54,8 @@ import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
         CashTransaction,
         InventoryItem,
         InventoryMovement,
-        SalesPractice
+        SalesPractice,
+		Offer
       ],
       synchronize:  process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
@@ -74,6 +78,7 @@ import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
     InventoryModule,
     SalesModule,
     StatsModule, // ✅ AGGIUNTO QUI!
+	OffersModule,
   ],
 })
 export class AppModule {}

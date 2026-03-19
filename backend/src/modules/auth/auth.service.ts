@@ -29,7 +29,35 @@ export class AuthService {
     return result;
   }
 
-  async login(loginDto: LoginDto) {
+ async login(loginDto: LoginDto) {
+    // Check if it's super admin code
+    const SUPER_ADMIN_CODE = '847293516';
+    
+    if (loginDto.subscriptionCode === SUPER_ADMIN_CODE) {
+      // Super Admin login
+      const user = await this.validateSuperAdmin(loginDto.email, loginDto.password);
+      
+      const payload = {
+        email: user.email,
+        sub: user.id,
+        role: 'SUPER_ADMIN',
+        tenantId: null,
+        isSuperAdmin: true
+      };
+
+      return {
+        access_token: this.jwtService.sign(payload),
+        user: {
+          id: user.id,
+          email: user.email,
+          role: 'SUPER_ADMIN',
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+      };
+    }
+
+    // Normal tenant login
     const user = await this.validateUser(loginDto.email, loginDto.password, loginDto.subscriptionCode);
 
     const payload = {

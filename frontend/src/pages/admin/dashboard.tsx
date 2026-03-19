@@ -31,7 +31,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ? ENTRA NEL CRM DEL NEGOZIO
   const enterTenantCRM = async (tenantId: string) => {
     try {
       const response = await authApi.impersonate(tenantId);
@@ -47,7 +46,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // 🗑️ ELIMINA NEGOZIO
   const deleteTenant = async (tenantId: string, tenantName: string) => {
     if (!confirm(`Sei sicuro di voler eliminare "${tenantName}"? Questa azione è irreversibile.`)) {
       return;
@@ -56,62 +54,66 @@ export default function AdminDashboard() {
     try {
       await api.delete(`/admin/tenants/${tenantId}`);
       alert('Negozio eliminato con successo');
-      fetchTenants(); // Ricarica la lista
+      fetchTenants();
     } catch (error: any) {
       console.error('Errore eliminazione:', error);
       alert(error.response?.data?.message || 'Errore durante l\'eliminazione');
     }
   };
 
-  if (loading) return <div className="p-8 text-white">Caricamento...</div>;
+  if (loading) return <div className="p-8 text-white text-lg">Caricamento...</div>;
 
   return (
-    <div className="p-8 bg-gray-900 text-white min-h-screen">
-      <h1 className="text-2xl font-bold mb-6 text-white">Super Admin Dashboard</h1>
+    <div className="p-8 bg-gray-900 min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-white">Super Admin Dashboard</h1>
+      
       <div className="flex gap-4 mb-6">
-        <Link href="/admin/offers" className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white">
+        <Link href="/admin/offers" className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white font-medium transition-colors">
           📋 Gestione Offerte
         </Link>
       </div>
-      <p className="mb-4 text-gray-200">Benvenuto, {user?.firstName} {user?.lastName}</p>
+
+      <p className="mb-6 text-gray-200 text-lg">
+        Benvenuto, <span className="text-white font-semibold">{user?.firstName} {user?.lastName}</span>
+      </p>
       
       {tenants.length === 0 ? (
-        <p className="text-gray-300">Nessun negozio registrato.</p>
+        <p className="text-gray-300 text-lg">Nessun negozio registrato.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-700">
+        <div className="overflow-x-auto rounded-lg border border-gray-700 bg-gray-800 shadow-xl">
           <table className="w-full border-collapse">
-            <thead className="bg-gray-800">
-              <tr>
-                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Negozio</th>
-                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Codice</th>
-                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Stato</th>
-                <th className="p-3 text-left text-gray-100 font-semibold border-b border-gray-600">Azioni</th>
+            <thead>
+              <tr className="bg-gray-700 border-b border-gray-600">
+                <th className="p-4 text-left text-white font-bold uppercase text-sm tracking-wide">Negozio</th>
+                <th className="p-4 text-left text-white font-bold uppercase text-sm tracking-wide">Codice</th>
+                <th className="p-4 text-left text-white font-bold uppercase text-sm tracking-wide">Stato</th>
+                <th className="p-4 text-left text-white font-bold uppercase text-sm tracking-wide">Azioni</th>
               </tr>
             </thead>
-            <tbody className="bg-gray-900">
+            <tbody className="divide-y divide-gray-700">
               {tenants.map((tenant: any) => (
-                <tr key={tenant.id} className="border-b border-gray-700 hover:bg-gray-800 transition-colors">
-                  <td className="p-3 text-gray-100 font-medium">{tenant.name}</td>
-                  <td className="p-3 text-gray-300 font-mono text-sm">{tenant.subscriptionCode}</td>
-                  <td className="p-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                <tr key={tenant.id} className="hover:bg-gray-700/50 transition-colors bg-gray-800">
+                  <td className="p-4 text-white font-medium text-base">{tenant.name}</td>
+                  <td className="p-4 text-gray-300 font-mono text-sm">{tenant.subscriptionCode}</td>
+                  <td className="p-4">
+                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
                       tenant.isActive 
-                        ? 'bg-green-900 text-green-200 border border-green-700' 
-                        : 'bg-red-900 text-red-200 border border-red-700'
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-red-600 text-white'
                     }`}>
                       {tenant.isActive ? 'Attivo' : 'Disattivato'}
                     </span>
                   </td>
-                  <td className="p-3 flex gap-2">
+                  <td className="p-4 flex gap-3">
                     <button 
                       onClick={() => enterTenantCRM(tenant.id)} 
-                      className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded transition-colors text-sm font-medium"
+                      className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
                     >
                       Entra nel CRM
                     </button>
                     <button 
                       onClick={() => deleteTenant(tenant.id, tenant.name)} 
-                      className="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded transition-colors text-sm font-medium"
+                      className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
                     >
                       Elimina
                     </button>

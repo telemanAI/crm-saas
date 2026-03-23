@@ -116,4 +116,16 @@ export class TenantsService {
   async getTenantCustomers(id: string, page: number, limit: number): Promise<any> {
     return { data: [], total: 0, page, limit };
   }
+  async updateTenantConfig(id: string, config: { enableWashStep?: boolean; enableAdditionalPackages?: boolean }): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    
+    if (config.enableWashStep !== undefined) {
+      tenant.enableWashStep = config.enableWashStep;
+    }
+    if (config.enableAdditionalPackages !== undefined) {
+      tenant.enableAdditionalPackages = config.enableAdditionalPackages;
+    }
+    
+    return this.tenantsRepository.save(tenant);
+  }
 }

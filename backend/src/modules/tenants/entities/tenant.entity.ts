@@ -31,6 +31,12 @@ export class Tenant {
 
   @Column({ type: 'jsonb', default: {}, name: 'settings' })
   settings: any;
+  
+  @Column({ type: 'boolean', default: false, name: 'enable_wash_step' })
+  enableWashStep: boolean;
+
+  @Column({ type: 'boolean', default: true, name: 'enable_additional_packages' })
+  enableAdditionalPackages: boolean;
 
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;

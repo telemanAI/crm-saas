@@ -12,6 +12,9 @@ import {
   Phone,
   CreditCard,
   FileText,
+  Package,
+  TelevisionSimple,
+  Warning as WarningIcon,
   Eye,
   CheckCircle,
   Warning,
@@ -20,7 +23,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
-import { usePracticeWizardStore } from '@/stores/practiceWizardStore';
+import { usePracticeWizardStore, ADDITIONAL_PACKAGES } from '@/stores/practiceWizardStore';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
@@ -122,17 +125,51 @@ function OperatorsDropdown({ label, value, onChange }: { label: string; value?: 
   );
 }
 
-const steps = [
+// Step base
+const baseSteps = [
   { id: 1, title: 'Tipo & Offerta', icon: Buildings },
   { id: 2, title: 'Venditore', icon: User },
   { id: 3, title: 'Anagrafica Cliente', icon: User },
-  { id: 4, title: 'Nuova Linea', icon: MapPin },
-  { id: 5, title: 'Dati Vecchia Linea', icon: Phone },
-  { id: 6, title: 'Pagamento', icon: CreditCard },
-  { id: 7, title: 'Privacy', icon: FileText },
-  { id: 8, title: 'Appuntamento Installazione', icon: Calendar },
-  { id: 9, title: 'Riepilogo', icon: Eye },
 ];
+
+// Step aggiuntivi SKY TV
+const skyTvSteps = [
+  { id: 4, title: 'Pacchetti Aggiuntivi', icon: Package },
+  { id: 5, title: 'WASH', icon: TelevisionSimple },
+];
+
+// Step finali (rinumerati dinamicamente)
+const finalStepsBase = [
+  { id: 0, title: 'Nuova Linea', icon: MapPin },
+  { id: 0, title: 'Dati Vecchia Linea', icon: Phone },
+  { id: 0, title: 'Pagamento', icon: CreditCard },
+  { id: 0, title: 'Privacy', icon: FileText },
+  { id: 0, title: 'Appuntamento Installazione', icon: Calendar },
+  { id: 0, title: 'Riepilogo', icon: Eye },
+];
+
+// Funzione per generare steps dinamici
+const getSteps = (offerName: string | undefined, enableWashStep: boolean, enableAdditionalPackages: boolean) => {
+  const isSkyTv = offerName?.includes('SKY TV');
+  
+  let currentId = 4;
+  const dynamicSteps = [...baseSteps];
+  
+  if (isSkyTv && enableAdditionalPackages) {
+    dynamicSteps.push({ id: currentId++, title: 'Pacchetti Aggiuntivi', icon: Package });
+  }
+  
+  if (isSkyTv && enableWashStep) {
+    dynamicSteps.push({ id: currentId++, title: 'WASH', icon: TelevisionSimple });
+  }
+  
+  // Aggiungi step finali con ID corretto
+  finalStepsBase.forEach((step) => {
+    dynamicSteps.push({ ...step, id: currentId++ });
+  });
+  
+  return dynamicSteps;
+};
 
 const offersCatalog = {
   TIM: [
@@ -201,6 +238,7 @@ export default function NewPractice() {
   const [loading, setLoading] = useState(false);
   const [expandedStep, setExpandedStep] = useState(1);
   const [checkingDrafts, setCheckingDrafts] = useState(true);
+  const [blockSearch, setBlockSearch] = useState(false);
   
   const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
   const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
@@ -214,6 +252,27 @@ export default function NewPractice() {
   const [cfOldLineSuggestions, setCfOldLineSuggestions] = useState<CustomerSuggestion[]>([]);
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [dbOffers, setDbOffers] = useState<Record<string, any[]> | null>(null);
+  const [tenantConfig, setTenantConfig] = useState({ enableWashStep: false, enableAdditionalPackages: true });
+  
+  // Carica configurazione tenant
+  useEffect(() => {
+    const loadTenantConfig = async () => {
+      try {
+        const { user } = useAuthStore.getState();
+        if (user?.tenantId) {
+          const response = await api.get(`/tenants/${user.tenantId}/config`);
+          setTenantConfig(response.data);
+        }
+      } catch (err) {
+        console.log('Usando config default');
+      }
+    };
+    loadTenantConfig();
+  }, []);
+  
+  // Steps dinamici basati su offerta e config
+  const steps = getSteps(data.offerName, tenantConfig.enableWashStep, tenantConfig.enableAdditionalPackages);
+  const totalSteps = steps.length;
   
   useEffect(() => {
     const searchOldLineCF = async () => {
@@ -237,8 +296,7 @@ export default function NewPractice() {
     return () => clearTimeout(timeoutId);
   }, [data.fiscalCodeOldLine, token, data.fiscalCode]);
   
-  const [blockSearch, setBlockSearch] = useState(false);
-// Carica offerte dal database
+  // Carica offerte dal database
   useEffect(() => {
     const loadOffers = async () => {
       try {
@@ -253,7 +311,7 @@ export default function NewPractice() {
 
   // Usa offerte DB se disponibili, altrimenti fallback a hardcoded
   const activeOffersCatalog = dbOffers || offersCatalog;
-  const totalSteps = 9;
+ 
   const isLastStep = (stepId: number) => stepId === totalSteps;
 
   useEffect(() => {
@@ -626,6 +684,22 @@ export default function NewPractice() {
   };
 
   const isStepValid = (stepId: number) => {
+    // Check dynamic steps first (Pacchetti Aggiuntivi e WASH)
+    const packagesStep = steps.find(s => s.title === 'Pacchetti Aggiuntivi');
+    if (packagesStep && stepId === packagesStep.id) {
+      return data.additionalPackages?.selectedIds && data.additionalPackages.selectedIds.length > 0;
+    }
+    
+    const washStep = steps.find(s => s.title === 'WASH');
+    if (washStep && stepId === washStep.id) {
+      if (!data.washConfig?.type) return false;
+      if (data.washConfig.type === 'suspect') {
+        return data.washConfig.suspectData?.clientCode && data.washConfig.suspectData.clientCode.length >= 5;
+      }
+      return true;
+    }
+    
+    // Fixed steps validation
     switch (stepId) {
       case 1: return data.type && data.offerCode && data.offerName;
       case 2: return data.soldById && data.enteredById && validateUUID(data.soldById) && validateUUID(data.enteredById);
@@ -1193,6 +1267,209 @@ export default function NewPractice() {
                                   </div>
                                 </div>
                               </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Step Pacchetti Aggiuntivi - Solo per SKY TV */}
+                        {step.title === 'Pacchetti Aggiuntivi' && (
+                          <div className="space-y-6">
+                            <div className="text-center mb-6">
+                              <h3 className="text-lg font-semibold text-white mb-2">Seleziona i Pacchetti Aggiuntivi</h3>
+                              <p className="text-slate-400 text-sm">Puoi combinare più pacchetti SKY. Netflix è esclusivo.</p>
+                            </div>
+
+                            {/* Totale real-time */}
+                            <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-xl p-4 text-center">
+                              <span className="text-slate-300">Totale Pacchetti: </span>
+                              <span className="text-2xl font-bold text-indigo-400">
+                                €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}/mese
+                              </span>
+                            </div>
+
+                            {/* Grid pacchetti */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {ADDITIONAL_PACKAGES.map((pkg) => {
+                                const isSelected = data.additionalPackages?.selectedIds?.includes(pkg.id);
+                                const isNone = pkg.id === 'none';
+                                const isNetflix = pkg.category === 'netflix';
+                                
+                                return (
+                                  <button
+                                    key={pkg.id}
+                                    type="button"
+                                    onClick={() => {
+                                      const { togglePackage, setNoPackages } = usePracticeWizardStore.getState();
+                                      if (isNone) {
+                                        setNoPackages();
+                                      } else {
+                                        togglePackage(pkg.id);
+                                      }
+                                    }}
+                                    className={`p-4 rounded-xl border-2 transition-all text-left ${
+                                      isSelected
+                                        ? 'border-indigo-500 bg-indigo-600/20'
+                                        : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                    } ${isNone ? 'col-span-full' : ''}`}
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <span className={`font-medium ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
+                                          {pkg.label}
+                                        </span>
+                                        {isNetflix && (
+                                          <span className="ml-2 text-xs bg-red-600/30 text-red-400 px-2 py-0.5 rounded">
+                                            Netflix
+                                          </span>
+                                        )}
+                                      </div>
+                                      <span className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
+                                        {pkg.price > 0 ? `€${pkg.price.toFixed(2)}` : 'Gratis'}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Validazione */}
+                            {(!data.additionalPackages?.selectedIds || data.additionalPackages.selectedIds.length === 0) && (
+                              <p className="text-amber-400 text-sm text-center">
+                                ⚠️ Seleziona almeno un'opzione (anche "Nessun pacchetto")
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Step WASH - Solo per SKY TV con config abilitata */}
+                        {step.title === 'WASH' && (
+                          <div className="space-y-6">
+                            <div className="text-center mb-6">
+                              <h3 className="text-lg font-semibold text-white mb-2">Gestione WASH</h3>
+                              <p className="text-slate-400 text-sm">Indica se si tratta di un Suspect WASH o No WASH</p>
+                            </div>
+
+                            {/* Selezione tipo WASH */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* No WASH */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const { setWashConfig } = usePracticeWizardStore.getState();
+                                  setWashConfig({ enabled: true, type: 'none', timestamp: new Date() });
+                                }}
+                                className={`p-6 rounded-xl border-2 transition-all text-center ${
+                                  data.washConfig?.type === 'none'
+                                    ? 'border-emerald-500 bg-emerald-600/20'
+                                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                }`}
+                              >
+                                <CheckCircle className={`w-12 h-12 mx-auto mb-3 ${
+                                  data.washConfig?.type === 'none' ? 'text-emerald-400' : 'text-slate-500'
+                                }`} />
+                                <span className={`font-semibold text-lg ${
+                                  data.washConfig?.type === 'none' ? 'text-emerald-300' : 'text-slate-300'
+                                }`}>
+                                  NO WASH
+                                </span>
+                                <p className="text-slate-400 text-sm mt-2">Cliente nuovo o senza abbonamento attivo</p>
+                              </button>
+
+                              {/* Suspect WASH */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const { setWashConfig } = usePracticeWizardStore.getState();
+                                  setWashConfig({ 
+                                    enabled: true, 
+                                    type: 'suspect', 
+                                    suspectData: { clientCode: '', action: 'disattiva' },
+                                    timestamp: new Date() 
+                                  });
+                                }}
+                                className={`p-6 rounded-xl border-2 transition-all text-center ${
+                                  data.washConfig?.type === 'suspect'
+                                    ? 'border-amber-500 bg-amber-600/20'
+                                    : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                }`}
+                              >
+                                <WarningIcon className={`w-12 h-12 mx-auto mb-3 ${
+                                  data.washConfig?.type === 'suspect' ? 'text-amber-400' : 'text-slate-500'
+                                }`} />
+                                <span className={`font-semibold text-lg ${
+                                  data.washConfig?.type === 'suspect' ? 'text-amber-300' : 'text-slate-300'
+                                }`}>
+                                  SUSPECT WASH
+                                </span>
+                                <p className="text-slate-400 text-sm mt-2">Cliente con abbonamento SKY esistente</p>
+                              </button>
+                            </div>
+
+                            {/* Form Suspect WASH */}
+                            {data.washConfig?.type === 'suspect' && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="space-y-4 p-4 bg-amber-600/10 border border-amber-500/30 rounded-xl"
+                              >
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Codice Cliente Sky / Codice Fiscale Cliente <span className="text-rose-500">*</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={data.washConfig?.suspectData?.clientCode || ''}
+                                    onChange={(e) => {
+                                      const { setWashConfig } = usePracticeWizardStore.getState();
+                                      setWashConfig({
+                                        ...data.washConfig!,
+                                        suspectData: {
+                                          ...data.washConfig!.suspectData!,
+                                          clientCode: e.target.value.toUpperCase()
+                                        }
+                                      });
+                                    }}
+                                    placeholder="Es. 12345678 o RSSMRA..."
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                                    maxLength={16}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Gestione vecchio abbonamento <span className="text-rose-500">*</span>
+                                  </label>
+                                  <select
+                                    value={data.washConfig?.suspectData?.action || 'disattiva'}
+                                    onChange={(e) => {
+                                      const { setWashConfig } = usePracticeWizardStore.getState();
+                                      setWashConfig({
+                                        ...data.washConfig!,
+                                        suspectData: {
+                                          ...data.washConfig!.suspectData!,
+                                          action: e.target.value as 'disattiva' | 'mantieni'
+                                        }
+                                      });
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                                  >
+                                    <option value="disattiva">Disattivare vecchio abbonamento</option>
+                                    <option value="mantieni">Mantenere vecchio abbonamento SKY</option>
+                                  </select>
+                                </div>
+                              </motion.div>
+                            )}
+
+                            {/* Validazione */}
+                            {!data.washConfig?.type && (
+                              <p className="text-amber-400 text-sm text-center">
+                                ⚠️ Seleziona il tipo di WASH
+                              </p>
+                            )}
+                            {data.washConfig?.type === 'suspect' && (!data.washConfig?.suspectData?.clientCode || data.washConfig.suspectData.clientCode.length < 5) && (
+                              <p className="text-rose-400 text-sm text-center">
+                                ⚠️ Inserisci il Codice Cliente/CF (minimo 5 caratteri)
+                              </p>
                             )}
                           </div>
                         )}

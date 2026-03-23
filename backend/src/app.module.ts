@@ -14,6 +14,7 @@ import { SalesModule } from './modules/sales/sales.module';
 import { StatsModule } from './modules/stats/stats.module'; // ✅ Mantenuto qui
 import { OffersModule } from './modules/offers/offers.module';
 import { Offer } from './modules/offers/entities/offer.entity';
+import { EmailModule } from './modules/email/email.module';
 
 
 // Entities
@@ -79,6 +80,7 @@ import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
     SalesModule,
     StatsModule, // ✅ AGGIUNTO QUI!
 	OffersModule,
+	EmailModule,
   ],
 })
 export class AppModule {}

@@ -6,6 +6,8 @@ import { TenantsService } from '../tenants/tenants.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SuperAdminLoginDto } from './dto/super-admin-login.dto';
+import { EmailService } from '../email/email.service';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class AuthService {
@@ -13,6 +15,7 @@ export class AuthService {
     private usersService: UsersService,
     private tenantsService: TenantsService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async validateUser(email: string, pass: string, subscriptionCode: string): Promise<any> {
@@ -29,7 +32,7 @@ export class AuthService {
     return result;
   }
 
- async login(loginDto: LoginDto) {
+  async login(loginDto: LoginDto) {
     // Check if it's super admin code
     const SUPER_ADMIN_CODE = '847293516';
     
@@ -57,9 +60,14 @@ export class AuthService {
       };
     }
 
-    // Normal tenant login
+    // Normal tenant login (SOLO UNA VOLTA)
     const user = await this.validateUser(loginDto.email, loginDto.password, loginDto.subscriptionCode);
-
+    
+    // Controlla se l'email è verificata
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email non verificata. Controlla la tua casella di posta.');
+    }
+    
     const payload = {
       email: user.email,
       sub: user.id,
@@ -115,6 +123,10 @@ export class AuthService {
 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
+    
+    // Genera token di verifica
+    const verificationToken = uuidv4();
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 ore
 
     const user = await this.usersService.create({
       email,
@@ -124,10 +136,16 @@ export class AuthService {
       role: 'ADMIN',
       tenantId: tenant.id,
       isActive: true,
+      emailVerified: false,
+      verificationToken,
+      verificationTokenExpires,
     });
 
+    // Invia email di conferma
+    await this.emailService.sendVerificationEmail(email, verificationToken, name);
+
     return {
-      message: 'Negozio creato con successo',
+      message: 'Negozio creato con successo. Controlla la tua email per confermare la registrazione.',
       subscriptionCode: tenant.subscriptionCode,
       tenant: {
         id: tenant.id,
@@ -140,6 +158,49 @@ export class AuthService {
         role: user.role,
       },
     };
+  }
+
+  async verifyEmail(token: string) {
+    const user = await this.usersService.findByVerificationToken(token);
+    
+    if (!user) {
+      throw new BadRequestException('Token non valido o scaduto');
+    }
+
+    if (user.verificationTokenExpires && user.verificationTokenExpires < new Date()) {
+      throw new BadRequestException('Token scaduto. Richiedi una nuova email di conferma.');
+    }
+
+    user.emailVerified = true;
+    user.verificationToken = null;
+    user.verificationTokenExpires = null;
+    
+    await this.usersService.save(user);
+
+    return { message: 'Email verificata con successo! Ora puoi accedere.' };
+  }
+
+  async resendVerificationEmail(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    
+    if (!user) {
+      throw new BadRequestException('Email non trovata');
+    }
+
+    if (user.emailVerified) {
+      throw new BadRequestException('Email già verificata');
+    }
+
+    const verificationToken = uuidv4();
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = verificationTokenExpires;
+    
+    await this.usersService.save(user);
+    await this.emailService.sendVerificationEmail(email, verificationToken, user.firstName || 'Utente');
+
+    return { message: 'Email di conferma inviata!' };
   }
 
   async validateSuperAdmin(email: string, pass: string): Promise<any> {

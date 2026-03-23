@@ -10,6 +10,17 @@ export class UsersService {
     @InjectRepository(User)
     private usersRepository: Repository<User>,
   ) {}
+  
+  async findByVerificationToken(token: string): Promise<User | null> {
+    return this.usersRepository.findOne({ 
+      where: { verificationToken: token },
+      relations: ['tenant'] 
+    });
+  }
+
+  async save(user: User): Promise<User> {
+    return this.usersRepository.save(user);
+  }
 
   async findByEmail(email: string, tenantId?: string): Promise<User | null> {
     const where: any = { email };

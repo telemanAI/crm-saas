@@ -32,5 +32,16 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async impersonate(@Body() body: { tenantId: string }) {
     return this.authService.impersonate(body.tenantId);
+	@Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body('email') email: string) {
+    return this.authService.resendVerificationEmail(email);
+  }
   }
 }

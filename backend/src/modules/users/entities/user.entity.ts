@@ -34,6 +34,15 @@ tenant: Tenant | null;
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
 
+@Column({ type: 'boolean', default: false, name: 'email_verified' })
+  emailVerified: boolean;
+
+  @Column({ type: 'varchar', length: 255, name: 'verification_token', nullable: true })
+  verificationToken: string | null;
+
+  @Column({ type: 'timestamp', name: 'verification_token_expires', nullable: true })
+  verificationTokenExpires: Date | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

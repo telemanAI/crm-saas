@@ -16,8 +16,13 @@ export class EmailService {
   async sendVerificationEmail(to: string, token: string, firstName: string): Promise<boolean> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
     
+    console.log('=== INVIO EMAIL ===');
+    console.log('To:', to);
+    console.log('From:', this.senderEmail);
+    console.log('API Key presente:', !!process.env.RESEND_API_KEY);
+    
     try {
-      await this.resend.emails.send({
+      const result = await this.resend.emails.send({
         from: `TELEMANAI <${this.senderEmail}>`,
         to: [to],
         subject: 'Conferma la tua email - TELEMANAI',
@@ -63,24 +68,6 @@ export class EmailService {
           </body>
           </html>
         `,
-      });
-      return true;
-    } catch (error) {
-      console.error('Errore invio email:', error);
-      return false;
-    }
-  }
-  async sendVerificationEmail(to: string, token: string, firstName: string): Promise<boolean> {
-    const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
-    
-    console.log('=== INVIO EMAIL ===');
-    console.log('To:', to);
-    console.log('From:', this.senderEmail);
-    console.log('API Key presente:', !!process.env.RESEND_API_KEY);
-    
-    try {
-      const result = await this.resend.emails.send({
-        // ... resto del codice
       });
       console.log('Email inviata con successo:', result);
       return true;

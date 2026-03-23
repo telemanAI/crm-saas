@@ -80,32 +80,33 @@ export class TenantsService {
     return this.tenantsRepository.save(tenant);
   }
 
-  // Elimina definitivamente un tenant (hard delete) - FIXATO
+// Elimina definitivamente un tenant (hard delete)
   async hardDeleteTenant(id: string): Promise<void> {
     // Verifica che il tenant esista
-    const tenant = await this.findById(id);
+    await this.findById(id);
     
-    // Esegui tutto in una transazione per garantire atomicità
-    await this.tenantsRepository.manager.transaction(async (entityManager) => {
-      // 1. Elimina prima le pratiche (potrebbero avere FK verso users)
-      await entityManager
-        .createQueryBuilder()
-        .delete()
-        .from('sales_practices')
-        .where('tenant_id = :id', { id })
-        .execute();
+    // Elimina in ordine: prima i record figli, poi il tenant
+    const queryRunner = this.tenantsRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    
+    try {
+      // 1. Elimina users collegati
+      await queryRunner.query('DELETE FROM users WHERE tenant_id = $1', [id]);
       
-      // 2. Poi elimina gli utenti
-      await entityManager
-        .createQueryBuilder()
-        .delete()
-        .from('users')
-        .where('tenant_id = :id', { id })
-        .execute();
+      // 2. Elimina sales_practices collegate
+      await queryRunner.query('DELETE FROM sales_practices WHERE tenant_id = $1', [id]);
       
-      // 3. Infine elimina il tenant
-      await entityManager.remove(tenant);
-    });
+      // 3. Elimina il tenant
+      await queryRunner.query('DELETE FROM tenants WHERE id = $1', [id]);
+      
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async getTenantUsers(id: string, page: number, limit: number): Promise<any> {

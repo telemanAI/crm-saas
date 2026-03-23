@@ -9,6 +9,9 @@ export default function AdminDashboard() {
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [configModal, setConfigModal] = useState<{ open: boolean; tenant: any | null }>({ open: false, tenant: null });
+  const [tenantConfig, setTenantConfig] = useState({ enableWashStep: false, enableAdditionalPackages: true });
+  const [savingConfig, setSavingConfig] = useState(false);
   const { user, token, isAuthenticated, setImpersonate } = useAuthStore();
 
   useEffect(() => {
@@ -84,6 +87,33 @@ export default function AdminDashboard() {
       alert(error.response?.data?.message || 'Errore durante l\'eliminazione');
     }
   };
+  // Apri modal configurazione
+  const openConfigModal = async (tenant: any) => {
+    setConfigModal({ open: true, tenant });
+    try {
+      const response = await api.get(`/tenants/${tenant.id}/config`);
+      setTenantConfig(response.data);
+    } catch (error) {
+      console.error('Errore caricamento config:', error);
+      setTenantConfig({ enableWashStep: false, enableAdditionalPackages: true });
+    }
+  };
+
+  // Salva configurazione
+  const saveConfig = async () => {
+    if (!configModal.tenant) return;
+    setSavingConfig(true);
+    try {
+      await api.put(`/tenants/${configModal.tenant.id}/config`, tenantConfig);
+      alert('Configurazione salvata!');
+      setConfigModal({ open: false, tenant: null });
+    } catch (error: any) {
+      console.error('Errore salvataggio:', error);
+      alert(error.response?.data?.message || 'Errore durante il salvataggio');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
 
   if (loading) return <div className="p-8 text-white text-lg">Caricamento...</div>;
 
@@ -128,12 +158,55 @@ export default function AdminDashboard() {
                       {tenant.isActive ? 'Attivo' : 'Disattivato'}
                     </span>
                   </td>
-                 <td className="p-4 flex gap-3">
+                 
+
+  // Apri modal configurazione
+  const openConfigModal = async (tenant: any) => {
+    setConfigModal({ open: true, tenant });
+    try {
+      const response = await api.get(`/tenants/${tenant.id}/config`);
+      setTenantConfig(response.data);
+    } catch (error) {
+      console.error('Errore caricamento config:', error);
+      setTenantConfig({ enableWashStep: false, enableAdditionalPackages: true });
+    }
+  };
+
+  // Salva configurazione
+  const saveConfig = async () => {
+    if (!configModal.tenant) return;
+    setSavingConfig(true);
+    try {
+      await api.put(`/tenants/${configModal.tenant.id}/config`, tenantConfig);
+      alert('Configurazione salvata!');
+      setConfigModal({ open: false, tenant: null });
+    } catch (error: any) {
+      console.error('Errore salvataggio:', error);
+      alert(error.response?.data?.message || 'Errore durante il salvataggio');
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+Modifica 3: Aggiungi bottone "Configura" nella tabella (nella riga dei bottoni azioni)
+Trova questo blocco:
+
+<td className="p-4 flex gap-3">
+  <button 
+    onClick={() => enterTenantCRM(tenant.id)} 
+Sostituisci l'intero <td> con:
+
+<td className="p-4 flex gap-3 flex-wrap">
   <button 
     onClick={() => enterTenantCRM(tenant.id)} 
     className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
   >
     Entra nel CRM
+  </button>
+  <button 
+    onClick={() => openConfigModal(tenant)} 
+    className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+  >
+    ⚙️ Configura
   </button>
   <button 
     onClick={() => toggleTenantStatus(tenant.id, tenant.name, tenant.isActive)} 
@@ -152,6 +225,71 @@ export default function AdminDashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+	  {/* Modal Configurazione Negozio */}
+      {configModal.open && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 shadow-2xl">
+            <h2 className="text-xl font-bold text-white mb-2">
+              ⚙️ Configura Negozio
+            </h2>
+            <p className="text-gray-400 mb-6">{configModal.tenant?.name}</p>
+
+            <div className="space-y-4">
+              {/* Toggle Pacchetti Aggiuntivi */}
+              <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                <div>
+                  <p className="text-white font-medium">Pacchetti Aggiuntivi SKY</p>
+                  <p className="text-gray-400 text-sm">Mostra step pacchetti per offerte SKY TV</p>
+                </div>
+                <button
+                  onClick={() => setTenantConfig(prev => ({ ...prev, enableAdditionalPackages: !prev.enableAdditionalPackages }))}
+                  className={`w-14 h-8 rounded-full transition-colors ${
+                    tenantConfig.enableAdditionalPackages ? 'bg-green-600' : 'bg-gray-600'
+                  }`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full transition-transform ${
+                    tenantConfig.enableAdditionalPackages ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+
+              {/* Toggle WASH */}
+              <div className="flex items-center justify-between p-4 bg-gray-700/50 rounded-lg">
+                <div>
+                  <p className="text-white font-medium">Step WASH</p>
+                  <p className="text-gray-400 text-sm">Abilita gestione WASH per offerte SKY TV</p>
+                </div>
+                <button
+                  onClick={() => setTenantConfig(prev => ({ ...prev, enableWashStep: !prev.enableWashStep }))}
+                  className={`w-14 h-8 rounded-full transition-colors ${
+                    tenantConfig.enableWashStep ? 'bg-green-600' : 'bg-gray-600'
+                  }`}
+                >
+                  <div className={`w-6 h-6 bg-white rounded-full transition-transform ${
+                    tenantConfig.enableWashStep ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setConfigModal({ open: false, tenant: null })}
+                className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={saveConfig}
+                disabled={savingConfig}
+                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors disabled:opacity-50"
+              >
+                {savingConfig ? 'Salvataggio...' : 'Salva'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -72,35 +72,40 @@ export class TenantsService {
     tenant.isActive = false;
     return this.tenantsRepository.save(tenant);
   }
-   // Riattiva un tenant disattivato
+
+  // Riattiva un tenant disattivato
   async reactivateTenant(id: string): Promise<Tenant> {
     const tenant = await this.findById(id);
     tenant.isActive = true;
     return this.tenantsRepository.save(tenant);
   }
 
- // Elimina definitivamente un tenant (hard delete)
+  // Elimina definitivamente un tenant (hard delete) - FIXATO
   async hardDeleteTenant(id: string): Promise<void> {
+    // Verifica che il tenant esista
     const tenant = await this.findById(id);
     
-    // Prima elimina tutti gli utenti collegati a questo tenant
-    await this.tenantsRepository.manager
-      .createQueryBuilder()
-      .delete()
-      .from('users')
-      .where('tenant_id = :id', { id })
-      .execute();
-    
-    // Poi elimina tutte le pratiche collegate
-    await this.tenantsRepository.manager
-      .createQueryBuilder()
-      .delete()
-      .from('sales_practices')
-      .where('tenant_id = :id', { id })
-      .execute();
-    
-    // Infine elimina il tenant
-    await this.tenantsRepository.remove(tenant);
+    // Esegui tutto in una transazione per garantire atomicità
+    await this.tenantsRepository.manager.transaction(async (entityManager) => {
+      // 1. Elimina prima le pratiche (potrebbero avere FK verso users)
+      await entityManager
+        .createQueryBuilder()
+        .delete()
+        .from('sales_practices')
+        .where('tenant_id = :id', { id })
+        .execute();
+      
+      // 2. Poi elimina gli utenti
+      await entityManager
+        .createQueryBuilder()
+        .delete()
+        .from('users')
+        .where('tenant_id = :id', { id })
+        .execute();
+      
+      // 3. Infine elimina il tenant
+      await entityManager.remove(tenant);
+    });
   }
 
   async getTenantUsers(id: string, page: number, limit: number): Promise<any> {

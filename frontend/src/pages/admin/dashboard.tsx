@@ -49,7 +49,7 @@ export default function AdminDashboard() {
     }
   };
 
- // Disattiva/Riattiva negozio (soft)
+  // Disattiva/Riattiva negozio (soft)
   const toggleTenantStatus = async (tenantId: string, tenantName: string, isActive: boolean) => {
     const action = isActive ? 'disattivare' : 'riattivare';
     if (!confirm(`Sei sicuro di voler ${action} "${tenantName}"?`)) {
@@ -87,6 +87,7 @@ export default function AdminDashboard() {
       alert(error.response?.data?.message || 'Errore durante l\'eliminazione');
     }
   };
+
   // Apri modal configurazione
   const openConfigModal = async (tenant: any) => {
     setConfigModal({ open: true, tenant });
@@ -158,76 +159,40 @@ export default function AdminDashboard() {
                       {tenant.isActive ? 'Attivo' : 'Disattivato'}
                     </span>
                   </td>
-                 
-
-  // Apri modal configurazione
-  const openConfigModal = async (tenant: any) => {
-    setConfigModal({ open: true, tenant });
-    try {
-      const response = await api.get(`/tenants/${tenant.id}/config`);
-      setTenantConfig(response.data);
-    } catch (error) {
-      console.error('Errore caricamento config:', error);
-      setTenantConfig({ enableWashStep: false, enableAdditionalPackages: true });
-    }
-  };
-
-  // Salva configurazione
-  const saveConfig = async () => {
-    if (!configModal.tenant) return;
-    setSavingConfig(true);
-    try {
-      await api.put(`/tenants/${configModal.tenant.id}/config`, tenantConfig);
-      alert('Configurazione salvata!');
-      setConfigModal({ open: false, tenant: null });
-    } catch (error: any) {
-      console.error('Errore salvataggio:', error);
-      alert(error.response?.data?.message || 'Errore durante il salvataggio');
-    } finally {
-      setSavingConfig(false);
-    }
-  };
-Modifica 3: Aggiungi bottone "Configura" nella tabella (nella riga dei bottoni azioni)
-Trova questo blocco:
-
-<td className="p-4 flex gap-3">
-  <button 
-    onClick={() => enterTenantCRM(tenant.id)} 
-Sostituisci l'intero <td> con:
-
-<td className="p-4 flex gap-3 flex-wrap">
-  <button 
-    onClick={() => enterTenantCRM(tenant.id)} 
-    className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
-  >
-    Entra nel CRM
-  </button>
-  <button 
-    onClick={() => openConfigModal(tenant)} 
-    className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
-  >
-    ⚙️ Configura
-  </button>
-  <button 
-    onClick={() => toggleTenantStatus(tenant.id, tenant.name, tenant.isActive)} 
-    className={`${tenant.isActive ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'} text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg`}
-  >
-    {tenant.isActive ? 'Disattiva' : 'Riattiva'}
-  </button>
-  <button 
-    onClick={() => hardDeleteTenant(tenant.id, tenant.name)} 
-    className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
-  >
-    Elimina
-  </button>
-</td>
+                  <td className="p-4 flex gap-3 flex-wrap">
+                    <button 
+                      onClick={() => enterTenantCRM(tenant.id)} 
+                      className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+                    >
+                      Entra nel CRM
+                    </button>
+                    <button 
+                      onClick={() => openConfigModal(tenant)} 
+                      className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+                    >
+                      ⚙️ Configura
+                    </button>
+                    <button 
+                      onClick={() => toggleTenantStatus(tenant.id, tenant.name, tenant.isActive)} 
+                      className={`${tenant.isActive ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-green-600 hover:bg-green-500'} text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg`}
+                    >
+                      {tenant.isActive ? 'Disattiva' : 'Riattiva'}
+                    </button>
+                    <button 
+                      onClick={() => hardDeleteTenant(tenant.id, tenant.name)} 
+                      className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded transition-colors font-medium text-sm shadow-lg"
+                    >
+                      Elimina
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-	  {/* Modal Configurazione Negozio */}
+	  
+      {/* Modal Configurazione Negozio */}
       {configModal.open && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-xl p-6 w-full max-w-md border border-gray-700 shadow-2xl">

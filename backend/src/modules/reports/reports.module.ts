@@ -4,7 +4,7 @@ import { WashReportController } from './wash-report.controller';
 import { Practice } from '../practices/entities/practice.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([SalesPractice])],
+  imports: [TypeOrmModule.forFeature([Practice])],
   controllers: [WashReportController],
 })
 export class ReportsModule {}

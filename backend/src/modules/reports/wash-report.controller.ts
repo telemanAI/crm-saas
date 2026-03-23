@@ -2,14 +2,14 @@ import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { SalesPractice } from '../practices/entities/practice.entity';
+import { Practice } from '../practices/entities/practice.entity';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
 export class WashReportController {
   constructor(
-    @InjectRepository(SalesPractice)
-    private practicesRepository: Repository<SalesPractice>,
+@InjectRepository(Practice)
+private practicesRepository: Repository<Practice>,
   ) {}
 
   @Get('wash-stats')

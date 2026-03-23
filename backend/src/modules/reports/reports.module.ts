@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WashReportController } from './wash-report.controller';
-import { SalesPractice } from '../practices/entities/practice.entity';
+import { Practice } from '../practices/entities/practice.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([SalesPractice])],

@@ -79,9 +79,27 @@ export class TenantsService {
     return this.tenantsRepository.save(tenant);
   }
 
-  // Elimina definitivamente un tenant (hard delete)
+ // Elimina definitivamente un tenant (hard delete)
   async hardDeleteTenant(id: string): Promise<void> {
     const tenant = await this.findById(id);
+    
+    // Prima elimina tutti gli utenti collegati a questo tenant
+    await this.tenantsRepository.manager
+      .createQueryBuilder()
+      .delete()
+      .from('users')
+      .where('tenant_id = :id', { id })
+      .execute();
+    
+    // Poi elimina tutte le pratiche collegate
+    await this.tenantsRepository.manager
+      .createQueryBuilder()
+      .delete()
+      .from('sales_practices')
+      .where('tenant_id = :id', { id })
+      .execute();
+    
+    // Infine elimina il tenant
     await this.tenantsRepository.remove(tenant);
   }
 

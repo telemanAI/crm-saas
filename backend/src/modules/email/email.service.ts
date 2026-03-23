@@ -70,6 +70,25 @@ export class EmailService {
       return false;
     }
   }
+  async sendVerificationEmail(to: string, token: string, firstName: string): Promise<boolean> {
+    const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
+    
+    console.log('=== INVIO EMAIL ===');
+    console.log('To:', to);
+    console.log('From:', this.senderEmail);
+    console.log('API Key presente:', !!process.env.RESEND_API_KEY);
+    
+    try {
+      const result = await this.resend.emails.send({
+        // ... resto del codice
+      });
+      console.log('Email inviata con successo:', result);
+      return true;
+    } catch (error) {
+      console.error('Errore invio email:', error);
+      return false;
+    }
+  }
 
   async sendOperatorWelcomeEmail(to: string, firstName: string, tempPassword: string, shopName: string): Promise<boolean> {
     const loginUrl = `${this.frontendUrl}/login`;

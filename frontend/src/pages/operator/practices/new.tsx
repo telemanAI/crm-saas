@@ -82,6 +82,13 @@ interface CustomerSuggestion {
   address?: string;
 }
 
+interface WizardStep {
+  id: number;
+  stepId: string;
+  title: string;
+  icon: any;
+}
+
 function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {
   const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
   const [loading, setLoading] = useState(true);
@@ -125,48 +132,49 @@ function OperatorsDropdown({ label, value, onChange }: { label: string; value?: 
   );
 }
 
-// Step base
-const baseSteps = [
-  { id: 1, title: 'Tipo & Offerta', icon: Buildings },
-  { id: 2, title: 'Venditore', icon: User },
-  { id: 3, title: 'Anagrafica Cliente', icon: User },
-];
-
-// Step aggiuntivi SKY TV
-const skyTvSteps = [
-  { id: 4, title: 'Pacchetti Aggiuntivi', icon: Package },
-  { id: 5, title: 'WASH', icon: TelevisionSimple },
-];
-
-// Step finali (rinumerati dinamicamente)
-const finalStepsBase = [
-  { id: 0, title: 'Nuova Linea', icon: MapPin },
-  { id: 0, title: 'Dati Vecchia Linea', icon: Phone },
-  { id: 0, title: 'Pagamento', icon: CreditCard },
-  { id: 0, title: 'Privacy', icon: FileText },
-  { id: 0, title: 'Appuntamento Installazione', icon: Calendar },
-  { id: 0, title: 'Riepilogo', icon: Eye },
+// Step base (fissi 1-3)
+const baseSteps: WizardStep[] = [
+  { id: 1, stepId: 'offer', title: 'Tipo & Offerta', icon: Buildings },
+  { id: 2, stepId: 'sellers', title: 'Venditore', icon: User },
+  { id: 3, stepId: 'customer', title: 'Anagrafica Cliente', icon: User },
 ];
 
 // Funzione per generare steps dinamici
-const getSteps = (offerName: string | undefined, enableWashStep: boolean, enableAdditionalPackages: boolean) => {
-  const isSkyTv = offerName?.includes('SKY TV');
+const getSteps = (offerName: string | undefined, enableWashStep: boolean, enableAdditionalPackages: boolean): WizardStep[] => {
+  const upperOffer = offerName?.toUpperCase() || '';
+  const hasSkyTv = upperOffer.includes('SKY TV');
+  const hasSkyWifi = upperOffer.includes('SKY WIFI');
+  
+  // Identifica i casi
+  const isSkyTvOnly = hasSkyTv && !hasSkyWifi;      // Caso 1: Solo decoder
+  const isSkyWifiOnly = hasSkyWifi && !hasSkyTv;    // Caso 2: Solo internet
+  // Caso 3: Combo (hasSkyTv && hasSkyWifi) -> tutti gli step
+  // Caso 0: Nessuno dei due -> flusso normale
   
   let currentId = 4;
-  const dynamicSteps = [...baseSteps];
+  const dynamicSteps: WizardStep[] = [...baseSteps];
   
-  if (isSkyTv && enableAdditionalPackages) {
-    dynamicSteps.push({ id: currentId++, title: 'Pacchetti Aggiuntivi', icon: Package });
+  // Step 4: Pacchetti (solo se c'è SKY TV - Caso 1 e 3)
+  if (hasSkyTv && enableAdditionalPackages) {
+    dynamicSteps.push({ id: currentId++, stepId: 'packages', title: 'Pacchetti Aggiuntivi', icon: Package });
   }
   
-  if (isSkyTv && enableWashStep) {
-    dynamicSteps.push({ id: currentId++, title: 'WASH', icon: TelevisionSimple });
+  // Step WASH (se abilitato: sempre per SKY TV, solo se abilitato per SKY WIFI)
+  if (enableWashStep && (hasSkyTv || isSkyWifiOnly)) {
+    dynamicSteps.push({ id: currentId++, stepId: 'wash', title: 'WASH', icon: TelevisionSimple });
   }
   
-  // Aggiungi step finali con ID corretto
-  finalStepsBase.forEach((step) => {
-    dynamicSteps.push({ ...step, id: currentId++ });
-  });
+  // Step Linee (solo se c'è WIFI - Caso 0, 2, 3. NON Caso 1)
+  if (!isSkyTvOnly) {
+    dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Nuova Linea', icon: MapPin });
+    dynamicSteps.push({ id: currentId++, stepId: 'line-old', title: 'Dati Vecchia Linea', icon: Phone });
+  }
+  
+  // Step finali comuni (rinominati e con stepId univoci)
+  dynamicSteps.push({ id: currentId++, stepId: 'payment', title: 'Metodo di Pagamento', icon: CreditCard });
+  dynamicSteps.push({ id: currentId++, stepId: 'privacy', title: 'Privacy', icon: FileText });
+  dynamicSteps.push({ id: currentId++, stepId: 'appointment', title: 'Appuntamento Installazione', icon: Calendar });
+  dynamicSteps.push({ id: currentId++, stepId: 'summary', title: 'Riepilogo', icon: Eye });
   
   return dynamicSteps;
 };
@@ -387,7 +395,6 @@ export default function NewPractice() {
         appointmentOraFine: practice.appointmentData?.oraFine,
         appointmentAccordi: practice.appointmentData?.accordi,
         appointmentLavorazioni: practice.appointmentData?.lavorazioniPost,
-        // Business fields
         ragioneSociale: practice.customerSnapshot?.ragioneSociale,
         partitaIva: practice.customerSnapshot?.partitaIva,
         formaGiuridica: practice.customerSnapshot?.formaGiuridica,
@@ -396,7 +403,6 @@ export default function NewPractice() {
         pec: practice.customerSnapshot?.pec,
       });
       
-      // Restore business filter state based on offer type
       if (practice.offerType === 'business') {
         setShowBusinessOnly(true);
       }
@@ -545,7 +551,6 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode || '',
             phone: data.phone || '',
             email: data.email || '',
-            // Include business fields if present
             ragioneSociale: data.ragioneSociale,
             partitaIva: data.partitaIva,
             formaGiuridica: data.formaGiuridica,
@@ -587,42 +592,46 @@ export default function NewPractice() {
   };
 
   const getStepData = (stepNumber: number) => {
-    switch (stepNumber) {
-      case 2: return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
-      case 3: return { 
-        customerData: { 
-          firstName: data.firstName, 
-          lastName: data.lastName, 
-          fiscalCode: data.fiscalCode, 
-          phone: data.phone, 
-          email: data.email,
-          // Business fields
-          ragioneSociale: data.ragioneSociale,
-          partitaIva: data.partitaIva,
-          formaGiuridica: data.formaGiuridica,
-          sedeLegale: data.sedeLegale,
-          codiceRea: data.codiceRea,
-          pec: data.pec,
-        }, 
-        notes: data.notes 
-      };
-      case 4: return { lineType: data.lineType, installationAddress: data.installationAddress, technology: data.technology, notes: data.newLineNotes };
-      case 5: return { 
-        oldLineData: data.lineType === 'MIGRAZIONE' ? { 
-          oldPhoneNumber: data.oldPhoneNumber, 
-          migrationCode: data.migrationCode,
-          gestore: data.gestore,
-          gestoreAltro: data.gestoreAltro,
-          fiscalCodeOldLine: data.fiscalCodeOldLine,
-          prodottiRestituire: data.prodottiRestituire,
-          notes: data.oldLineNotes
-        } : {} 
-      };
-      case 6: return { paymentMethod: { iban: data.iban, postePay: data.postePay, bollettino: data.bollettino } };
-      case 7: return { gdprConsent: data.gdprConsent, marketingConsent: data.privacyMarketing };
-      case 8: return { data: data.appointmentData, ora: data.appointmentOra, oraFine: data.appointmentOraFine, accordi: data.appointmentAccordi, lavorazioniPost: data.appointmentLavorazioni };
-      case 9: return { completed: true };
-      default: return {};
+    const step = steps.find(s => s.id === stepNumber);
+    const stepId = step?.stepId;
+    
+    switch (stepId) {
+      case 'sellers': 
+        return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
+      case 'customer': 
+        return { 
+          customerData: { 
+            firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, 
+            phone: data.phone, email: data.email,
+            ragioneSociale: data.ragioneSociale, partitaIva: data.partitaIva, formaGiuridica: data.formaGiuridica,
+            sedeLegale: data.sedeLegale, codiceRea: data.codiceRea, pec: data.pec,
+          }, 
+          notes: data.notes 
+        };
+      case 'packages': 
+        return { additionalPackages: data.additionalPackages };
+      case 'wash':
+        return { washConfig: data.washConfig };
+      case 'line-new': 
+        return { lineType: data.lineType, installationAddress: data.installationAddress, technology: data.technology, notes: data.newLineNotes };
+      case 'line-old': 
+        return { 
+          oldLineData: data.lineType === 'MIGRAZIONE' ? { 
+            oldPhoneNumber: data.oldPhoneNumber, migrationCode: data.migrationCode,
+            gestore: data.gestore, gestoreAltro: data.gestoreAltro, fiscalCodeOldLine: data.fiscalCodeOldLine,
+            prodottiRestituire: data.prodottiRestituire, notes: data.oldLineNotes
+          } : {} 
+        };
+      case 'payment': 
+        return { paymentMethod: { iban: data.iban, postePay: data.postePay, bollettino: data.bollettino } };
+      case 'privacy': 
+        return { gdprConsent: data.gdprConsent, marketingConsent: data.privacyMarketing };
+      case 'appointment': 
+        return { data: data.appointmentData, ora: data.appointmentOra, oraFine: data.appointmentOraFine, accordi: data.appointmentAccordi, lavorazioniPost: data.appointmentLavorazioni };
+      case 'summary': 
+        return { completed: true };
+      default: 
+        return {};
     }
   };
 
@@ -662,7 +671,7 @@ export default function NewPractice() {
     setLoading(true);
     try {
       await api.put(`/practices/${practiceId}/step`, {
-        stepNumber: 9,
+        stepNumber: steps.find(s => s.stepId === 'summary')?.id || totalSteps,
         data: { completed: true }
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -684,44 +693,44 @@ export default function NewPractice() {
   };
 
   const isStepValid = (stepId: number) => {
-    // Check dynamic steps first (Pacchetti Aggiuntivi e WASH)
-    const packagesStep = steps.find(s => s.title === 'Pacchetti Aggiuntivi');
-    if (packagesStep && stepId === packagesStep.id) {
-      return data.additionalPackages?.selectedIds && data.additionalPackages.selectedIds.length > 0;
-    }
+    const step = steps.find(s => s.id === stepId);
+    if (!step) return false;
     
-    const washStep = steps.find(s => s.title === 'WASH');
-    if (washStep && stepId === washStep.id) {
-      if (!data.washConfig?.type) return false;
-      if (data.washConfig.type === 'suspect') {
-        return data.washConfig.suspectData?.clientCode && data.washConfig.suspectData.clientCode.length >= 5;
-      }
-      return true;
-    }
-    
-    // Fixed steps validation
-    switch (stepId) {
-      case 1: return data.type && data.offerCode && data.offerName;
-      case 2: return data.soldById && data.enteredById && validateUUID(data.soldById) && validateUUID(data.enteredById);
-      case 3: {
-        // Base validation for all customers
+    switch (step.stepId) {
+      case 'offer': 
+        return data.type && data.offerCode && data.offerName;
+      case 'sellers': 
+        return data.soldById && data.enteredById && validateUUID(data.soldById) && validateUUID(data.enteredById);
+      case 'customer': {
         const baseValid = data.firstName && data.lastName && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone && validatePhone(data.phone);
         if (!baseValid) return false;
-        
-        // Additional validation for business customers
         if (showBusinessOnly || data.offerType === 'business') {
           return !!(data.ragioneSociale && data.partitaIva && data.formaGiuridica && data.sedeLegale && data.pec);
         }
-        
         return true;
       }
-      case 4: return data.lineType && data.installationAddress?.street && data.technology;
-      case 5: return data.lineType === 'NUOVA' || (data.oldPhoneNumber && data.migrationCode && (data.gestore || data.gestoreAltro));
-      case 6: return data.iban || data.postePay || data.bollettino;
-      case 7: return data.gdprConsent === true;
-      case 8: return true;
-      case 9: return true;
-      default: return false;
+      case 'packages': 
+        return data.additionalPackages?.selectedIds && data.additionalPackages.selectedIds.length > 0;
+      case 'wash':
+        if (!data.washConfig?.type) return false;
+        if (data.washConfig.type === 'suspect') {
+          return data.washConfig.suspectData?.clientCode && data.washConfig.suspectData.clientCode.length >= 5;
+        }
+        return true;
+      case 'line-new': 
+        return data.lineType && data.installationAddress?.street && data.technology;
+      case 'line-old': 
+        return data.lineType === 'NUOVA' || (data.oldPhoneNumber && data.migrationCode && (data.gestore || data.gestoreAltro));
+      case 'payment': 
+        return data.iban || data.postePay || data.bollettino;
+      case 'privacy': 
+        return data.gdprConsent === true;
+      case 'appointment':
+        return true;
+      case 'summary':
+        return true;
+      default: 
+        return false;
     }
   };
 
@@ -814,7 +823,7 @@ export default function NewPractice() {
                       className="border-t border-slate-800"
                     >
                       <div className="p-6">
-                        {step.id === 1 && (
+                        {step.stepId === 'offer' && (
                           <div className="space-y-6">
                             {/* Toggle Business */}
                             <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700">
@@ -826,7 +835,6 @@ export default function NewPractice() {
                                 onClick={() => {
                                   const newValue = !showBusinessOnly;
                                   setShowBusinessOnly(newValue);
-                                  // Reset selezione se l'offerta attuale non corrisponde al filtro
                                   if (data.offerType && ((newValue && data.offerType !== 'business') || (!newValue && data.offerType === 'business' && data.type))) {
                                     setData({ 
                                       type: undefined, 
@@ -840,6 +848,8 @@ export default function NewPractice() {
                                       offerType: undefined,
                                       offerScadenza: ''
                                     });
+                                    // Reset step completati quando cambia filtro business
+                                    setCompletedSteps([]);
                                   }
                                 }}
                                 className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
@@ -943,6 +953,8 @@ export default function NewPractice() {
                                           offerType: selectedOffer.type as any,
                                           offerScadenza: (selectedOffer as any).scadenza || ''
                                         });
+                                        // Reset step completati > 3 quando cambia offerta, mantieni 1,2,3
+                                        setCompletedSteps(prev => prev.filter(s => s <= 3));
                                       }
                                     }}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
@@ -1029,7 +1041,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 2 && (
+                        {step.stepId === 'sellers' && (
                           <div className="space-y-4">
                             <OperatorsDropdown 
                               label="Venduto Da *"
@@ -1047,7 +1059,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 3 && (
+                        {step.stepId === 'customer' && (
                           <div className="space-y-4">
                             <div className="relative">
                               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -1173,7 +1185,7 @@ export default function NewPractice() {
                               />
                             </div>
 
-                            {/* Campi Business - visibili solo se showBusinessOnly è attivo */}
+                            {/* Campi Business */}
                             {(showBusinessOnly || data.offerType === 'business') && (
                               <>
                                 <div className="border-t border-slate-700 pt-4 mt-4">
@@ -1271,15 +1283,13 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {/* Step Pacchetti Aggiuntivi - Solo per SKY TV */}
-                        {step.title === 'Pacchetti Aggiuntivi' && (
+                        {step.stepId === 'packages' && (
                           <div className="space-y-6">
                             <div className="text-center mb-6">
                               <h3 className="text-lg font-semibold text-white mb-2">Seleziona i Pacchetti Aggiuntivi</h3>
                               <p className="text-slate-400 text-sm">Puoi combinare più pacchetti SKY. Netflix è esclusivo.</p>
                             </div>
 
-                            {/* Totale real-time */}
                             <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-xl p-4 text-center">
                               <span className="text-slate-300">Totale Pacchetti: </span>
                               <span className="text-2xl font-bold text-indigo-400">
@@ -1287,7 +1297,6 @@ export default function NewPractice() {
                               </span>
                             </div>
 
-                            {/* Grid pacchetti */}
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {ADDITIONAL_PACKAGES.map((pkg) => {
                                 const isSelected = data.additionalPackages?.selectedIds?.includes(pkg.id);
@@ -1332,7 +1341,6 @@ export default function NewPractice() {
                               })}
                             </div>
 
-                            {/* Validazione */}
                             {(!data.additionalPackages?.selectedIds || data.additionalPackages.selectedIds.length === 0) && (
                               <p className="text-amber-400 text-sm text-center">
                                 ⚠️ Seleziona almeno un'opzione (anche "Nessun pacchetto")
@@ -1341,17 +1349,14 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {/* Step WASH - Solo per SKY TV con config abilitata */}
-                        {step.title === 'WASH' && (
+                        {step.stepId === 'wash' && (
                           <div className="space-y-6">
                             <div className="text-center mb-6">
                               <h3 className="text-lg font-semibold text-white mb-2">Gestione WASH</h3>
                               <p className="text-slate-400 text-sm">Indica se si tratta di un Suspect WASH o No WASH</p>
                             </div>
 
-                            {/* Selezione tipo WASH */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              {/* No WASH */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1375,7 +1380,6 @@ export default function NewPractice() {
                                 <p className="text-slate-400 text-sm mt-2">Cliente nuovo o senza abbonamento attivo</p>
                               </button>
 
-                              {/* Suspect WASH */}
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1405,7 +1409,6 @@ export default function NewPractice() {
                               </button>
                             </div>
 
-                            {/* Form Suspect WASH */}
                             {data.washConfig?.type === 'suspect' && (
                               <motion.div
                                 initial={{ opacity: 0, height: 0 }}
@@ -1460,7 +1463,6 @@ export default function NewPractice() {
                               </motion.div>
                             )}
 
-                            {/* Validazione */}
                             {!data.washConfig?.type && (
                               <p className="text-amber-400 text-sm text-center">
                                 ⚠️ Seleziona il tipo di WASH
@@ -1474,7 +1476,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 4 && (
+                        {step.stepId === 'line-new' && (
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Tipo Linea</label>
@@ -1512,7 +1514,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 5 && (
+                        {step.stepId === 'line-old' && (
                           <div className="space-y-4">
                             {data.lineType === 'NUOVA' ? (
                               <div className="text-center py-8">
@@ -1669,7 +1671,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 6 && (
+                        {step.stepId === 'payment' && (
                           <div className="space-y-4">
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">IBAN</label>
@@ -1687,7 +1689,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 7 && (
+                        {step.stepId === 'privacy' && (
                           <div className="space-y-4">
                             <div className="bg-slate-800/50 rounded-xl p-4 border border-amber-500/30">
                               <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
@@ -1714,7 +1716,7 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {step.id === 8 && (
+                        {step.stepId === 'appointment' && (
                           <div className="space-y-6">
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Data Installazione</label>
@@ -1771,9 +1773,8 @@ export default function NewPractice() {
                           </div>
                         )}
 
-                        {isLastStep(step.id) && (
+                        {step.stepId === 'summary' && (
                           <div className="space-y-4">
-                            {/* Dettaglio Offerta Selezionata */}
                             {data.offerName && (
                               <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
                                 <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
@@ -1841,8 +1842,12 @@ export default function NewPractice() {
                                 <div className="flex justify-between"><span className="text-slate-400">Cliente:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
                                 <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Linea:</span><span className="text-white">{data.lineType}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
+                                {data.lineType && (
+                                  <>
+                                    <div className="flex justify-between"><span className="text-slate-400">Linea:</span><span className="text-white">{data.lineType}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
+                                  </>
+                                )}
                               </div>
                             </div>
                             

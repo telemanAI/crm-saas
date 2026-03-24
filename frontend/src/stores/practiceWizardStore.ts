@@ -145,6 +145,7 @@ export const ADDITIONAL_PACKAGES: AdditionalPackage[] = [
 interface PracticeWizardState {
   data: PracticeData;
   currentStepId: StepId;
+  currentStep: number;
   practiceId: string | null;
   completedStepIds: StepId[];
   
@@ -154,7 +155,7 @@ interface PracticeWizardState {
   isLastStep: () => boolean;
   
   setData: (data: Partial<PracticeData>) => void;
-  setStep: (stepId: StepId) => void;
+  setStep: (step: StepId | number) => void;
   setStoreConfig: (config: PracticeData['storeConfig']) => void;
   setOffer: (offer: {
     type: 'TIM_FIBRA' | 'SKY';
@@ -197,6 +198,7 @@ const initialState = {
     }
   } as PracticeData,
   currentStepId: 'offer' as StepId,
+  currentStep: 1,
   practiceId: null,
   completedStepIds: [] as StepId[],
 };
@@ -212,9 +214,7 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
       },
 
       getCurrentStepNumber: () => {
-        const { currentStepId } = get();
-        const visible = get().getVisibleSteps();
-        return visible.findIndex(s => s.id === currentStepId) + 1;
+        return get().currentStep;
       },
 
       getTotalSteps: () => {
@@ -223,15 +223,29 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
 
       isLastStep: () => {
         const visible = get().getVisibleSteps();
-        const currentIdx = visible.findIndex(s => s.id === get().currentStepId);
-        return currentIdx === visible.length - 1;
+        return get().currentStep === visible.length;
       },
 
       setData: (newData) => set((state) => ({ 
         data: { ...state.data, ...newData } 
       })),
 
-      setStep: (stepId) => set({ currentStepId: stepId }),
+      setStep: (step) => set((state) => {
+        const visible = WIZARD_STEPS.filter(s => s.isVisible(state.data));
+        let newStepId: StepId;
+        let newStepNumber: number;
+        
+        if (typeof step === 'number') {
+          newStepNumber = step;
+          newStepId = visible[step - 1]?.id || 'offer';
+        } else {
+          newStepId = step;
+          newStepNumber = visible.findIndex(s => s.id === step) + 1;
+          if (newStepNumber === 0) newStepNumber = 1;
+        }
+        
+        return { currentStepId: newStepId, currentStep: newStepNumber };
+      }),
 
       setStoreConfig: (config) => set((state) => ({
         data: {
@@ -263,37 +277,41 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
         const currentStillVisible = newVisibleIds.includes(state.currentStepId);
         
         let newStepId = state.currentStepId;
+        let newStepNumber = state.currentStep;
+        
         if (!currentStillVisible) {
           newStepId = newVisibleIds[0] || 'offer';
+          newStepNumber = 1;
         }
 
         return { 
           data: newData, 
           currentStepId: newStepId,
+          currentStep: newStepNumber,
           completedStepIds: state.completedStepIds.filter(id => newVisibleIds.includes(id))
         };
       }),
 
       nextStep: () => {
-        const { currentStepId, getVisibleSteps, completeStep } = get();
+        const { currentStepId, currentStep, getVisibleSteps, completeStep } = get();
         const visible = getVisibleSteps();
         const currentIdx = visible.findIndex(s => s.id === currentStepId);
         const next = visible[currentIdx + 1];
         
         if (next) {
           completeStep(currentStepId);
-          set({ currentStepId: next.id });
+          set({ currentStepId: next.id, currentStep: currentStep + 1 });
         }
       },
 
       prevStep: () => {
-        const { currentStepId, getVisibleSteps } = get();
+        const { currentStepId, currentStep, getVisibleSteps } = get();
         const visible = getVisibleSteps();
         const currentIdx = visible.findIndex(s => s.id === currentStepId);
         const prev = visible[currentIdx - 1];
         
         if (prev) {
-          set({ currentStepId: prev.id });
+          set({ currentStepId: prev.id, currentStep: currentStep - 1 });
         }
       },
 
@@ -307,7 +325,7 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
         );
         
         if (targetIndex <= lastCompletedIndex + 1) {
-          set({ currentStepId: stepId });
+          set({ currentStepId: stepId, currentStep: targetIndex + 1 });
         }
       },
 

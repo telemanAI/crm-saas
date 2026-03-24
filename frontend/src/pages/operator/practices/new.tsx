@@ -1898,12 +1898,12 @@ export default function NewPractice() {
           <span className="text-white font-medium">{data.offerCanone || '€0,00'}</span>
         </div>
         
-        {(data.additionalPackages?.totalPrice > 0) && (
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
-            <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages.totalPrice).toFixed(2)}</span>
-          </div>
-        )}
+      {((data.additionalPackages?.totalPrice || 0) > 0) && (
+  <div className="flex justify-between items-center text-sm">
+    <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
+    <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}</span>
+  </div>
+)}
         
         <div className="border-t border-slate-600 my-2" />
         

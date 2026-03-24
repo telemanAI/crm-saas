@@ -89,6 +89,12 @@ interface WizardStep {
   icon: any;
 }
 
+const extractPrice = (priceStr: string): number => {
+  if (!priceStr) return 0;
+  const match = priceStr.match(/(\d+(?:[.,]\d+)?)/);
+  return match ? parseFloat(match[1].replace(',', '.')) : 0;
+};
+
 function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {
   const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
   const [loading, setLoading] = useState(true);
@@ -1774,122 +1780,205 @@ export default function NewPractice() {
                         )}
 
                         {step.stepId === 'summary' && (
-                          <div className="space-y-4">
-                            {data.offerName && (
-                              <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
-                                <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
-                                  <Buildings className="w-5 h-5" />
-                                  Dettaglio Offerta
-                                </h4>
-                                <div className="space-y-3">
-                                  <div className="flex justify-between items-start">
-                                    <span className="text-slate-400">Offerta:</span>
-                                    <span className="text-white text-right font-medium max-w-[60%]">{data.offerName}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Gestore:</span>
-                                    <span className="text-white">{data.type}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-400">Tipo:</span>
-                                    <span className={`text-xs px-2 py-1 rounded-full ${
-                                      data.offerType === 'business' 
-                                        ? 'bg-purple-600/20 text-purple-400' 
-                                        : 'bg-blue-600/20 text-blue-400'
-                                    }`}>
-                                      {data.offerType === 'business' ? 'Business' : 'Consumer'}
-                                    </span>
-                                  </div>
-                                  <div className="border-t border-slate-700 my-3" />
-                                  <div className="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                      <span className="text-slate-500 block text-xs mb-1">Canone</span>
-                                      <span className="text-emerald-400 font-semibold">{data.offerCanone || '-'}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-500 block text-xs mb-1">Attivazione</span>
-                                      <span className="text-white">{data.offerAttivazione || '-'}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-500 block text-xs mb-1">Vincolo</span>
-                                      <span className="text-amber-400">{data.offerVincolo || '-'}</span>
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-500 block text-xs mb-1">Disattivazione</span>
-                                      <span className="text-rose-400">{data.offerDisattivazione || '-'}</span>
-                                    </div>
-                                  </div>
-                                  {data.offerNote && (
-                                    <div className="mt-3 bg-slate-950/50 rounded-lg p-3 border border-slate-800">
-                                      <span className="text-slate-500 block text-xs mb-1">Note:</span>
-                                      <p className="text-slate-300 text-sm">{data.offerNote}</p>
-                                    </div>
-                                  )}
-                                  {data.offerScadenza && (
-                                    <div className="flex items-center gap-2 text-sm mt-2">
-                                      <Calendar className="w-4 h-4 text-amber-400" />
-                                      <span className="text-slate-400">Scadenza promo:</span>
-                                      <span className="text-amber-400 font-medium">{data.offerScadenza}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
+  <div className="space-y-4">
+    {/* Dettaglio Offerta Base */}
+    {data.offerName && (
+      <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
+        <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+          <Buildings className="w-5 h-5" />
+          Dettaglio Offerta Base
+        </h4>
+        <div className="space-y-3 text-sm">
+          <div className="flex justify-between items-start">
+            <span className="text-slate-400">Offerta:</span>
+            <span className="text-white text-right font-medium max-w-[60%]">{data.offerName}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Gestore:</span>
+            <span className="text-white">{data.type}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">Tipo:</span>
+            <span className={`text-xs px-2 py-1 rounded-full ${
+              data.offerType === 'business' ? 'bg-purple-600/20 text-purple-400' : 'bg-blue-600/20 text-blue-400'
+            }`}>
+              {data.offerType === 'business' ? 'Business' : 'Consumer'}
+            </span>
+          </div>
+          
+          <div className="border-t border-slate-700 my-3" />
+          
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400">Canone Mensile Base:</span>
+            <span className="text-emerald-400 font-bold text-lg">{data.offerCanone || '-'}</span>
+          </div>
+          
+          {data.offerScadenza && (
+            <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-900/20 p-2 rounded-lg">
+              <Calendar className="w-4 h-4" />
+              <span>Promo valida fino al {data.offerScadenza}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
-                            <div className="bg-slate-800/50 rounded-xl p-6">
-                              <h4 className="font-semibold text-white mb-4">Riepilogo Cliente</h4>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex justify-between"><span className="text-slate-400">Cliente:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
-                                <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
-                                {data.lineType && (
-                                  <>
-                                    <div className="flex justify-between"><span className="text-slate-400">Linea:</span><span className="text-white">{data.lineType}</span></div>
-                                    <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {(data.appointmentData || data.appointmentOra) && (
-                              <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
-                                <h5 className="font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-                                  <Calendar className="w-4 h-4" />
-                                  Appuntamento Installazione
-                                </h5>
-                                <div className="space-y-2 text-sm">
-                                  {data.appointmentData && (
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-400">Data:</span>
-                                      <span className="text-white">{new Date(data.appointmentData).toLocaleDateString('it-IT')}</span>
-                                    </div>
-                                  )}
-                                  {(data.appointmentOra || data.appointmentOraFine) && (
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-400">Orario:</span>
-                                      <span className="text-white">{data.appointmentOra || '--:--'} - {data.appointmentOraFine || '--:--'}</span>
-                                    </div>
-                                  )}
-                                  {data.appointmentAccordi && (
-                                    <div className="mt-2">
-                                      <span className="text-slate-400 block text-xs mb-1">Accordi:</span>
-                                      <p className="text-white text-xs bg-slate-950/50 p-2 rounded">{data.appointmentAccordi}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            
-                            <button
-                              onClick={handleSubmit}
-                              disabled={loading || !practiceId}
-                              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
-                            >
-                              {loading ? 'Salvataggio...' : <><Check className="w-5 h-5" /> Completa Pratica</>}
-                            </button>
-                            {!practiceId && <p className="text-rose-400 text-center text-sm">ID mancante - errore Step 1</p>}
-                          </div>
-                        )}
+    {/* Pacchetti Aggiuntivi (se presenti) */}
+    {data.additionalPackages?.selectedIds?.some(id => id !== 'none') && (
+      <div className="bg-slate-800/50 rounded-xl p-6 border border-indigo-500/30">
+        <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+          <Package className="w-5 h-5" />
+          Pacchetti Aggiuntivi Selezionati
+        </h4>
+        <div className="space-y-2 text-sm">
+          {data.additionalPackages.selectedIds.map(pkgId => {
+            const pkg = ADDITIONAL_PACKAGES.find(p => p.id === pkgId);
+            return pkg ? (
+              <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
+                <span className="text-slate-300">{pkg.label}</span>
+                <span className="text-indigo-300 font-medium">€{pkg.price.toFixed(2)}/mese</span>
+              </div>
+            ) : null;
+          })}
+          <div className="border-t border-slate-600 my-2 pt-2">
+            <div className="flex justify-between font-bold">
+              <span className="text-slate-300">Totale Pacchetti</span>
+              <span className="text-indigo-400 text-lg">
+                €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}/mese
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* WASH Config (se presente - retroattivo) */}
+    {data.washConfig && data.washConfig.enabled && (
+      <div className="bg-slate-800/50 rounded-xl p-6 border border-amber-500/30">
+        <h4 className="font-semibold text-amber-400 mb-4 flex items-center gap-2">
+          <TelevisionSimple className="w-5 h-5" />
+          Gestione WASH
+        </h4>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-400">Stato WASH:</span>
+            <span className={`font-bold ${data.washConfig.type === 'suspect' ? 'text-amber-400' : 'text-emerald-400'}`}>
+              {data.washConfig.type === 'suspect' ? 'SUSPECT WASH ⚠️' : 'NO WASH ✓'}
+            </span>
+          </div>
+          
+          {data.washConfig.type === 'suspect' && data.washConfig.suspectData && (
+            <>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Codice Cliente/CF:</span>
+                <span className="text-white font-mono text-xs">{data.washConfig.suspectData.clientCode || '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Gestione abbonamento:</span>
+                <span className="text-amber-300">
+                  {data.washConfig.suspectData.action === 'disattiva' ? 'Disattiva vecchio' : 'Mantieni vecchio'}
+                </span>
+              </div>
+            </>
+          )}
+          
+          <div className="text-xs text-slate-500 mt-2 bg-slate-900/50 p-2 rounded">
+            Registrato il: {data.washConfig.timestamp ? new Date(data.washConfig.timestamp).toLocaleString('it-IT') : 'N/D'}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Totale Combinato */}
+    <div className="bg-gradient-to-r from-emerald-900/30 to-indigo-900/30 border border-emerald-500/30 rounded-xl p-6">
+      <h4 className="font-bold text-white mb-4 text-lg">💰 Riepilogo Costi Totali</h4>
+      <div className="space-y-3">
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-300">Canone Base:</span>
+          <span className="text-white font-medium">{data.offerCanone || '€0,00'}</span>
+        </div>
+        
+        {(data.additionalPackages?.totalPrice > 0) && (
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
+            <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages.totalPrice).toFixed(2)}</span>
+          </div>
+        )}
+        
+        <div className="border-t border-slate-600 my-2" />
+        
+        <div className="flex justify-between items-center">
+          <span className="text-white font-bold text-lg">Totale Mensile:</span>
+          <span className="text-2xl font-bold text-emerald-400">
+            €{(() => {
+              const basePrice = extractPrice(data.offerCanone || '');
+              const packagesPrice = data.additionalPackages?.totalPrice || 0;
+              return (basePrice + packagesPrice).toFixed(2);
+            })()}
+          </span>
+        </div>
+        
+        {data.offerScadenza && (
+          <p className="text-xs text-amber-400 mt-2 text-center bg-amber-900/20 p-2 rounded">
+            ⚠️ Prezzo promozionale valido fino al {data.offerScadenza}
+          </p>
+        )}
+      </div>
+    </div>
+
+    {/* Dati Cliente */}
+    <div className="bg-slate-800/50 rounded-xl p-6">
+      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+        <User className="w-5 h-5" />
+        Dati Cliente
+      </h4>
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between"><span className="text-slate-400">Nome:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
+        <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
+        <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
+        {data.lineType && (
+          <>
+            <div className="flex justify-between"><span className="text-slate-400">Tipo Linea:</span><span className="text-white">{data.lineType}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
+          </>
+        )}
+      </div>
+    </div>
+    
+    {/* Appuntamento */}
+    {(data.appointmentData || data.appointmentOra) && (
+      <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
+        <h5 className="font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+          <Calendar className="w-4 h-4" />
+          Appuntamento Installazione
+        </h5>
+        <div className="space-y-2 text-sm">
+          {data.appointmentData && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Data:</span>
+              <span className="text-white">{new Date(data.appointmentData).toLocaleDateString('it-IT')}</span>
+            </div>
+          )}
+          {(data.appointmentOra || data.appointmentOraFine) && (
+            <div className="flex justify-between">
+              <span className="text-slate-400">Orario:</span>
+              <span className="text-white">{data.appointmentOra || '--:--'} - {data.appointmentOraFine || '--:--'}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    
+    <button
+      onClick={handleSubmit}
+      disabled={loading || !practiceId}
+      className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+    >
+      {loading ? 'Salvataggio...' : <><Check className="w-5 h-5" /> Completa Pratica</>}
+    </button>
+    {!practiceId && <p className="text-rose-400 text-center text-sm">ID mancante - errore Step 1</p>}
+  </div>
+)}
 
                         {!isLastStep(step.id) && (
                           <div className="flex justify-between mt-6 pt-6 border-t border-slate-800">

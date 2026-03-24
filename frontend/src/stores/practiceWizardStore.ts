@@ -247,12 +247,16 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
         return { currentStepId: newStepId, currentStep: newStepNumber };
       }),
 
-      setStoreConfig: (config) => set((state) => ({
-        data: {
-          ...state.data,
-          storeConfig: { ...state.data.storeConfig, ...config }
-        }
-      })),
+   setStoreConfig: (config) => set((state) => ({
+  data: {
+    ...state.data,
+    storeConfig: { 
+      enableWashStep: state.data.storeConfig?.enableWashStep ?? false,
+      enableAdditionalPackages: state.data.storeConfig?.enableAdditionalPackages ?? true,
+      ...config 
+    }
+  }
+})),
 
       setOffer: (offer) => set((state) => {
         const newData = { 

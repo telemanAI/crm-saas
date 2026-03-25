@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { motion } from 'framer-motion';
-import { TelevisionSimple, Warning, CheckCircle, TrendUp, ChartBar, Lock, AlertTriangle } from 'phosphor-react';
+import { TelevisionSimple, Warning, CheckCircle, TrendUp, ChartBar, Lock, WarningCircle } from 'phosphor-react'; // AlertTriangle -> WarningCircle
 
 interface WashStats {
   total: number;
@@ -11,7 +11,7 @@ interface WashStats {
   none: number;
   suspectPercentage: number;
   nonePercentage: number;
-  suspectVsNoneRatio?: number; // 🔴 NUOVO: rapporto suspect/none
+  suspectVsNoneRatio?: number;
 }
 
 interface TenantConfig {
@@ -42,7 +42,6 @@ export default function WashReport() {
                 headers: { Authorization: `Bearer ${token}` }
               });
               
-              // 🔴 Calcolo rapporto suspect vs none (per alert 25%)
               const data = statsRes.data;
               const ratio = data.none > 0 ? (data.suspect / data.none) * 100 : 0;
               data.suspectVsNoneRatio = Math.round(ratio * 100) / 100;
@@ -64,7 +63,6 @@ export default function WashReport() {
     if (token) loadConfigAndData();
   }, [token, user]);
 
-  // 🔴 Alert quando suspect è >= 25% rispetto a none (o >= 25% del totale)
   const showAlert = stats && (stats.suspectPercentage >= 25 || (stats.suspectVsNoneRatio && stats.suspectVsNoneRatio >= 25));
 
   if (loading) {
@@ -113,7 +111,7 @@ export default function WashReport() {
     <OperatorLayout title="Report WASH / NO WASH">
       <div className="p-8 max-w-6xl mx-auto">
         
-        {/* 🔴 ALERT 25% - Banner visivo quando suspect supera il 25% */}
+        {/* ALERT 25% */}
         {showAlert && (
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
@@ -121,7 +119,7 @@ export default function WashReport() {
             className="mb-6 bg-rose-900/30 border border-rose-500/50 rounded-2xl p-6 flex items-center gap-4"
           >
             <div className="w-12 h-12 bg-rose-600/20 rounded-full flex items-center justify-center flex-shrink-0">
-              <AlertTriangle className="w-6 h-6 text-rose-400" />
+              <WarningCircle className="w-6 h-6 text-rose-400" /> {/* Cambiato qui */}
             </div>
             <div className="flex-1">
               <h3 className="text-rose-400 font-bold text-lg mb-1">
@@ -155,7 +153,6 @@ export default function WashReport() {
             </div>
           </div>
           
-          {/* Indicatore di stato */}
           <div className="flex items-center gap-2">
             <span className={`px-3 py-1 rounded-full text-sm border flex items-center gap-2 ${
               showAlert 
@@ -170,7 +167,6 @@ export default function WashReport() {
 
         {/* Cards Riepilogo */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Card Totale */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -184,7 +180,6 @@ export default function WashReport() {
             <div className="text-sm text-slate-500">Pratiche con WASH configurato</div>
           </motion.div>
 
-          {/* Card Suspect con alert visivo se > 25% */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -222,7 +217,6 @@ export default function WashReport() {
             </div>
           </motion.div>
 
-          {/* Card No Wash */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -287,7 +281,6 @@ export default function WashReport() {
                 </div>
               </div>
               <div className="h-6 bg-slate-800 rounded-full overflow-hidden shadow-inner relative">
-                {/* Marker 25% */}
                 <div className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-20" style={{ left: '25%' }}>
                   <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-xs text-rose-400 font-medium">
                     25%
@@ -308,13 +301,12 @@ export default function WashReport() {
               </div>
               {stats.suspectPercentage >= 25 && (
                 <p className="text-rose-400 text-xs mt-2 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" />
+                  <WarningCircle className="w-3 h-3" /> {/* Cambiato qui */}
                   Soglia critica superata: attenzione alla gestione dei suspect wash!
                 </p>
               )}
             </div>
 
-            {/* Barra No Wash */}
             <div>
               <div className="flex justify-between items-end mb-3">
                 <div>

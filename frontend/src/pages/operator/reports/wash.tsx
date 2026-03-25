@@ -3,7 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { motion } from 'framer-motion';
-import { TelevisionSimple, Warning, CheckCircle, TrendingUp, BarChart3, Lock } from 'phosphor-react';
+import { TelevisionSimple, Warning, CheckCircle, TrendUp, BarChart3, Lock } from 'phosphor-react';
 
 interface WashStats {
   total: number;
@@ -219,7 +219,7 @@ export default function WashReport() {
         >
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-indigo-400" />
+              <TrendUp className="w-6 h-6 text-indigo-400" />
               Distribuzione Percentuale
             </h3>
             <div className="flex items-center gap-4 text-sm">

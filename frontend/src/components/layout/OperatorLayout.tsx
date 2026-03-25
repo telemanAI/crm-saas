@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import {
@@ -9,10 +9,12 @@ import {
   Bell,
   ChartLine,
   Crown,
-  ArrowLeft
+  ArrowLeft,
+  TelevisionSimple
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
+import api from '@/lib/axios';
 
 interface OperatorLayoutProps {
   children: ReactNode;
@@ -23,6 +25,26 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
   const router = useRouter();
   const { user, isImpersonating, clearAuth, exitImpersonate, originalUser } = useAuthStore();
   const { isDark } = useThemeStore();
+  
+  // Stato per mostrare/nascondere Report WASH
+  const [showWashReport, setShowWashReport] = useState(false);
+
+  // Carica config WASH dal tenant
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        if (user?.tenantId) {
+          const res = await api.get(`/tenants/${user.tenantId}/config`);
+          setShowWashReport(res.data.enableWashStep === true);
+        }
+      } catch (err) {
+        console.error('Errore caricamento config:', err);
+        setShowWashReport(false);
+      }
+    };
+    
+    loadConfig();
+  }, [user?.tenantId]);
 
   const handleLogout = () => {
     clearAuth();
@@ -82,18 +104,35 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
             
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
-                    : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
-                }`}
-              >
-                <Icon className="w-5 h-5" weight={isActive ? 'fill' : 'regular'} />
-                {item.label}
-              </Link>
+              <div key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
+                      : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                  }`}
+                >
+                  <Icon className="w-5 h-5" weight={isActive ? 'fill' : 'regular'} />
+                  {item.label}
+                </Link>
+
+                {/* 🔥 REPORT WASH - Appare SOLO se toggle è attivo */}
+                {item.label === 'Report' && showWashReport && (
+                  <Link
+                    href="/operator/reports/wash"
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ml-4 mt-1 ${
+                      router.pathname === '/operator/reports/wash'
+                        ? (isDark ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-amber-50 text-amber-600 border border-amber-200')
+                        : (isDark ? 'text-slate-400 hover:text-amber-400 hover:bg-slate-800' : 'text-gray-600 hover:text-amber-600 hover:bg-amber-50')
+                    }`}
+                  >
+                    <TelevisionSimple className="w-5 h-5" weight={router.pathname === '/operator/reports/wash' ? 'fill' : 'regular'} />
+                    Report WASH
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse ml-auto" />
+                  </Link>
+                )}
+              </div>
             );
           })}
         </nav>

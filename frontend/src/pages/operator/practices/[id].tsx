@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
 import { ADDITIONAL_PACKAGES } from '@/stores/practiceWizardStore';
-import { Package, TelevisionSimple } from 'phosphor-react'; 
 import { 
   ArrowLeft, 
   Trash, 
@@ -22,7 +21,9 @@ import {
   ToggleLeft,
   ToggleRight,
   Calendar,
-  Tag
+  Tag,
+  Package,
+  TelevisionSimple
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -112,18 +113,6 @@ export default function PracticeDetail() {
     if (practice) setOperationalStatus(typeof practice.operationalStatus === 'string' ? practice.operationalStatus : 'PENDING');
   }, [practice]);
 
-  const handleDeleteNote = async (noteIndex: number) => {
-    if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
-    try {
-      await api.delete(`/practices/${id}/notes/${noteIndex}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      fetchPractice();
-    } catch (err) {
-      alert('Errore durante l\'eliminazione della nota');
-    }
-  };
-
   const fetchPractice = async () => {
     try {
       const response = await api.get(`/practices/${id}`, {
@@ -146,6 +135,18 @@ export default function PracticeDetail() {
       setError('Impossibile caricare la pratica');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteIndex: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
+    try {
+      await api.delete(`/practices/${id}/notes/${noteIndex}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchPractice();
+    } catch (err) {
+      alert('Errore durante l\'eliminazione della nota');
     }
   };
 
@@ -395,7 +396,7 @@ export default function PracticeDetail() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="bg-indigo-900/20 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
+              className="bg-slate-900/80 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
@@ -606,6 +607,7 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
+          {/* Dettagli Linea */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -701,6 +703,7 @@ export default function PracticeDetail() {
             )}
           </motion.div>
           
+          {/* Appuntamento Installazione */}
           {practice.appointmentData && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -763,6 +766,7 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
+          {/* Pagamento */}
           {practice.paymentMethod && Object.keys(practice.paymentMethod).length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -803,6 +807,7 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
+          {/* Note Linea */}
           {practice.newLineNotes && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -825,8 +830,10 @@ export default function PracticeDetail() {
           )}
         </div>
 
+        {/* Sidebar */}
         <div className="space-y-6">
           
+          {/* Info Pratica */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1018,6 +1025,7 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
+          {/* Progresso */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

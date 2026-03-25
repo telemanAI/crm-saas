@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice } from '../practices/entities/practice.entity';
-import { Tenant } from '../tenants/entities/tenant.entity'; // Assicurati del path corretto
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
@@ -12,7 +12,7 @@ export class WashReportController {
     @InjectRepository(Practice)
     private practicesRepository: Repository<Practice>,
     @InjectRepository(Tenant)
-    private tenantRepository: Repository<Tenant>, // Repository diretto
+    private tenantRepository: Repository<Tenant>,
   ) {}
 
   @Get('wash-stats')
@@ -23,12 +23,10 @@ export class WashReportController {
   ) {
     const tenantId = req.user.tenantId;
     
-    // Default: ultimi 30 giorni
     const now = new Date();
     const from = dateFrom ? new Date(dateFrom) : new Date(now.setDate(now.getDate() - 30));
     const to = dateTo ? new Date(dateTo) : new Date();
 
-    // Query pratiche SKY TV
     const practices = await this.practicesRepository
       .createQueryBuilder('p')
       .where('p.tenant_id = :tenantId', { tenantId })
@@ -38,7 +36,6 @@ export class WashReportController {
 
     const totalSkyTvPractices = practices.length;
     
-    // Conta WASH types
     let suspectWashCount = 0;
     let noWashCount = 0;
 

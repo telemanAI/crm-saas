@@ -141,7 +141,7 @@ export class PracticesService {
     const practice = await this.findById(tenantId, practiceId);
 
     switch (dto.stepNumber) {
-       case 1:
+      case 1:
         console.log('[DEBUG] Step 1 - Aggiornamento dati offerta');
         if (dto.data?.type) practice.type = dto.data.type;
         if (dto.data?.offerCode) practice.offerCode = dto.data.offerCode;
@@ -243,14 +243,28 @@ export class PracticesService {
         break;
       
       case 4:
-        practice.lineType = dto.data?.lineType;
-        practice.installationAddress = dto.data?.installationAddress;
-        practice.technology = dto.data?.technology;
-        practice.newLineNotes = dto.data?.notes;
+        // Step 4: gestisce sia pacchetti SKY che dati linea standard
+        if (dto.data?.additionalPackages) {
+          // Flusso SKY TV - Pacchetti aggiuntivi
+          practice.additionalPackages = dto.data.additionalPackages;
+        } else {
+          // Flusso standard - Dati linea
+          practice.lineType = dto.data?.lineType;
+          practice.installationAddress = dto.data?.installationAddress;
+          practice.technology = dto.data?.technology;
+          practice.newLineNotes = dto.data?.notes;
+        }
         break;
       
       case 5:
-        practice.oldLineData = dto.data?.oldLineData || dto.data;
+        // Step 5: gestisce sia WASH (SKY) che vecchia linea (standard)
+        if (dto.data?.washConfig) {
+          // Flusso SKY TV - Configurazione WASH
+          practice.washConfig = dto.data.washConfig;
+        } else {
+          // Flusso standard - Dati vecchia linea (migrazione)
+          practice.oldLineData = dto.data?.oldLineData || dto.data;
+        }
         break;
       
       case 6:

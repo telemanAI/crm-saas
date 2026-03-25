@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { motion } from 'framer-motion';
-import { TelevisionSimple, Warning, CheckCircle, TrendUp, BarChart3 } from 'phosphor-react';
+import { TelevisionSimple, Warning, CheckCircle, TrendUp,  } from 'phosphor-react';
 
 interface WashStats {
   total: number;

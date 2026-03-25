@@ -68,6 +68,10 @@ export class WashReportController {
     @Query('dateTo') dateTo?: string,
   ) {
     const tenantId = req.user.tenantId;
+	 // 🔒 NUOVO: Verifica che il WASH sia abilitato per questo tenant
+  const tenantConfig = await this.tenantsService.findOne(tenantId); // o come recuperi la config
+  if (!tenantConfig?.enableWashStep) {
+    throw new ForbiddenException('Report WASH disabilitato per questo tenant');
     
     const now = new Date();
     const from = dateFrom ? new Date(dateFrom) : new Date(now.setDate(now.getDate() - 30));

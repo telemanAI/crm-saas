@@ -35,7 +35,12 @@ export function Sidebar() {
     if (user?.tenantId) {
       api.get(`/tenants/${user.tenantId}/config`).then(res => {
         setShowWashReport(res.data.enableWashStep);
-      }).catch(err => {
+		 console.log('[DEBUG] Config ricevuta:', res.data); // <-- AGGIUNGI QUESTO
+        // Prova entrambi i formati (camelCase o snake_case)
+        const isEnabled = res.data.enableWashStep || res.data.enable_wash_step;
+        setShowWashReport(!!isEnabled);
+      })
+	  .catch(err => {
         console.error('Errore caricamento config:', err);
       });
     }

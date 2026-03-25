@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
+import { ADDITIONAL_PACKAGES } from '@/stores/practiceWizardStore';
+import { Package, TelevisionSimple } from 'phosphor-react'; 
 import { 
   ArrowLeft, 
   Trash, 
@@ -71,6 +73,19 @@ interface PracticeDetail {
   offerDisattivazione?: string;
   offerNote?: string;
   offerScadenza?: string;
+  additionalPackages?: {
+    selectedIds: string[];
+    totalPrice: number;
+  };
+  washConfig?: {
+    enabled: boolean;
+    type: 'suspect' | 'none';
+    suspectData?: {
+      clientCode: string;
+      action: 'disattiva' | 'mantieni';
+    };
+    timestamp?: Date;
+  };
 }
 
 export default function PracticeDetail() {
@@ -374,6 +389,114 @@ export default function PracticeDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           
+          {/* Pacchetti Aggiuntivi */}
+          {practice.additionalPackages?.selectedIds?.some(id => id !== 'none') && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-indigo-900/20 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                  <Package className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">Pacchetti Aggiuntivi</h2>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                {practice.additionalPackages.selectedIds.map(pkgId => {
+                  const pkg = ADDITIONAL_PACKAGES.find(p => p.id === pkgId);
+                  return pkg ? (
+                    <div key={pkg.id} className="flex justify-between items-center p-3 bg-slate-900/50 rounded-xl border border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${pkg.category === 'netflix' ? 'bg-red-500' : 'bg-indigo-500'}`} />
+                        <span className="text-slate-200 font-medium">{pkg.label}</span>
+                        {pkg.category === 'netflix' && (
+                          <span className="text-xs bg-red-600/30 text-red-400 px-2 py-0.5 rounded">Netflix</span>
+                        )}
+                      </div>
+                      <span className="text-indigo-300 font-bold">€{pkg.price.toFixed(2)}/mese</span>
+                    </div>
+                  ) : null;
+                })}
+              </div>
+
+              <div className="border-t border-indigo-500/30 pt-4 mt-4">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-300 font-medium">Totale Pacchetti:</span>
+                  <span className="text-2xl font-bold text-indigo-400">
+                    €{practice.additionalPackages.totalPrice.toFixed(2)}/mese
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* WASH Config */}
+          {practice.washConfig?.enabled && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className={`backdrop-blur-xl border rounded-2xl p-6 ${
+                practice.washConfig.type === 'suspect' 
+                  ? 'bg-amber-900/20 border-amber-500/30' 
+                  : 'bg-emerald-900/20 border-emerald-500/30'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                  practice.washConfig.type === 'suspect' 
+                    ? 'bg-amber-600/20 text-amber-400' 
+                    : 'bg-emerald-600/20 text-emerald-400'
+                }`}>
+                  <TelevisionSimple className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">Gestione WASH</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center p-3 bg-slate-900/50 rounded-xl">
+                  <span className="text-slate-400">Stato WASH:</span>
+                  <span className={`font-bold text-lg ${
+                    practice.washConfig.type === 'suspect' ? 'text-amber-400' : 'text-emerald-400'
+                  }`}>
+                    {practice.washConfig.type === 'suspect' ? '⚠️ SUSPECT WASH' : '✓ NO WASH'}
+                  </span>
+                </div>
+
+                {practice.washConfig.type === 'suspect' && practice.washConfig.suspectData && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-slate-900/50 rounded-xl">
+                        <span className="text-slate-500 text-xs block mb-1">Codice Cliente/CF</span>
+                        <span className="text-white font-mono text-sm">{practice.washConfig.suspectData.clientCode || '-'}</span>
+                      </div>
+                      <div className="p-3 bg-slate-900/50 rounded-xl">
+                        <span className="text-slate-500 text-xs block mb-1">Gestione Abbonamento</span>
+                        <span className={`text-sm font-medium ${
+                          practice.washConfig.suspectData.action === 'disattiva' ? 'text-rose-400' : 'text-amber-400'
+                        }`}>
+                          {practice.washConfig.suspectData.action === 'disattiva' 
+                            ? 'Disattiva vecchio' 
+                            : 'Mantieni vecchio'}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {practice.washConfig.timestamp && (
+                  <div className="text-xs text-slate-500 bg-slate-900/30 p-2 rounded-lg border border-slate-800">
+                    Registrato il: {new Date(practice.washConfig.timestamp).toLocaleString('it-IT')}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Note & Cronologia */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -404,7 +527,7 @@ export default function PracticeDetail() {
                 className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none text-sm transition-all"
               />
               <div className="flex justify-end mt-3">
-                          <button 
+                <button 
                   onClick={async () => {
                     if (!notes.trim()) return;
                     setNotesLoading(true);
@@ -424,7 +547,7 @@ export default function PracticeDetail() {
                     }
                   }}
                   disabled={notesLoading || !notes.trim()}
-                               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
                     notesLoading || !notes.trim()
                       ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-400' 
                       : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30'
@@ -777,6 +900,41 @@ export default function PracticeDetail() {
                       <Calendar className="w-4 h-4 text-amber-400" />
                       <span className="text-slate-400">Scadenza promo:</span>
                       <span className="text-amber-400 font-semibold">{practice.offerScadenza}</span>
+                    </div>
+                  )}
+
+                  {/* Totale Mensile Completo */}
+                  {practice.additionalPackages && (
+                    <div className="mt-4 pt-4 border-t border-slate-700 bg-gradient-to-r from-emerald-900/20 to-indigo-900/20 rounded-xl p-4 border border-emerald-500/20">
+                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-400" />
+                        Riepilogo Costi
+                      </h4>
+                      
+                      <div className="space-y-2 text-sm mb-3">
+                        <div className="flex justify-between text-slate-400">
+                          <span>Canone Base:</span>
+                          <span>{practice.offerCanone || '-'}</span>
+                        </div>
+                        {practice.additionalPackages.totalPrice > 0 && (
+                          <div className="flex justify-between text-indigo-300">
+                            <span>Pacchetti:</span>
+                            <span>+ €{practice.additionalPackages.totalPrice.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="border-t border-slate-600 pt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white font-bold">Totale:</span>
+                          <span className="text-xl font-bold text-emerald-400">
+                            €{(() => {
+                              const basePrice = parseFloat(practice.offerCanone?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
+                              return (basePrice + (practice.additionalPackages?.totalPrice || 0)).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

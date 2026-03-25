@@ -134,6 +134,23 @@ export class Practice {
     lavorazioniPost?: string; 
   };
 
+@Column({ name: 'additional_packages', type: 'jsonb', nullable: true })
+additionalPackages?: { 
+  selectedIds: string[]; 
+  totalPrice: number; 
+};
+
+@Column({ name: 'wash_config', type: 'jsonb', nullable: true })
+washConfig?: {
+  enabled: boolean;
+  type: 'suspect' | 'none';
+  suspectData?: {
+    clientCode: string;
+    action: 'disattiva' | 'mantieni';
+  };
+  timestamp?: Date;
+};
+
   @Column({ name: 'notes_history', type: 'jsonb', nullable: true })
   notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string }>;
 

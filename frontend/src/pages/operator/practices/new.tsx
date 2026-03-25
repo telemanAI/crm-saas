@@ -407,7 +407,10 @@ export default function NewPractice() {
         sedeLegale: practice.customerSnapshot?.sedeLegale,
         codiceRea: practice.customerSnapshot?.codiceRea,
         pec: practice.customerSnapshot?.pec,
-      });
+        additionalPackages: practice.additionalPackages,
+		washConfig: practice.washConfig,
+	  
+	  });
       
       if (practice.offerType === 'business') {
         setShowBusinessOnly(true);
@@ -523,7 +526,8 @@ export default function NewPractice() {
       phone: customer.phonePrimary || customer.phone || '',
       email: customer.email || '',
       installationAddress: customer.address ? { street: customer.address } : data.installationAddress
-    });
+ 
+	});
     setShowCfSuggestions(false);
     setShowPhoneSuggestions(false);
     setShowNameSuggestions(false);

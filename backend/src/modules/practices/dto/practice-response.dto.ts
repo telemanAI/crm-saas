@@ -25,6 +25,19 @@ export class PracticeResponseDto {
   offerDisattivazione?: string;
   offerType?: string;
   offerScadenza?: string;
+  additionalPackages?: {
+  selectedIds: string[];
+  totalPrice: number;
+};
+washConfig?: {
+  enabled: boolean;
+  type: 'suspect' | 'none';
+  suspectData?: {
+    clientCode: string;
+    action: 'disattiva' | 'mantieni';
+  };
+  timestamp?: Date;
+};
   lineType?: string;
   installationAddress?: any;
   technology?: string;
@@ -40,6 +53,11 @@ export class PracticeResponseDto {
   notesHistory?: any;
   createdAt: Date;
   updatedAt: Date;
+  additionalPackages?: {
+  selectedIds: string[];
+  totalPrice: number;
+};
+
 
   constructor(practice: Practice) {
     console.log('[DTO] Input practice.status:', 
@@ -65,6 +83,8 @@ export class PracticeResponseDto {
         .map((s: string) => parseInt(s.trim(), 10))
         .filter((n: number) => !isNaN(n) && n > 0);
     }
+
+
 
     this.completedSteps = [...new Set(numericSteps)].sort((a, b) => a - b);
     
@@ -100,7 +120,9 @@ export class PracticeResponseDto {
     this.offerDisattivazione = typeof practice.offerDisattivazione === 'string' ? practice.offerDisattivazione : undefined;
     this.offerType = typeof practice.offerType === 'string' ? practice.offerType : undefined;
     this.offerScadenza = typeof practice.offerScadenza === 'string' ? practice.offerScadenza : undefined;
-    this.lineType = practice.lineType;
+    this.additionalPackages = practice.additionalPackages;
+    this.washConfig = practice.washConfig;
+	this.lineType = practice.lineType;
     this.installationAddress = practice.installationAddress || {};
     this.technology = typeof practice.technology === 'string' ? practice.technology : undefined;
     this.oldLineData = practice.oldLineData || {};

@@ -73,6 +73,28 @@ class OldLineDataDto {
   @IsOptional()
   @IsString()
   notes?: string;
+  
+  @IsOptional()
+@ValidateNested()
+@Type(() => Object)
+additionalPackages?: {
+  selectedIds: string[];
+  totalPrice: number;
+};
+
+@IsOptional()
+@ValidateNested()
+@Type(() => Object)
+washConfig?: {
+  enabled: boolean;
+  type: 'suspect' | 'none';
+  suspectData?: {
+    clientCode: string;
+    action: 'disattiva' | 'mantieni';
+  };
+  timestamp?: Date;
+};
+  
 }
 
 export class CreatePracticeDto {

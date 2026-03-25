@@ -77,12 +77,10 @@ export class WashReportController {
       .createQueryBuilder('p')
       .select([
         'p.id',
-        'p.practiceNumber',
-        'p.customerFirstName',
-        'p.customerLastName',
         'p.offerName',
         'p.createdAt',
-        'p.washConfig'
+        'p.washConfig',
+        'p.customerSnapshot'
       ])
       .where('p.tenant_id = :tenantId', { tenantId })
       .andWhere('p.created_at BETWEEN :from AND :to', { from, to })
@@ -92,8 +90,10 @@ export class WashReportController {
 
     return practices.map((p: any) => ({
       id: p.id,
-      practiceNumber: p.practiceNumber,
-      customerName: `${p.customerFirstName || ''} ${p.customerLastName || ''}`.trim(),
+      practiceNumber: p.id.slice(0, 8).toUpperCase(),
+      customerName: p.customerSnapshot ? 
+        `${p.customerSnapshot.firstName || ''} ${p.customerSnapshot.lastName || ''}`.trim() 
+        : 'N/D',
       offerName: p.offerName,
       createdAt: p.createdAt,
       washType: p.washConfig?.type || 'none',

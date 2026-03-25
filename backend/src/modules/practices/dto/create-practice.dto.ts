@@ -73,28 +73,6 @@ class OldLineDataDto {
   @IsOptional()
   @IsString()
   notes?: string;
-  
-  @IsOptional()
-@ValidateNested()
-@Type(() => Object)
-additionalPackages?: {
-  selectedIds: string[];
-  totalPrice: number;
-};
-
-@IsOptional()
-@ValidateNested()
-@Type(() => Object)
-washConfig?: {
-  enabled: boolean;
-  type: 'suspect' | 'none';
-  suspectData?: {
-    clientCode: string;
-    action: 'disattiva' | 'mantieni';
-  };
-  timestamp?: Date;
-};
-  
 }
 
 export class CreatePracticeDto {
@@ -177,4 +155,26 @@ export class CreatePracticeDto {
   @ValidateNested()
   @Type(() => PaymentDataDto)
   paymentData: PaymentDataDto;
+
+  // Pacchetti aggiuntivi e WASH (popolati negli step successivi)
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => Object)
+  additionalPackages?: {
+    selectedIds: string[];
+    totalPrice: number;
+  };
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => Object)
+  washConfig?: {
+    enabled: boolean;
+    type: 'suspect' | 'none';
+    suspectData?: {
+      clientCode: string;
+      action: 'disattiva' | 'mantieni';
+    };
+    timestamp?: Date;
+  };
 }

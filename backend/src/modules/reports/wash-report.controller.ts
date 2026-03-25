@@ -3,7 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice } from '../practices/entities/practice.entity';
-import { TenantsService } from '../tenants/tenants.service'; // Aggiusta il path se diverso
+import { Tenant } from '../tenants/entities/tenant.entity'; // Assicurati del path corretto
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
@@ -11,7 +11,8 @@ export class WashReportController {
   constructor(
     @InjectRepository(Practice)
     private practicesRepository: Repository<Practice>,
-    private tenantsService: TenantsService, // Aggiunto al costruttore
+    @InjectRepository(Tenant)
+    private tenantRepository: Repository<Tenant>, // Repository diretto
   ) {}
 
   @Get('wash-stats')
@@ -72,8 +73,11 @@ export class WashReportController {
     const tenantId = req.user.tenantId;
     
     // 🔒 Verifica che il WASH sia abilitato per questo tenant
-    const tenantConfig = await this.tenantsService.findOne(tenantId);
-    if (!tenantConfig?.enableWashStep) {
+    const tenant = await this.tenantRepository.findOne({ 
+      where: { id: tenantId } 
+    });
+    
+    if (!tenant?.enableWashStep) {
       throw new ForbiddenException('Report WASH disabilitato per questo tenant');
     }
     

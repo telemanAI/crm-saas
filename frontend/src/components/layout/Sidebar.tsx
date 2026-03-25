@@ -9,8 +9,7 @@ import {
   SignOut,
   List,
   ChartBar,
-  TelevisionSimple,
-  Warning
+  TelevisionSimple
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -32,12 +31,12 @@ export function Sidebar() {
   const { user, clearAuth } = useAuthStore();
   const router = useRouter();
 
-  // 🔴 CRUCIALE: Carica config per vedere se WASH è abilitato
+  // Carica config WASH
   useEffect(() => {
     if (user?.tenantId) {
       api.get(`/tenants/${user.tenantId}/config`)
         .then(res => {
-          setShowWashReport(res.data.enableWashStep);
+          setShowWashReport(res.data.enableWashStep === true);
         })
         .catch(err => {
           console.error('Errore caricamento config:', err);
@@ -88,60 +87,62 @@ export function Sidebar() {
           const Icon = item.icon;
           
           return (
-            <Link key={item.href} href={item.href}>
-              <motion.div
-                whileHover={{ x: 4 }}
-                className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
-                  ${isActive ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-600/30' : 
-                    item.highlight ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' :
-                    'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
-              >
-                <Icon weight={isActive ? 'fill' : 'regular'} className="w-6 h-6 flex-shrink-0" />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="font-medium whitespace-nowrap"
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </Link>
+            <div key={item.href}>
+              {/* Item normale */}
+              <Link href={item.href}>
+                <motion.div
+                  whileHover={{ x: 4 }}
+                  className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200
+                    ${isActive ? 'bg-indigo-600/20 text-indigo-400 border border-indigo-600/30' : 
+                      item.highlight ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30' :
+                      'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}
+                >
+                  <Icon weight={isActive ? 'fill' : 'regular'} className="w-6 h-6 flex-shrink-0" />
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="font-medium whitespace-nowrap"
+                      >
+                        {item.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </Link>
+
+              {/* 🔴 REPORT WASH - Link indipendente subito sotto Report */}
+              {item.label === 'Report' && showWashReport && (
+                <Link href="/operator/reports/wash">
+                  <motion.div
+                    whileHover={{ x: 4 }}
+                    className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 mt-1
+                      ${router.pathname === '/operator/reports/wash' 
+                        ? 'bg-amber-600/20 text-amber-400 border border-amber-600/30' 
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-amber-400'}`}
+                  >
+                    <TelevisionSimple className="w-6 h-6 flex-shrink-0" />
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="font-medium whitespace-nowrap flex items-center gap-2"
+                        >
+                          Report WASH
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                </Link>
+              )}
+            </div>
           );
         })}
-
-        {/* 🔴 MENU WASH - Appare solo se abilitato */}
-        {showWashReport && (
-          <Link href="/operator/reports/wash">
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 mt-2
-                ${router.pathname === '/operator/reports/wash' 
-                  ? 'bg-amber-600/20 text-amber-400 border border-amber-600/30' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-amber-400'}`}
-            >
-              <TelevisionSimple className="w-6 h-6 flex-shrink-0" />
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="font-medium whitespace-nowrap flex items-center gap-2"
-                  >
-                    Report WASH
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </Link>
-        )}
       </nav>
 
       {/* User section */}

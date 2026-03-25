@@ -1,8 +1,9 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice } from '../practices/entities/practice.entity';
+import { TenantsService } from '../tenants/tenants.service'; // Aggiusta il path se diverso
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
@@ -10,6 +11,7 @@ export class WashReportController {
   constructor(
     @InjectRepository(Practice)
     private practicesRepository: Repository<Practice>,
+    private tenantsService: TenantsService, // Aggiunto al costruttore
   ) {}
 
   @Get('wash-stats')
@@ -68,10 +70,12 @@ export class WashReportController {
     @Query('dateTo') dateTo?: string,
   ) {
     const tenantId = req.user.tenantId;
-	 // 🔒 NUOVO: Verifica che il WASH sia abilitato per questo tenant
-  const tenantConfig = await this.tenantsService.findOne(tenantId); // o come recuperi la config
-  if (!tenantConfig?.enableWashStep) {
-    throw new ForbiddenException('Report WASH disabilitato per questo tenant');
+    
+    // 🔒 Verifica che il WASH sia abilitato per questo tenant
+    const tenantConfig = await this.tenantsService.findOne(tenantId);
+    if (!tenantConfig?.enableWashStep) {
+      throw new ForbiddenException('Report WASH disabilitato per questo tenant');
+    }
     
     const now = new Date();
     const from = dateFrom ? new Date(dateFrom) : new Date(now.setDate(now.getDate() - 30));

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   House, 
@@ -11,6 +11,7 @@ import {
   ChartBar
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
+import api from '@/lib/axios'; // Assicurati che il path sia corretto
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
@@ -25,8 +26,20 @@ const menuItems = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [showWashReport, setShowWashReport] = useState(false);
   const { user, clearAuth } = useAuthStore();
   const router = useRouter();
+
+  // Controlla config tenant
+  useEffect(() => {
+    if (user?.tenantId) {
+      api.get(`/tenants/${user.tenantId}/config`).then(res => {
+        setShowWashReport(res.data.enableWashStep);
+      }).catch(err => {
+        console.error('Errore caricamento config:', err);
+      });
+    }
+  }, [user?.tenantId]);
 
   const handleLogout = () => {
     clearAuth();
@@ -96,6 +109,30 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Report WASH condizionale */}
+        {showWashReport && (
+          <Link href="/operator/reports/wash">
+            <motion.div
+              whileHover={{ x: 4 }}
+              className="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+            >
+              <ChartBar className="w-6 h-6 flex-shrink-0" />
+              <AnimatePresence>
+                {!collapsed && (
+                  <motion.span
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: 'auto' }}
+                    exit={{ opacity: 0, width: 0 }}
+                    className="font-medium whitespace-nowrap"
+                  >
+                    Report WASH
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          </Link>
+        )}
       </nav>
 
       {/* User section */}
@@ -129,5 +166,3 @@ export function Sidebar() {
     </motion.aside>
   );
 }
-
-

@@ -11,7 +11,33 @@ export class WashReportController {
 @InjectRepository(Practice)
 private practicesRepository: Repository<Practice>,
   ) {}
-
+@Get('wash-stats')
+@UseGuards(JwtAuthGuard) // o il tuo guard
+async getWashStats(@Request() req) {
+  const tenantId = req.user.tenantId;
+  
+  // Query: conta pratiche SKY con washConfig popolato
+  const practices = await this.practicesRepository.find({
+    where: {
+      tenantId,
+      type: 'SKY',
+      washConfig: Not(IsNull()) // oppure controlla se il campo esiste
+    },
+    select: ['washConfig']
+  });
+  
+  const total = practices.length;
+  const suspect = practices.filter(p => p.washConfig?.type === 'suspect').length;
+  const none = practices.filter(p => p.washConfig?.type === 'none').length;
+  
+  return {
+    total,
+    suspect,
+    none,
+    suspectPercentage: total > 0 ? Math.round((suspect / total) * 100) : 0,
+    nonePercentage: total > 0 ? Math.round((none / total) * 100) : 0
+  };
+}
   @Get('wash-stats')
   async getWashStats(
     @Request() req: any,

@@ -17,6 +17,8 @@ interface Offer {
   scadenza: string;
   is_active: boolean;
   sort_order: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const PROVIDERS = ['TIM', 'Vodafone', 'WindTre', 'Iliad', 'Optima', 'Iren', 'SKY'];
@@ -67,10 +69,13 @@ export default function AdminOffers() {
     if (!editingOffer) return;
     
     try {
+      // 🔥 FIX: Rimuovi i campi non ammessi dal DTO prima di inviare
+      const { id, created_at, updated_at, ...offerData } = editingOffer as Offer;
+      
       if (isCreating) {
-        await api.post('/admin/offers', editingOffer);
+        await api.post('/admin/offers', offerData);
       } else {
-        await api.patch(`/admin/offers/${editingOffer.id}`, editingOffer);
+        await api.patch(`/admin/offers/${id}`, offerData);
       }
       setEditingOffer(null);
       setIsCreating(false);
@@ -104,48 +109,49 @@ export default function AdminOffers() {
     ? offers.filter(o => o.provider === filterProvider)
     : offers;
 
-  if (loading) return <div className="p-8 text-white">Caricamento...</div>;
+  if (loading) return <div className="p-4 md:p-8 text-white">Caricamento...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-8">
+    <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+        {/* Header - Responsive */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Gestione Offerte</h1>
+            <h1 className="text-xl md:text-2xl font-bold text-white">Gestione Offerte</h1>
             <Link href="/admin/dashboard" className="text-blue-400 hover:underline text-sm">
               ← Torna alla Dashboard
             </Link>
           </div>
           <button
             onClick={() => { setEditingOffer({...emptyOffer}); setIsCreating(true); }}
-            className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-white"
+            className="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-white font-medium"
           >
             + Nuova Offerta
           </button>
         </div>
 
-        {/* Filtro Provider */}
-        <div className="mb-4">
+        {/* Filtro Provider - Responsive */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:items-center">
           <select
             value={filterProvider}
             onChange={(e) => setFilterProvider(e.target.value)}
-            className="bg-gray-800 border border-gray-700 rounded px-4 py-2 text-white"
+            className="w-full sm:w-auto bg-gray-800 border border-gray-700 rounded px-4 py-2 text-white"
           >
             <option value="">Tutti i provider</option>
             {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <span className="ml-4 text-gray-300">{filteredOffers.length} offerte</span>
+          <span className="text-gray-300 text-sm">{filteredOffers.length} offerte</span>
         </div>
 
-        {/* Modal Editing */}
+        {/* Modal Editing - Responsive */}
         {editingOffer && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-gray-800 p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-bold mb-4 text-white">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-800 p-4 md:p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <h2 className="text-lg md:text-xl font-bold mb-4 text-white">
                 {isCreating ? 'Nuova Offerta' : 'Modifica Offerta'}
               </h2>
               
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-300 mb-1">Provider *</label>
                   <select
@@ -167,7 +173,7 @@ export default function AdminOffers() {
                     <option value="business">Business</option>
                   </select>
                 </div>
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-sm text-gray-300 mb-1">Nome Offerta *</label>
                   <input
                     type="text"
@@ -236,7 +242,7 @@ export default function AdminOffers() {
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <label className="block text-sm text-gray-300 mb-1">Note</label>
                   <textarea
                     value={editingOffer.note || ''}
@@ -246,7 +252,7 @@ export default function AdminOffers() {
                     placeholder="CAUZIONE 99€"
                   />
                 </div>
-                <div className="col-span-2 flex items-center gap-2">
+                <div className="md:col-span-2 flex items-center gap-2">
                   <input
                     type="checkbox"
                     checked={editingOffer.is_active}
@@ -257,16 +263,16 @@ export default function AdminOffers() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 mt-6">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-6">
                 <button
                   onClick={() => { setEditingOffer(null); setIsCreating(false); }}
-                  className="px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white"
+                  className="w-full sm:w-auto px-4 py-2 bg-gray-600 hover:bg-gray-500 rounded text-white"
                 >
                   Annulla
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white"
+                  className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white"
                 >
                   Salva
                 </button>
@@ -275,8 +281,8 @@ export default function AdminOffers() {
           </div>
         )}
 
-        {/* Tabella Offerte */}
-        <div className="overflow-x-auto rounded-lg border border-gray-700">
+        {/* Tabella Desktop */}
+        <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-700">
           <table className="w-full border-collapse">
             <thead className="bg-gray-800">
               <tr>
@@ -304,30 +310,80 @@ export default function AdminOffers() {
                       {offer.is_active ? 'Attiva' : 'Disattivata'}
                     </span>
                   </td>
-                  <td className="p-3 flex gap-2">
-                    <button
-                      onClick={() => { setEditingOffer(offer); setIsCreating(false); }}
-                      className="bg-blue-600 hover:bg-blue-500 px-2 py-1 rounded text-sm text-white"
-                    >
-                      Modifica
-                    </button>
-                    <button
-                      onClick={() => handleToggle(offer.id)}
-                      className="bg-yellow-600 hover:bg-yellow-500 px-2 py-1 rounded text-sm text-white"
-                    >
-                      {offer.is_active ? 'Disattiva' : 'Attiva'}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(offer.id, offer.name)}
-                      className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-sm text-white"
-                    >
-                      Elimina
-                    </button>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setEditingOffer(offer); setIsCreating(false); }}
+                        className="bg-blue-600 hover:bg-blue-500 px-2 py-1 rounded text-sm text-white"
+                      >
+                        Modifica
+                      </button>
+                      <button
+                        onClick={() => handleToggle(offer.id)}
+                        className="bg-yellow-600 hover:bg-yellow-500 px-2 py-1 rounded text-sm text-white"
+                      >
+                        {offer.is_active ? 'Disattiva' : 'Attiva'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(offer.id, offer.name)}
+                        className="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-sm text-white"
+                      >
+                        Elimina
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Cards Mobile */}
+        <div className="md:hidden space-y-4">
+          {filteredOffers.map((offer) => (
+            <div 
+              key={offer.id} 
+              className={`bg-gray-800 rounded-lg p-4 border border-gray-700 ${!offer.is_active ? 'opacity-50' : ''}`}
+            >
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <span className="text-xs text-gray-400">{offer.provider}</span>
+                  <h3 className="text-white font-medium text-sm">{offer.name}</h3>
+                </div>
+                <div className="flex gap-1">
+                  <span className={`px-2 py-0.5 rounded text-xs text-white ${offer.type === 'business' ? 'bg-purple-600' : 'bg-blue-600'}`}>
+                    {offer.type}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-xs text-white ${offer.is_active ? 'bg-green-600' : 'bg-red-600'}`}>
+                    {offer.is_active ? 'Attiva' : 'Off'}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-lg font-bold text-green-400 mb-3">{offer.canone}</div>
+              
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { setEditingOffer(offer); setIsCreating(false); }}
+                  className="flex-1 bg-blue-600 hover:bg-blue-500 px-3 py-2 rounded text-sm text-white"
+                >
+                  Modifica
+                </button>
+                <button
+                  onClick={() => handleToggle(offer.id)}
+                  className="flex-1 bg-yellow-600 hover:bg-yellow-500 px-3 py-2 rounded text-sm text-white"
+                >
+                  {offer.is_active ? 'Disattiva' : 'Attiva'}
+                </button>
+                <button
+                  onClick={() => handleDelete(offer.id, offer.name)}
+                  className="bg-red-600 hover:bg-red-500 px-3 py-2 rounded text-sm text-white"
+                >
+                  Elimina
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         {filteredOffers.length === 0 && (

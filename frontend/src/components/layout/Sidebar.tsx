@@ -8,10 +8,12 @@ import {
   Gear, 
   SignOut,
   List,
-  ChartBar
+  ChartBar,
+  TelevisionSimple,
+  Warning
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
-import api from '@/lib/axios'; // Assicurati che il path sia corretto
+import api from '@/lib/axios';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
@@ -30,19 +32,16 @@ export function Sidebar() {
   const { user, clearAuth } = useAuthStore();
   const router = useRouter();
 
-  // Controlla config tenant
+  // 🔴 CRUCIALE: Carica config per vedere se WASH è abilitato
   useEffect(() => {
     if (user?.tenantId) {
-      api.get(`/tenants/${user.tenantId}/config`).then(res => {
-        setShowWashReport(res.data.enableWashStep);
-		 console.log('[DEBUG] Config ricevuta:', res.data); // <-- AGGIUNGI QUESTO
-        // Prova entrambi i formati (camelCase o snake_case)
-        const isEnabled = res.data.enableWashStep || res.data.enable_wash_step;
-        setShowWashReport(!!isEnabled);
-      })
-	  .catch(err => {
-        console.error('Errore caricamento config:', err);
-      });
+      api.get(`/tenants/${user.tenantId}/config`)
+        .then(res => {
+          setShowWashReport(res.data.enableWashStep);
+        })
+        .catch(err => {
+          console.error('Errore caricamento config:', err);
+        });
     }
   }, [user?.tenantId]);
 
@@ -115,23 +114,28 @@ export function Sidebar() {
           );
         })}
 
-        {/* Report WASH condizionale */}
+        {/* 🔴 MENU WASH - Appare solo se abilitato */}
         {showWashReport && (
           <Link href="/operator/reports/wash">
             <motion.div
-              whileHover={{ x: 4 }}
-              className="flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className={`flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 mt-2
+                ${router.pathname === '/operator/reports/wash' 
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-600/30' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-amber-400'}`}
             >
-              <ChartBar className="w-6 h-6 flex-shrink-0" />
+              <TelevisionSimple className="w-6 h-6 flex-shrink-0" />
               <AnimatePresence>
                 {!collapsed && (
                   <motion.span
                     initial={{ opacity: 0, width: 0 }}
                     animate={{ opacity: 1, width: 'auto' }}
                     exit={{ opacity: 0, width: 0 }}
-                    className="font-medium whitespace-nowrap"
+                    className="font-medium whitespace-nowrap flex items-center gap-2"
                   >
                     Report WASH
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                   </motion.span>
                 )}
               </AnimatePresence>

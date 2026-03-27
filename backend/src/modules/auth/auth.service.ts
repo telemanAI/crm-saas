@@ -60,7 +60,7 @@ export class AuthService {
       };
     }
 
-    // Normal tenant login (SOLO UNA VOLTA)
+    // Normal tenant login
     const user = await this.validateUser(loginDto.email, loginDto.password, loginDto.subscriptionCode);
     
     // Controlla se l'email è verificata
@@ -91,10 +91,24 @@ export class AuthService {
   async register(registerDto: RegisterDto) {
     const { name, email, password, confirmPassword, slug } = registerDto;
 
+    // Validazione password
     if (password !== confirmPassword) {
       throw new BadRequestException('Le password non coincidono');
     }
 
+    // Validazione email formato
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new BadRequestException('Formato email non valido');
+    }
+
+    // Validazione configurazione email PRIMA di procedere
+    const emailConfig = await this.emailService.validateEmailConfiguration();
+    if (!emailConfig.valid) {
+      throw new BadRequestException(`Configurazione email non valida: ${emailConfig.error}`);
+    }
+
+    // Check esistenze
     const existingTenantBySlug = await this.tenantsService.findBySlug(slug);
     if (existingTenantBySlug) {
       throw new BadRequestException('Slug già in uso');
@@ -105,6 +119,7 @@ export class AuthService {
       throw new BadRequestException('Email già registrata');
     }
 
+    // Genera dati
     let subscriptionCode: string;
     let existingTenant;
     do {
@@ -112,6 +127,27 @@ export class AuthService {
       existingTenant = await this.tenantsService.findBySubscriptionCode(subscriptionCode);
     } while (existingTenant);
 
+    const verificationToken = uuidv4();
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // TENTA INVIO EMAIL PRIMA di salvare nel DB
+    // Questo è il pattern "fail fast" - se l'email non parte, non creiamo nulla
+    const emailSent = await this.emailService.sendVerificationEmail(
+      email, 
+      verificationToken, 
+      name
+    );
+
+    if (!emailSent) {
+      throw new BadRequestException(
+        'Impossibile inviare l\'email di verifica. Verifica che l\'indirizzo email sia corretto o riprova più tardi.'
+      );
+    }
+
+    // Solo se l'email è partita, creiamo tenant e utente
     const tenant = await this.tenantsService.create({
       name,
       subscriptionCode,
@@ -120,13 +156,6 @@ export class AuthService {
       subscriptionStatus: 'trial',
       isActive: true,
     });
-
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-    
-    // Genera token di verifica
-    const verificationToken = uuidv4();
-    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 ore
 
     const user = await this.usersService.create({
       email,
@@ -140,9 +169,6 @@ export class AuthService {
       verificationToken,
       verificationTokenExpires,
     });
-
-    // Invia email di conferma
-    await this.emailService.sendVerificationEmail(email, verificationToken, name);
 
     return {
       message: 'Negozio creato con successo. Controlla la tua email per confermare la registrazione.',

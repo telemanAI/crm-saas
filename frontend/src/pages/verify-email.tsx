@@ -24,7 +24,7 @@ export default function VerifyEmail() {
         setMessage(error.response?.data?.message || 'Errore durante la verifica');
       }
     };
-
+const [canResend, setCanResend] = useState(false);
     verifyEmail();
   }, [token, router]);
 
@@ -51,7 +51,9 @@ export default function VerifyEmail() {
             <p className="text-slate-500 text-sm">Reindirizzamento al login...</p>
           </>
         )}
-
+if (error.response?.data?.message?.includes('scaduto')) {
+  setCanResend(true);
+}
         {status === 'error' && (
           <>
             <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" weight="fill" />

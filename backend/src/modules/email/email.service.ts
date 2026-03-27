@@ -13,6 +13,18 @@ export class EmailService {
     this.frontendUrl = process.env.FRONTEND_URL || 'https://www.telemanai.it';
   }
 
+  async validateEmailConfiguration(): Promise<{ valid: boolean; error?: string }> {
+    if (!process.env.RESEND_API_KEY) {
+      return { valid: false, error: 'RESEND_API_KEY mancante' };
+    }
+    
+    if (!this.senderEmail.includes('@telemanai.it')) {
+      return { valid: false, error: 'SENDER_EMAIL deve essere @telemanai.it' };
+    }
+    
+    return { valid: true };
+  }
+
   async sendVerificationEmail(to: string, token: string, firstName: string): Promise<boolean> {
     const verifyUrl = `${this.frontendUrl}/verify-email?token=${token}`;
     
@@ -35,8 +47,11 @@ export class EmailService {
           </head>
           <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
             <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-              <div style="background-color: #1e293b; padding: 30px; text-align: center;">
-                <h1 style="color: #ffffff; margin: 0; font-size: 28px;">TELEMANAI</h1>
+<!-- NUOVO (il tuo gradient) -->
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+  <h1 style="color: #ffffff; margin: 0; font-size: 32px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">TELEMANAI</h1>
+  <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Gestione pratiche semplice e veloce</p>
+</div>
               </div>
               <div style="padding: 40px 30px;">
                 <h2 style="color: #1e293b; margin-top: 0;">Ciao ${firstName}!</h2>

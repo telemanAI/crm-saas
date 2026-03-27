@@ -32,7 +32,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async impersonate(@Body() body: { tenantId: string }) {
     return this.authService.impersonate(body.tenantId);
-  }  // <-- AGGIUNTA QUESTA PARENTESI MANCANTE
+  }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
@@ -45,4 +45,4 @@ export class AuthController {
   async resendVerification(@Body('email') email: string) {
     return this.authService.resendVerificationEmail(email);
   }
-}  // <-- RIMOSSA UNA PARENTESI EXTRA CHE AVEVI QUI
+}

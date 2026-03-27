@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
-import { Practice } from '../practices/entities/practice.entity'; // ✅ AGGIUNGI
+import { Practice } from '../practices/entities/practice.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @InjectRepository(Practice) // ✅ OK
+    @InjectRepository(Practice)
     private practiceRepository: Repository<Practice>,
   ) {}
   
@@ -93,48 +93,49 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
- async remove(tenantId: string, userId: string): Promise<{ message: string; freedEmail: string }> {
-  const user = await this.usersRepository.findOne({
-    where: { id: userId, tenantId },
-  });
-  
-  if (!user) throw new Error('Utente non trovato');
-
-  if (user.role === 'ADMIN') {
-    const adminCount = await this.usersRepository.count({ 
-      where: { tenantId, role: 'ADMIN', isActive: true } 
+  async remove(tenantId: string, userId: string): Promise<{ message: string; freedEmail: string }> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId, tenantId },
     });
-    if (adminCount <= 1) throw new Error('Impossibile eliminare l\'ultimo amministratore');
-  }
-
-  const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-  const email = user.email;
-
-  try {
-    // ✅ Usa query raw per evitare errori di tipo
-    await this.practiceRepository.query(
-      `UPDATE practices SET "createdByName" = $1 WHERE "createdById" = $2 AND "createdByName" IS NULL`,
-      [userFullName, userId]
-    );
     
-    await this.practiceRepository.query(
-      `UPDATE practices SET "assignedToName" = $1 WHERE "assignedToId" = $2 AND "assignedToName" IS NULL`,
-      [userFullName, userId]
-    );
+    if (!user) throw new Error('Utente non trovato');
 
-    await this.practiceRepository.query(
-      `UPDATE practices SET "assignedToId" = NULL WHERE "assignedToId" = $1 AND tenant_id = $2`,
-      [userId, tenantId]
-    );
+    if (user.role === 'ADMIN') {
+      const adminCount = await this.usersRepository.count({ 
+        where: { tenantId, role: 'ADMIN', isActive: true } 
+      });
+      if (adminCount <= 1) throw new Error('Impossibile eliminare l\'ultimo amministratore');
+    }
 
-    await this.usersRepository.delete(userId);
-    
-    return {
-      message: `Operatore ${userFullName} eliminato.`,
-      freedEmail: email
-    };
-  } catch (error) {
-    console.error('Errore:', error);
-    throw new Error(`Eliminazione fallita: ${error.message}`);
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+    const email = user.email;
+
+    try {
+      // Usa query raw per evitare errori di tipo
+      await this.practiceRepository.query(
+        `UPDATE practices SET "createdByName" = $1 WHERE "createdById" = $2 AND "createdByName" IS NULL`,
+        [userFullName, userId]
+      );
+      
+      await this.practiceRepository.query(
+        `UPDATE practices SET "assignedToName" = $1 WHERE "assignedToId" = $2 AND "assignedToName" IS NULL`,
+        [userFullName, userId]
+      );
+
+      await this.practiceRepository.query(
+        `UPDATE practices SET "assignedToId" = NULL WHERE "assignedToId" = $1 AND tenant_id = $2`,
+        [userId, tenantId]
+      );
+
+      await this.usersRepository.delete(userId);
+      
+      return {
+        message: `Operatore ${userFullName} eliminato.`,
+        freedEmail: email
+      };
+    } catch (error) {
+      console.error('Errore:', error);
+      throw new Error(`Eliminazione fallita: ${error.message}`);
+    }
   }
-}
+} // ✅ PARENTESI CHIUSA QUI

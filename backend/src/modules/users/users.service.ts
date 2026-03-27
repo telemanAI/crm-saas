@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
+import { Practice } from '../practices/entities/practice.entity'; // ✅ AGGIUNGI
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -9,7 +10,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
-    @InjectRepository(Practice) // Aggiungi import
+    @InjectRepository(Practice) // ✅ OK
     private practiceRepository: Repository<Practice>,
   ) {}
   
@@ -51,13 +52,11 @@ export class UsersService {
       where: { id: userId, tenantId }
     });
 
-    if (!user) {
-      throw new Error('Utente non trovato');
-    }
+    if (!user) throw new Error('Utente non trovato');
 
     if (updateData.password) {
       const salt = await bcrypt.genSalt(10);
-      updateData.passwordHash = await bcrypt.hash(updateData.password, salt);
+      (updateData as any).passwordHash = await bcrypt.hash(updateData.password, salt);
       delete updateData.password;
     }
 
@@ -94,32 +93,24 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
-  // ✅ ELIMINAZIONE OPERATORE ATTIVO: Denormalizza nomi, poi elimina fisicamente
-  async remove(tenantId: string, userId: string): Promise<{ 
-    message: string; 
-    archivedPractices: number;
-    freedEmail: string 
-  }> {
+  async remove(tenantId: string, userId: string): Promise<{ message: string; freedEmail: string }> {
     const user = await this.usersRepository.findOne({
       where: { id: userId, tenantId },
     });
     
     if (!user) throw new Error('Utente non trovato');
 
-    // Proteggi ultimo admin
     if (user.role === 'ADMIN') {
       const adminCount = await this.usersRepository.count({ 
         where: { tenantId, role: 'ADMIN', isActive: true } 
       });
-      if (adminCount <= 1) {
-        throw new Error('Impossibile eliminare l\'ultimo amministratore');
-      }
+      if (adminCount <= 1) throw new Error('Impossibile eliminare l\'ultimo amministratore');
     }
 
     const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
 
     try {
-      // Step 1: Denormalizza nomi nelle pratiche dove mancano (migrazione sicura)
+      // Salva nome nelle pratiche prima di eliminare
       await this.practiceRepository.update(
         { createdById: userId, createdByName: null },
         { createdByName: userFullName }
@@ -130,39 +121,22 @@ export class UsersService {
         { assignedToName: userFullName }
       );
 
-      // Step 2: Dissocia pratiche attive (mantieni storico in assignedToName)
-      const dissociateResult = await this.practiceRepository.update(
+      // Dissocia pratiche attive
+      await this.practiceRepository.update(
         { assignedToId: userId, tenantId },
         { assignedToId: null }
       );
 
-      // Step 3: Elimina fisicamente (email liberata per nuove registrazioni)
+      const email = user.email;
       await this.usersRepository.delete(userId);
       
       return {
-        message: `Operatore ${userFullName} eliminato definitivamente.`,
-        archivedPractices: dissociateResult.affected || 0,
-        freedEmail: user.email
+        message: `Operatore ${userFullName} eliminato.`,
+        freedEmail: email
       };
-      
     } catch (error) {
-      console.error('Errore eliminazione:', error);
+      console.error('Errore:', error);
       throw new Error(`Eliminazione fallita: ${error.message}`);
     }
-  }
-
-  // ✅ RIPRISTINO/VERIFICA: Per utenti in fase di registrazione (usato da auth)
-  async verifyEmail(token: string): Promise<User | null> {
-    const user = await this.findByVerificationToken(token);
-    if (!user) return null;
-    
-    if (new Date() > user.verificationTokenExpires) {
-      throw new Error('Token scaduto');
-    }
-
-    user.emailVerified = true;
-    user.verificationToken = null;
-    user.verificationTokenExpires = null;
-    return this.save(user);
   }
 }

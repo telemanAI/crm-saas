@@ -93,50 +93,48 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
-  async remove(tenantId: string, userId: string): Promise<{ message: string; freedEmail: string }> {
-    const user = await this.usersRepository.findOne({
-      where: { id: userId, tenantId },
+ async remove(tenantId: string, userId: string): Promise<{ message: string; freedEmail: string }> {
+  const user = await this.usersRepository.findOne({
+    where: { id: userId, tenantId },
+  });
+  
+  if (!user) throw new Error('Utente non trovato');
+
+  if (user.role === 'ADMIN') {
+    const adminCount = await this.usersRepository.count({ 
+      where: { tenantId, role: 'ADMIN', isActive: true } 
     });
+    if (adminCount <= 1) throw new Error('Impossibile eliminare l\'ultimo amministratore');
+  }
+
+  const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  const email = user.email;
+
+  try {
+    // ✅ Usa query raw per evitare errori di tipo
+    await this.practiceRepository.query(
+      `UPDATE practices SET "createdByName" = $1 WHERE "createdById" = $2 AND "createdByName" IS NULL`,
+      [userFullName, userId]
+    );
     
-    if (!user) throw new Error('Utente non trovato');
+    await this.practiceRepository.query(
+      `UPDATE practices SET "assignedToName" = $1 WHERE "assignedToId" = $2 AND "assignedToName" IS NULL`,
+      [userFullName, userId]
+    );
 
-    if (user.role === 'ADMIN') {
-      const adminCount = await this.usersRepository.count({ 
-        where: { tenantId, role: 'ADMIN', isActive: true } 
-      });
-      if (adminCount <= 1) throw new Error('Impossibile eliminare l\'ultimo amministratore');
-    }
+    await this.practiceRepository.query(
+      `UPDATE practices SET "assignedToId" = NULL WHERE "assignedToId" = $1 AND tenant_id = $2`,
+      [userId, tenantId]
+    );
 
-    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
-
-    try {
-      // Salva nome nelle pratiche prima di eliminare
-      await this.practiceRepository.update(
-        { createdById: userId, createdByName: null },
-        { createdByName: userFullName }
-      );
-      
-      await this.practiceRepository.update(
-        { assignedToId: userId, assignedToName: null },
-        { assignedToName: userFullName }
-      );
-
-      // Dissocia pratiche attive
-      await this.practiceRepository.update(
-        { assignedToId: userId, tenantId },
-        { assignedToId: null }
-      );
-
-      const email = user.email;
-      await this.usersRepository.delete(userId);
-      
-      return {
-        message: `Operatore ${userFullName} eliminato.`,
-        freedEmail: email
-      };
-    } catch (error) {
-      console.error('Errore:', error);
-      throw new Error(`Eliminazione fallita: ${error.message}`);
-    }
+    await this.usersRepository.delete(userId);
+    
+    return {
+      message: `Operatore ${userFullName} eliminato.`,
+      freedEmail: email
+    };
+  } catch (error) {
+    console.error('Errore:', error);
+    throw new Error(`Eliminazione fallita: ${error.message}`);
   }
 }

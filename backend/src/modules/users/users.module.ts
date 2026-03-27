@@ -3,12 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
-import { TenantsModule } from '../tenants/tenants.module'; // ✅ Aggiungi questo import
+import { Practice } from '../practices/entities/practice.entity'; // ✅ AGGIUNGI
+import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
-    TenantsModule, // ✅ Aggiungi qui
+    TypeOrmModule.forFeature([User, Practice]), // ✅ AGGIUNGI Practice qui
+    TenantsModule,
   ],
   providers: [UsersService],
   controllers: [UsersController],

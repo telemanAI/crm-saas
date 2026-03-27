@@ -16,7 +16,7 @@ import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EmailService } from '../email/email.service';
 import { TenantsService } from '../tenants/tenants.service';
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid'; 
 
 @Controller('users')
 export class UsersController {
@@ -123,7 +123,7 @@ export class UsersController {
     // Genera password temporanea e token verifica
     const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
     const verificationToken = uuidv4();
-    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     const tenant = await this.tenantsService.findById(tenantId);
 

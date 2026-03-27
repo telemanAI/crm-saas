@@ -16,7 +16,7 @@ import { OffersModule } from './modules/offers/offers.module';
 import { Offer } from './modules/offers/entities/offer.entity';
 import { EmailModule } from './modules/email/email.module';
 import { ReportsModule } from './modules/reports/reports.module';
-
+import { CleanupModule } from './modules/cleanup/cleanup.module';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -32,7 +32,9 @@ import { CashTransaction } from './modules/cash/entities/cash-transaction.entity
 import { InventoryItem } from './modules/inventory/entities/inventory-item.entity';
 import { InventoryMovement } from './modules/inventory/entities/inventory-movement.entity';
 import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
-
+import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -50,6 +52,8 @@ import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
         Practice, 
         CustomField, 
         CustomFieldValue,
+		ScheduleModule.forRoot(),
+        CleanupModule, 
         AuditLog,
         CashClosing,
         CashRegister,

@@ -44,7 +44,6 @@ export class UsersService {
     return this.usersRepository.save(user);
   }
 
-  // ✅ NUOVO: Aggiorna utente esistente
   async update(tenantId: string, userId: string, updateData: Partial<User> & { password?: string }): Promise<User> {
     const user = await this.usersRepository.findOne({
       where: { id: userId, tenantId }
@@ -54,14 +53,12 @@ export class UsersService {
       throw new Error('Utente non trovato');
     }
 
-    // Se c'è una nuova password, la hashiamo
     if (updateData.password) {
       const salt = await bcrypt.genSalt(10);
       updateData.passwordHash = await bcrypt.hash(updateData.password, salt);
       delete updateData.password;
     }
 
-    // Aggiorna i campi
     Object.assign(user, updateData);
     return this.usersRepository.save(user);
   }
@@ -95,15 +92,32 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
+  // ✅ METODO CORRETTO: Gestisce le relazioni prima di eliminare
   async remove(tenantId: string, userId: string): Promise<void> {
     const user = await this.usersRepository.findOne({
-      where: { id: userId, tenantId }
+      where: { id: userId, tenantId },
+      relations: ['tenant'],
     });
     
     if (!user) {
       throw new Error('Utente non trovato');
     }
-    
-    await this.usersRepository.remove(user);
+
+    try {
+      // Step 1: Dissocia tutte le pratiche assegnate a questo utente
+      await this.usersRepository.manager
+        .createQueryBuilder()
+        .update('practices')
+        .set({ assignedToId: null })
+        .where('assignedToId = :userId', { userId })
+        .execute();
+
+      // Step 2: Elimina l'utente
+      await this.usersRepository.delete(userId);
+      
+    } catch (error) {
+      console.error('Errore durante eliminazione utente:', error);
+      throw new Error(`Impossibile eliminare l'utente: ${error.message}`);
+    }
   }
 }

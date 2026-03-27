@@ -140,6 +140,12 @@ additionalPackages?: {
   totalPrice: number; 
 };
 
+@Column({ nullable: true })
+createdByName: string; // "Mario Rossi"
+
+@Column({ nullable: true })
+assignedToName: string; // "Mario Rossi"
+
 @Column({ name: 'wash_config', type: 'jsonb', nullable: true })
 washConfig?: {
   enabled: boolean;

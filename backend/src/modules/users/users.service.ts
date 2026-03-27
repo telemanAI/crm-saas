@@ -9,6 +9,8 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(Practice) // Aggiungi import
+    private practiceRepository: Repository<Practice>,
   ) {}
   
   async findByVerificationToken(token: string): Promise<User | null> {
@@ -92,32 +94,75 @@ export class UsersService {
     return bcrypt.compare(password, user.passwordHash);
   }
 
-  // ✅ METODO CORRETTO: Gestisce le relazioni prima di eliminare
-  async remove(tenantId: string, userId: string): Promise<void> {
+  // ✅ ELIMINAZIONE OPERATORE ATTIVO: Denormalizza nomi, poi elimina fisicamente
+  async remove(tenantId: string, userId: string): Promise<{ 
+    message: string; 
+    archivedPractices: number;
+    freedEmail: string 
+  }> {
     const user = await this.usersRepository.findOne({
       where: { id: userId, tenantId },
-      relations: ['tenant'],
     });
     
-    if (!user) {
-      throw new Error('Utente non trovato');
+    if (!user) throw new Error('Utente non trovato');
+
+    // Proteggi ultimo admin
+    if (user.role === 'ADMIN') {
+      const adminCount = await this.usersRepository.count({ 
+        where: { tenantId, role: 'ADMIN', isActive: true } 
+      });
+      if (adminCount <= 1) {
+        throw new Error('Impossibile eliminare l\'ultimo amministratore');
+      }
     }
+
+    const userFullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
 
     try {
-      // Step 1: Dissocia tutte le pratiche assegnate a questo utente
-      await this.usersRepository.manager
-        .createQueryBuilder()
-        .update('practices')
-        .set({ assignedToId: null })
-        .where('assignedToId = :userId', { userId })
-        .execute();
+      // Step 1: Denormalizza nomi nelle pratiche dove mancano (migrazione sicura)
+      await this.practiceRepository.update(
+        { createdById: userId, createdByName: null },
+        { createdByName: userFullName }
+      );
+      
+      await this.practiceRepository.update(
+        { assignedToId: userId, assignedToName: null },
+        { assignedToName: userFullName }
+      );
 
-      // Step 2: Elimina l'utente
+      // Step 2: Dissocia pratiche attive (mantieni storico in assignedToName)
+      const dissociateResult = await this.practiceRepository.update(
+        { assignedToId: userId, tenantId },
+        { assignedToId: null }
+      );
+
+      // Step 3: Elimina fisicamente (email liberata per nuove registrazioni)
       await this.usersRepository.delete(userId);
       
+      return {
+        message: `Operatore ${userFullName} eliminato definitivamente.`,
+        archivedPractices: dissociateResult.affected || 0,
+        freedEmail: user.email
+      };
+      
     } catch (error) {
-      console.error('Errore durante eliminazione utente:', error);
-      throw new Error(`Impossibile eliminare l'utente: ${error.message}`);
+      console.error('Errore eliminazione:', error);
+      throw new Error(`Eliminazione fallita: ${error.message}`);
     }
+  }
+
+  // ✅ RIPRISTINO/VERIFICA: Per utenti in fase di registrazione (usato da auth)
+  async verifyEmail(token: string): Promise<User | null> {
+    const user = await this.findByVerificationToken(token);
+    if (!user) return null;
+    
+    if (new Date() > user.verificationTokenExpires) {
+      throw new Error('Token scaduto');
+    }
+
+    user.emailVerified = true;
+    user.verificationToken = null;
+    user.verificationTokenExpires = null;
+    return this.save(user);
   }
 }

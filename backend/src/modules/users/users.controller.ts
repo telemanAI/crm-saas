@@ -89,58 +89,63 @@ export class UsersController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
-  async createUser(@Body() userData: any, @Request() req) {
-    const tenantId = req.user.tenantId;
-    
-    if (!tenantId) {
-      throw new UnauthorizedException('Tenant non specificato');
-    }
-
-    if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
-      throw new ForbiddenException('Solo gli amministratori possono creare operatori');
-    }
-
-    const existingUser = await this.usersService.findByEmail(userData.email, tenantId);
-    if (existingUser) {
-      throw new ForbiddenException('Email già registrata in questo negozio');
-    }
-
-    // Genera password temporanea sicura
-    const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
-
-    const newUser = await this.usersService.create({
-      ...userData,
-      password: tempPassword,
-      tenantId: tenantId,
-      isActive: true,
-    });
-
-    // Recupera nome del negozio
-    const tenant = await this.tenantsService.findById(tenantId);
-
-    // Invia email con credenziali
-    try {
-      await this.emailService.sendOperatorWelcomeEmail(
-        newUser.email,
-        newUser.firstName || 'Operatore',
-        tempPassword,
-        tenant.name
-      );
-    } catch (error) {
-      console.error('Errore invio email operatore:', error);
-      // Logghiamo l'errore ma non blocchiamo la creazione
-    }
-
-    return {
-      id: newUser.id,
-      firstName: newUser.firstName,
-      lastName: newUser.lastName,
-      email: newUser.email,
-      role: newUser.role,
-      message: 'Operatore creato con successo. Le credenziali sono state inviate via email.'
-    };
+@UseGuards(JwtAuthGuard)
+async createUser(@Body() userData: any, @Request() req) {
+  const tenantId = req.user.tenantId;
+  
+  if (!tenantId) {
+    throw new UnauthorizedException('Tenant non specificato');
   }
+
+  if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+    throw new ForbiddenException('Solo gli amministratori possono creare operatori');
+  }
+
+  const existingUser = await this.usersService.findByEmail(userData.email, tenantId);
+  if (existingUser) {
+    throw new ForbiddenException('Email già registrata in questo negozio');
+  }
+
+  // Genera password temporanea e token verifica
+  const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+  const verificationToken = uuidv4(); // ✅ Aggiungi import { v4 as uuidv4 } from 'uuid';
+  const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const tenant = await this.tenantsService.findById(tenantId);
+
+  // Invia email PRIMA di creare l'utente (fail fast)
+  const emailSent = await this.emailService.sendOperatorVerificationEmail(
+    userData.email,
+    userData.firstName || 'Operatore',
+    tempPassword,
+    tenant.name,
+    verificationToken
+  );
+
+  if (!emailSent) {
+    throw new BadRequestException('Impossibile inviare l\'email di invito. Riprova più tardi.');
+  }
+
+  // Crea utente con email non verificata
+  const newUser = await this.usersService.create({
+    ...userData,
+    password: tempPassword,
+    tenantId: tenantId,
+    isActive: true,
+    emailVerified: false, // ✅ Falso finché non verifica
+    verificationToken,
+    verificationTokenExpires,
+  });
+
+  return {
+    id: newUser.id,
+    firstName: newUser.firstName,
+    lastName: newUser.lastName,
+    email: newUser.email,
+    role: newUser.role,
+    message: 'Operatore creato. Deve verificare l\'email prima di accedere.'
+  };
+}
 
   @Put(':id')
   @UseGuards(JwtAuthGuard)

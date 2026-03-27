@@ -1,10 +1,16 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Request, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { EmailService } from '../email/email.service';
+import { TenantsService } from '../tenants/tenants.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly emailService: EmailService,
+    private readonly tenantsService: TenantsService,
+  ) {}
 
   @Get()
   @UseGuards(JwtAuthGuard)
@@ -100,11 +106,31 @@ export class UsersController {
       throw new ForbiddenException('Email già registrata in questo negozio');
     }
 
+    // Genera password temporanea sicura
+    const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+
     const newUser = await this.usersService.create({
       ...userData,
+      password: tempPassword,
       tenantId: tenantId,
       isActive: true,
     });
+
+    // Recupera nome del negozio
+    const tenant = await this.tenantsService.findById(tenantId);
+
+    // Invia email con credenziali
+    try {
+      await this.emailService.sendOperatorWelcomeEmail(
+        newUser.email,
+        newUser.firstName || 'Operatore',
+        tempPassword,
+        tenant.name
+      );
+    } catch (error) {
+      console.error('Errore invio email operatore:', error);
+      // Logghiamo l'errore ma non blocchiamo la creazione
+    }
 
     return {
       id: newUser.id,
@@ -112,11 +138,10 @@ export class UsersController {
       lastName: newUser.lastName,
       email: newUser.email,
       role: newUser.role,
-      message: 'Operatore creato con successo'
+      message: 'Operatore creato con successo. Le credenziali sono state inviate via email.'
     };
   }
 
-  // ✅ NUOVO: Endpoint aggiornamento
   @Put(':id')
   @UseGuards(JwtAuthGuard)
   async updateUser(@Param('id') id: string, @Body() userData: any, @Request() req) {

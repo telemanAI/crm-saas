@@ -11,9 +11,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { CashModule } from './modules/cash/cash.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SalesModule } from './modules/sales/sales.module';
-import { StatsModule } from './modules/stats/stats.module'; // ✅ Mantenuto qui
+import { StatsModule } from './modules/stats/stats.module';
 import { OffersModule } from './modules/offers/offers.module';
-import { Offer } from './modules/offers/entities/offer.entity';
 import { EmailModule } from './modules/email/email.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
@@ -32,9 +31,8 @@ import { CashTransaction } from './modules/cash/entities/cash-transaction.entity
 import { InventoryItem } from './modules/inventory/entities/inventory-item.entity';
 import { InventoryMovement } from './modules/inventory/entities/inventory-movement.entity';
 import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
-import { CleanupModule } from './modules/cleanup/cleanup.module';
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { Offer } from './modules/offers/entities/offer.entity';
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
@@ -48,12 +46,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         User, 
         Tenant, 
         Customer,
-        // ❌ RIMOSSO StatsModule da qui!
         Practice, 
         CustomField, 
         CustomFieldValue,
-		ScheduleModule.forRoot(),
-        CleanupModule, 
         AuditLog,
         CashClosing,
         CashRegister,
@@ -61,9 +56,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         InventoryItem,
         InventoryMovement,
         SalesPractice,
-		Offer
+        Offer
       ],
-      synchronize:  process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
+      synchronize: process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
     }),
 
@@ -81,12 +76,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
     CustomFieldsModule,
     AuditModule,
     CashModule,
-	 ReportsModule,
+    ReportsModule,
     InventoryModule,
     SalesModule,
-    StatsModule, // ✅ AGGIUNTO QUI!
-	OffersModule,
-	EmailModule,
+    StatsModule,
+    OffersModule,
+    EmailModule,
+    CleanupModule,
   ],
 })
 export class AppModule {}

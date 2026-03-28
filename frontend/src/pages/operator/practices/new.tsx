@@ -84,9 +84,10 @@ const getExcludedPackageIds = (offerName: string): string[] => {
   const upperOffer = offerName.toUpperCase();
   const excluded: string[] = [];
   
-  // Mappatura keyword offerta -> ID pacchetti da escludere
-  const keywordMap: { [key: string]: string[] } = {
-    'NETFLIX': ['netflix-base', 'netflix-standard', 'netflix-premium'],
+  // 1. Controlla keyword specifiche (hanno precedenza)
+  const specificKeywords: { [key: string]: string[] } = {
+    'NETFLIX PREMIUM': ['netflix-premium'],
+    'NETFLIX STANDARD': ['netflix-standard'],
     'CINEMA': ['cinema'],
     'SPORT': ['sport'],
     'CALCIO': ['calcio'],
@@ -95,14 +96,21 @@ const getExcludedPackageIds = (offerName: string): string[] => {
     'UHD': ['ultra-hd'],
   };
   
-  // Controlla ogni keyword
-  Object.entries(keywordMap).forEach(([keyword, packageIds]) => {
+  Object.entries(specificKeywords).forEach(([keyword, packageIds]) => {
     if (upperOffer.includes(keyword)) {
       excluded.push(...packageIds);
     }
   });
   
-  return [...new Set(excluded)]; // Rimuovi duplicati
+  // 2. Netflix base: solo se c'è NETFLIX ma NON c'è PREMIUM o STANDARD
+  // (così se esce "NETFLIX STANDARD" non esclude anche il base)
+  if (upperOffer.includes('NETFLIX') && 
+      !upperOffer.includes('NETFLIX PREMIUM') && 
+      !upperOffer.includes('NETFLIX STANDARD')) {
+    excluded.push('netflix-base');
+  }
+  
+  return [...new Set(excluded)];
 };
 
 interface CustomerSuggestion {

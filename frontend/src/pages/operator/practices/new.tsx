@@ -71,6 +71,40 @@ const validateUUID = (uuid: string): boolean => {
   return regex.test(uuid);
 };
 
+const extractPrice = (priceStr: string): number => {
+  if (!priceStr) return 0;
+  const match = priceStr.match(/(\d+(?:[.,]\d+)?)/);
+  return match ? parseFloat(match[1].replace(',', '.')) : 0;
+};
+
+// Funzione per determinare quali pacchetti sono già inclusi nell'offerta base
+const getExcludedPackageIds = (offerName: string): string[] => {
+  if (!offerName) return [];
+  
+  const upperOffer = offerName.toUpperCase();
+  const excluded: string[] = [];
+  
+  // Mappatura keyword offerta -> ID pacchetti da escludere
+  const keywordMap: { [key: string]: string[] } = {
+    'NETFLIX': ['netflix-base', 'netflix-standard', 'netflix-premium'],
+    'CINEMA': ['cinema'],
+    'SPORT': ['sport'],
+    'CALCIO': ['calcio'],
+    'KIDS': ['kids'],
+    'ULTRA HD': ['ultra-hd'],
+    'UHD': ['ultra-hd'],
+  };
+  
+  // Controlla ogni keyword
+  Object.entries(keywordMap).forEach(([keyword, packageIds]) => {
+    if (upperOffer.includes(keyword)) {
+      excluded.push(...packageIds);
+    }
+  });
+  
+  return [...new Set(excluded)]; // Rimuovi duplicati
+};
+
 interface CustomerSuggestion {
   id: string;
   fiscalCode: string;
@@ -88,12 +122,6 @@ interface WizardStep {
   title: string;
   icon: any;
 }
-
-const extractPrice = (priceStr: string): number => {
-  if (!priceStr) return 0;
-  const match = priceStr.match(/(\d+(?:[.,]\d+)?)/);
-  return match ? parseFloat(match[1].replace(',', '.')) : 0;
-};
 
 function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {
   const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
@@ -252,7 +280,7 @@ export default function NewPractice() {
   const [loading, setLoading] = useState(false);
   const [expandedStep, setExpandedStep] = useState(1);
   const [checkingDrafts, setCheckingDrafts] = useState(true);
-  const [blockSearch, setBlockSearch] = useState(false);
+  const [lockedCustomer, setLockedCustomer] = useState<CustomerSuggestion | null>(null);
   
   const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
   const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
@@ -288,6 +316,32 @@ export default function NewPractice() {
   const steps = getSteps(data.offerName, tenantConfig.enableWashStep, tenantConfig.enableAdditionalPackages);
   const totalSteps = steps.length;
   
+  // Sincronizza pacchetti quando cambia l'offerta (rimuove dai selezionati quelli ora inclusi nell'offerta base)
+  useEffect(() => {
+    if (!data.offerName || !data.additionalPackages?.selectedIds) return;
+    
+    const excludedIds = getExcludedPackageIds(data.offerName);
+    const currentSelected = data.additionalPackages.selectedIds;
+    
+    // Rimuovi dai selezionati quelli che sono ora esclusi (inclusi nell'offerta base)
+    const validSelected = currentSelected.filter(id => !excludedIds.includes(id));
+    
+    // Se c'era qualcosa di selezionato che ora è escluso, aggiorna
+    if (validSelected.length !== currentSelected.length) {
+      const totalPrice = validSelected.reduce((sum, id) => {
+        const pkg = ADDITIONAL_PACKAGES.find(p => p.id === id);
+        return sum + (pkg?.price || 0);
+      }, 0);
+      
+      setData({
+        additionalPackages: {
+          selectedIds: validSelected.length > 0 ? validSelected : ['none'],
+          totalPrice
+        }
+      });
+    }
+  }, [data.offerName]);
+
   useEffect(() => {
     const searchOldLineCF = async () => {
       const cf = data.fiscalCodeOldLine;
@@ -408,9 +462,8 @@ export default function NewPractice() {
         codiceRea: practice.customerSnapshot?.codiceRea,
         pec: practice.customerSnapshot?.pec,
         additionalPackages: practice.additionalPackages,
-		washConfig: practice.washConfig,
-	  
-	  });
+        washConfig: practice.washConfig,
+      });
       
       if (practice.offerType === 'business') {
         setShowBusinessOnly(true);
@@ -434,6 +487,13 @@ export default function NewPractice() {
 
   useEffect(() => {
     const searchFiscalCode = async () => {
+      // Se abbiamo un cliente bloccato e il CF corrisponde esattamente, non cercare
+      if (lockedCustomer && data.fiscalCode === lockedCustomer.fiscalCode) {
+        setCfSuggestions([]);
+        setShowCfSuggestions(false);
+        return;
+      }
+      
       if (!data.fiscalCode || data.fiscalCode.length < 3) {
         setCfSuggestions([]);
         setShowCfSuggestions(false);
@@ -456,13 +516,17 @@ export default function NewPractice() {
 
     const timeoutId = setTimeout(searchFiscalCode, 300);
     return () => clearTimeout(timeoutId);
-  }, [data.fiscalCode, token]);
+  }, [data.fiscalCode, token, lockedCustomer]);
 
   useEffect(() => {
     const searchPhone = async () => {
-      if (blockSearch) {
+      // Se abbiamo un cliente bloccato e il telefono corrisponde esattamente, non cercare
+      if (lockedCustomer && data.phone === (lockedCustomer.phonePrimary || lockedCustomer.phone || '')) {
+        setPhoneSuggestions([]);
+        setShowPhoneSuggestions(false);
         return;
       }
+      
       const phoneDigits = data.phone?.replace(/\D/g, '').length || 0;
       if (!data.phone || phoneDigits < 3) {
         setPhoneSuggestions([]);
@@ -486,14 +550,20 @@ export default function NewPractice() {
 
     const timeoutId = setTimeout(searchPhone, 300);
     return () => clearTimeout(timeoutId);
-  }, [data.phone, token, blockSearch]);
+  }, [data.phone, token, lockedCustomer]);
 
   useEffect(() => {
     const searchName = async () => {
-      if (blockSearch) {
+      const searchTerm = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      const lockedName = lockedCustomer ? `${lockedCustomer.firstName} ${lockedCustomer.lastName}`.trim() : '';
+      
+      // Se abbiamo un cliente bloccato e il nome completo corrisponde esattamente, non cercare
+      if (lockedCustomer && searchTerm === lockedName && searchTerm !== '') {
+        setNameSuggestions([]);
+        setShowNameSuggestions(false);
         return;
       }
-      const searchTerm = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      
       if (!searchTerm || searchTerm.length < 2) {
         setNameSuggestions([]);
         setShowNameSuggestions(false);
@@ -516,7 +586,7 @@ export default function NewPractice() {
 
     const timeoutId = setTimeout(searchName, 300);
     return () => clearTimeout(timeoutId);
-  }, [data.firstName, data.lastName, token, blockSearch]);
+  }, [data.firstName, data.lastName, token, lockedCustomer]);
 
   const handleSelectCustomer = (customer: CustomerSuggestion) => {
     setData({
@@ -526,15 +596,14 @@ export default function NewPractice() {
       phone: customer.phonePrimary || customer.phone || '',
       email: customer.email || '',
       installationAddress: customer.address ? { street: customer.address } : data.installationAddress
- 
-	});
+    });
     setShowCfSuggestions(false);
     setShowPhoneSuggestions(false);
     setShowNameSuggestions(false);
     setCfSuggestions([]);
     setPhoneSuggestions([]);
     setNameSuggestions([]);
-    setBlockSearch(true);
+    setLockedCustomer(customer); // Blocca i suggerimenti per questo cliente
   };
 
   const saveStep = async (stepNumber: number) => {
@@ -1080,7 +1149,6 @@ export default function NewPractice() {
                                   type="text"
                                   value={data.fiscalCode || ''}
                                   onChange={(e) => setData({ fiscalCode: e.target.value.toUpperCase().slice(0, 16) })}
-                                  onFocus={() => setBlockSearch(false)}
                                   className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
                                     data.fiscalCode && !validateFiscalCode(data.fiscalCode) 
                                       ? 'border-rose-600' 
@@ -1116,7 +1184,6 @@ export default function NewPractice() {
                                   type="tel"
                                   value={data.phone || ''}
                                   onChange={(e) => setData({ phone: e.target.value })}
-                                  onFocus={() => setBlockSearch(false)}
                                   className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
                                     data.phone && !validatePhone(data.phone) 
                                       ? 'border-rose-600' 
@@ -1150,7 +1217,6 @@ export default function NewPractice() {
                                   type="text" 
                                   value={data.firstName || ''} 
                                   onChange={(e) => setData({ firstName: e.target.value })} 
-                                  onFocus={() => setBlockSearch(false)}
                                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
                                   placeholder="Mario"
                                 />
@@ -1161,7 +1227,6 @@ export default function NewPractice() {
                                   type="text" 
                                   value={data.lastName || ''} 
                                   onChange={(e) => setData({ lastName: e.target.value })} 
-                                  onFocus={() => setBlockSearch(false)}
                                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
                                   placeholder="Rossi"
                                 />
@@ -1295,60 +1360,100 @@ export default function NewPractice() {
 
                         {step.stepId === 'packages' && (
                           <div className="space-y-6">
+                            {/* Banner pacchetti già inclusi nell'offerta */}
+                            {(() => {
+                              const excludedIds = getExcludedPackageIds(data.offerName || '');
+                              const includedPackages = ADDITIONAL_PACKAGES.filter(p => excludedIds.includes(p.id) && p.id !== 'none');
+                              
+                              if (includedPackages.length === 0) return null;
+                              
+                              return (
+                                <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <CheckCircle className="w-5 h-5 text-emerald-400" />
+                                    <span className="font-semibold text-emerald-400">Pacchetti inclusi nell'offerta base</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {includedPackages.map(pkg => (
+                                      <span key={pkg.id} className="text-sm bg-emerald-600/20 text-emerald-300 px-3 py-1 rounded-full">
+                                        {pkg.label}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <p className="text-xs text-emerald-300/70 mt-2">
+                                    Questi pacchetti sono già inclusi nella tua offerta e non possono essere aggiunti separatamente.
+                                  </p>
+                                </div>
+                              );
+                            })()}
+
                             <div className="text-center mb-6">
                               <h3 className="text-lg font-semibold text-white mb-2">Seleziona i Pacchetti Aggiuntivi</h3>
-                              <p className="text-slate-400 text-sm">Puoi combinare più pacchetti SKY. Netflix è esclusivo.</p>
+                              <p className="text-slate-400 text-sm">
+                                {(() => {
+                                  const excludedCount = getExcludedPackageIds(data.offerName || '').length;
+                                  return excludedCount > 0 
+                                    ? `Sono stati nascosti ${excludedCount} pacchetto/i già inclusi nella tua offerta` 
+                                    : 'Puoi combinare più pacchetti SKY. Netflix è esclusivo.';
+                                })()}
+                              </p>
                             </div>
 
                             <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-xl p-4 text-center">
-                              <span className="text-slate-300">Totale Pacchetti: </span>
+                              <span className="text-slate-300">Totale Pacchetti Aggiuntivi: </span>
                               <span className="text-2xl font-bold text-indigo-400">
                                 €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}/mese
                               </span>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {ADDITIONAL_PACKAGES.map((pkg) => {
-                                const isSelected = data.additionalPackages?.selectedIds?.includes(pkg.id);
-                                const isNone = pkg.id === 'none';
-                                const isNetflix = pkg.category === 'netflix';
+                              {(() => {
+                                const excludedIds = getExcludedPackageIds(data.offerName || '');
                                 
-                                return (
-                                  <button
-                                    key={pkg.id}
-                                    type="button"
-                                    onClick={() => {
-                                      const { togglePackage, setNoPackages } = usePracticeWizardStore.getState();
-                                      if (isNone) {
-                                        setNoPackages();
-                                      } else {
-                                        togglePackage(pkg.id);
-                                      }
-                                    }}
-                                    className={`p-4 rounded-xl border-2 transition-all text-left ${
-                                      isSelected
-                                        ? 'border-indigo-500 bg-indigo-600/20'
-                                        : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-                                    } ${isNone ? 'col-span-full' : ''}`}
-                                  >
-                                    <div className="flex justify-between items-start">
-                                      <div>
-                                        <span className={`font-medium ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
-                                          {pkg.label}
-                                        </span>
-                                        {isNetflix && (
-                                          <span className="ml-2 text-xs bg-red-600/30 text-red-400 px-2 py-0.5 rounded">
-                                            Netflix
+                                return ADDITIONAL_PACKAGES
+                                  .filter(pkg => !excludedIds.includes(pkg.id))
+                                  .map((pkg) => {
+                                    const isSelected = data.additionalPackages?.selectedIds?.includes(pkg.id);
+                                    const isNone = pkg.id === 'none';
+                                    const isNetflix = pkg.category === 'netflix';
+                                    
+                                    return (
+                                      <button
+                                        key={pkg.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const { togglePackage, setNoPackages } = usePracticeWizardStore.getState();
+                                          if (isNone) {
+                                            setNoPackages();
+                                          } else {
+                                            togglePackage(pkg.id);
+                                          }
+                                        }}
+                                        className={`p-4 rounded-xl border-2 transition-all text-left ${
+                                          isSelected
+                                            ? 'border-indigo-500 bg-indigo-600/20'
+                                            : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                        } ${isNone ? 'col-span-full' : ''}`}
+                                      >
+                                        <div className="flex justify-between items-start">
+                                          <div>
+                                            <span className={`font-medium ${isSelected ? 'text-indigo-300' : 'text-slate-200'}`}>
+                                              {pkg.label}
+                                            </span>
+                                            {isNetflix && (
+                                              <span className="ml-2 text-xs bg-red-600/30 text-red-400 px-2 py-0.5 rounded">
+                                                Netflix
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
+                                            {pkg.price > 0 ? `€${pkg.price.toFixed(2)}` : 'Gratis'}
                                           </span>
-                                        )}
-                                      </div>
-                                      <span className={`font-bold ${isSelected ? 'text-indigo-400' : 'text-slate-400'}`}>
-                                        {pkg.price > 0 ? `€${pkg.price.toFixed(2)}` : 'Gratis'}
-                                      </span>
-                                    </div>
-                                  </button>
-                                );
-                              })}
+                                        </div>
+                                      </button>
+                                    );
+                                  });
+                              })()}
                             </div>
 
                             {(!data.additionalPackages?.selectedIds || data.additionalPackages.selectedIds.length === 0) && (
@@ -1784,205 +1889,205 @@ export default function NewPractice() {
                         )}
 
                         {step.stepId === 'summary' && (
-  <div className="space-y-4">
-    {/* Dettaglio Offerta Base */}
-    {data.offerName && (
-      <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
-        <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
-          <Buildings className="w-5 h-5" />
-          Dettaglio Offerta Base
-        </h4>
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between items-start">
-            <span className="text-slate-400">Offerta:</span>
-            <span className="text-white text-right font-medium max-w-[60%]">{data.offerName}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Gestore:</span>
-            <span className="text-white">{data.type}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Tipo:</span>
-            <span className={`text-xs px-2 py-1 rounded-full ${
-              data.offerType === 'business' ? 'bg-purple-600/20 text-purple-400' : 'bg-blue-600/20 text-blue-400'
-            }`}>
-              {data.offerType === 'business' ? 'Business' : 'Consumer'}
-            </span>
-          </div>
-          
-          <div className="border-t border-slate-700 my-3" />
-          
-          <div className="flex justify-between items-center">
-            <span className="text-slate-400">Canone Mensile Base:</span>
-            <span className="text-emerald-400 font-bold text-lg">{data.offerCanone || '-'}</span>
-          </div>
-          
-          {data.offerScadenza && (
-            <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-900/20 p-2 rounded-lg">
-              <Calendar className="w-4 h-4" />
-              <span>Promo valida fino al {data.offerScadenza}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
+                          <div className="space-y-4">
+                            {/* Dettaglio Offerta Base */}
+                            {data.offerName && (
+                              <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
+                                <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                                  <Buildings className="w-5 h-5" />
+                                  Dettaglio Offerta Base
+                                </h4>
+                                <div className="space-y-3 text-sm">
+                                  <div className="flex justify-between items-start">
+                                    <span className="text-slate-400">Offerta:</span>
+                                    <span className="text-white text-right font-medium max-w-[60%]">{data.offerName}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Gestore:</span>
+                                    <span className="text-white">{data.type}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Tipo:</span>
+                                    <span className={`text-xs px-2 py-1 rounded-full ${
+                                      data.offerType === 'business' ? 'bg-purple-600/20 text-purple-400' : 'bg-blue-600/20 text-blue-400'
+                                    }`}>
+                                      {data.offerType === 'business' ? 'Business' : 'Consumer'}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="border-t border-slate-700 my-3" />
+                                  
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-400">Canone Mensile Base:</span>
+                                    <span className="text-emerald-400 font-bold text-lg">{data.offerCanone || '-'}</span>
+                                  </div>
+                                  
+                                  {data.offerScadenza && (
+                                    <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-900/20 p-2 rounded-lg">
+                                      <Calendar className="w-4 h-4" />
+                                      <span>Promo valida fino al {data.offerScadenza}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
-    {/* Pacchetti Aggiuntivi (se presenti) */}
-    {data.additionalPackages?.selectedIds?.some(id => id !== 'none') && (
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-indigo-500/30">
-        <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
-          <Package className="w-5 h-5" />
-          Pacchetti Aggiuntivi Selezionati
-        </h4>
-        <div className="space-y-2 text-sm">
-          {data.additionalPackages.selectedIds.map(pkgId => {
-            const pkg = ADDITIONAL_PACKAGES.find(p => p.id === pkgId);
-            return pkg ? (
-              <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
-                <span className="text-slate-300">{pkg.label}</span>
-                <span className="text-indigo-300 font-medium">€{pkg.price.toFixed(2)}/mese</span>
-              </div>
-            ) : null;
-          })}
-          <div className="border-t border-slate-600 my-2 pt-2">
-            <div className="flex justify-between font-bold">
-              <span className="text-slate-300">Totale Pacchetti</span>
-              <span className="text-indigo-400 text-lg">
-                €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}/mese
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
+                            {/* Pacchetti Aggiuntivi (se presenti) */}
+                            {data.additionalPackages?.selectedIds?.some(id => id !== 'none') && (
+                              <div className="bg-slate-800/50 rounded-xl p-6 border border-indigo-500/30">
+                                <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                                  <Package className="w-5 h-5" />
+                                  Pacchetti Aggiuntivi Selezionati
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  {data.additionalPackages.selectedIds.map(pkgId => {
+                                    const pkg = ADDITIONAL_PACKAGES.find(p => p.id === pkgId);
+                                    return pkg ? (
+                                      <div key={pkg.id} className="flex justify-between items-center py-1 border-b border-slate-700/50 last:border-0">
+                                        <span className="text-slate-300">{pkg.label}</span>
+                                        <span className="text-indigo-300 font-medium">€{pkg.price.toFixed(2)}/mese</span>
+                                      </div>
+                                    ) : null;
+                                  })}
+                                  <div className="border-t border-slate-600 my-2 pt-2">
+                                    <div className="flex justify-between font-bold">
+                                      <span className="text-slate-300">Totale Pacchetti</span>
+                                      <span className="text-indigo-400 text-lg">
+                                        €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}/mese
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
-    {/* WASH Config (se presente - retroattivo) */}
-    {data.washConfig && data.washConfig.enabled && (
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-amber-500/30">
-        <h4 className="font-semibold text-amber-400 mb-4 flex items-center gap-2">
-          <TelevisionSimple className="w-5 h-5" />
-          Gestione WASH
-        </h4>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="text-slate-400">Stato WASH:</span>
-            <span className={`font-bold ${data.washConfig.type === 'suspect' ? 'text-amber-400' : 'text-emerald-400'}`}>
-              {data.washConfig.type === 'suspect' ? 'SUSPECT WASH ⚠️' : 'NO WASH ✓'}
-            </span>
-          </div>
-          
-          {data.washConfig.type === 'suspect' && data.washConfig.suspectData && (
-            <>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Codice Cliente/CF:</span>
-                <span className="text-white font-mono text-xs">{data.washConfig.suspectData.clientCode || '-'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Gestione abbonamento:</span>
-                <span className="text-amber-300">
-                  {data.washConfig.suspectData.action === 'disattiva' ? 'Disattiva vecchio' : 'Mantieni vecchio'}
-                </span>
-              </div>
-            </>
-          )}
-          
-          <div className="text-xs text-slate-500 mt-2 bg-slate-900/50 p-2 rounded">
-            Registrato il: {data.washConfig.timestamp ? new Date(data.washConfig.timestamp).toLocaleString('it-IT') : 'N/D'}
-          </div>
-        </div>
-      </div>
-    )}
+                            {/* WASH Config (se presente - retroattivo) */}
+                            {data.washConfig && data.washConfig.enabled && (
+                              <div className="bg-slate-800/50 rounded-xl p-6 border border-amber-500/30">
+                                <h4 className="font-semibold text-amber-400 mb-4 flex items-center gap-2">
+                                  <TelevisionSimple className="w-5 h-5" />
+                                  Gestione WASH
+                                </h4>
+                                <div className="space-y-2 text-sm">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-400">Stato WASH:</span>
+                                    <span className={`font-bold ${data.washConfig.type === 'suspect' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                      {data.washConfig.type === 'suspect' ? 'SUSPECT WASH ⚠️' : 'NO WASH ✓'}
+                                    </span>
+                                  </div>
+                                  
+                                  {data.washConfig.type === 'suspect' && data.washConfig.suspectData && (
+                                    <>
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-400">Codice Cliente/CF:</span>
+                                        <span className="text-white font-mono text-xs">{data.washConfig.suspectData.clientCode || '-'}</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-slate-400">Gestione abbonamento:</span>
+                                        <span className="text-amber-300">
+                                          {data.washConfig.suspectData.action === 'disattiva' ? 'Disattiva vecchio' : 'Mantieni vecchio'}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                  
+                                  <div className="text-xs text-slate-500 mt-2 bg-slate-900/50 p-2 rounded">
+                                    Registrato il: {data.washConfig.timestamp ? new Date(data.washConfig.timestamp).toLocaleString('it-IT') : 'N/D'}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
 
-    {/* Totale Combinato */}
-    <div className="bg-gradient-to-r from-emerald-900/30 to-indigo-900/30 border border-emerald-500/30 rounded-xl p-6">
-      <h4 className="font-bold text-white mb-4 text-lg">💰 Riepilogo Costi Totali</h4>
-      <div className="space-y-3">
-        <div className="flex justify-between items-center text-sm">
-          <span className="text-slate-300">Canone Base:</span>
-          <span className="text-white font-medium">{data.offerCanone || '€0,00'}</span>
-        </div>
-        
-      {((data.additionalPackages?.totalPrice || 0) > 0) && (
-  <div className="flex justify-between items-center text-sm">
-    <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
-    <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}</span>
-  </div>
-)}
-        
-        <div className="border-t border-slate-600 my-2" />
-        
-        <div className="flex justify-between items-center">
-          <span className="text-white font-bold text-lg">Totale Mensile:</span>
-          <span className="text-2xl font-bold text-emerald-400">
-            €{(() => {
-              const basePrice = extractPrice(data.offerCanone || '');
-              const packagesPrice = data.additionalPackages?.totalPrice || 0;
-              return (basePrice + packagesPrice).toFixed(2);
-            })()}
-          </span>
-        </div>
-        
-        {data.offerScadenza && (
-          <p className="text-xs text-amber-400 mt-2 text-center bg-amber-900/20 p-2 rounded">
-            ⚠️ Prezzo promozionale valido fino al {data.offerScadenza}
-          </p>
-        )}
-      </div>
-    </div>
+                            {/* Totale Combinato */}
+                            <div className="bg-gradient-to-r from-emerald-900/30 to-indigo-900/30 border border-emerald-500/30 rounded-xl p-6">
+                              <h4 className="font-bold text-white mb-4 text-lg">💰 Riepilogo Costi Totali</h4>
+                              <div className="space-y-3">
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-slate-300">Canone Base:</span>
+                                  <span className="text-white font-medium">{data.offerCanone || '€0,00'}</span>
+                                </div>
+                                
+                              {((data.additionalPackages?.totalPrice || 0) > 0) && (
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
+                            <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}</span>
+                          </div>
+                        )}
+                                
+                                <div className="border-t border-slate-600 my-2" />
+                                
+                                <div className="flex justify-between items-center">
+                                  <span className="text-white font-bold text-lg">Totale Mensile:</span>
+                                  <span className="text-2xl font-bold text-emerald-400">
+                                    €{(() => {
+                                      const basePrice = extractPrice(data.offerCanone || '');
+                                      const packagesPrice = data.additionalPackages?.totalPrice || 0;
+                                      return (basePrice + packagesPrice).toFixed(2);
+                                    })()}
+                                  </span>
+                                </div>
+                                
+                                {data.offerScadenza && (
+                                  <p className="text-xs text-amber-400 mt-2 text-center bg-amber-900/20 p-2 rounded">
+                                    ⚠️ Prezzo promozionale valido fino al {data.offerScadenza}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
 
-    {/* Dati Cliente */}
-    <div className="bg-slate-800/50 rounded-xl p-6">
-      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
-        <User className="w-5 h-5" />
-        Dati Cliente
-      </h4>
-      <div className="space-y-2 text-sm">
-        <div className="flex justify-between"><span className="text-slate-400">Nome:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
-        <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
-        <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
-        {data.lineType && (
-          <>
-            <div className="flex justify-between"><span className="text-slate-400">Tipo Linea:</span><span className="text-white">{data.lineType}</span></div>
-            <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
-          </>
-        )}
-      </div>
-    </div>
-    
-    {/* Appuntamento */}
-    {(data.appointmentData || data.appointmentOra) && (
-      <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
-        <h5 className="font-semibold text-emerald-400 mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4" />
-          Appuntamento Installazione
-        </h5>
-        <div className="space-y-2 text-sm">
-          {data.appointmentData && (
-            <div className="flex justify-between">
-              <span className="text-slate-400">Data:</span>
-              <span className="text-white">{new Date(data.appointmentData).toLocaleDateString('it-IT')}</span>
-            </div>
-          )}
-          {(data.appointmentOra || data.appointmentOraFine) && (
-            <div className="flex justify-between">
-              <span className="text-slate-400">Orario:</span>
-              <span className="text-white">{data.appointmentOra || '--:--'} - {data.appointmentOraFine || '--:--'}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    )}
-    
-    <button
-      onClick={handleSubmit}
-      disabled={loading || !practiceId}
-      className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
-    >
-      {loading ? 'Salvataggio...' : <><Check className="w-5 h-5" /> Completa Pratica</>}
-    </button>
-    {!practiceId && <p className="text-rose-400 text-center text-sm">ID mancante - errore Step 1</p>}
-  </div>
-)}
+                            {/* Dati Cliente */}
+                            <div className="bg-slate-800/50 rounded-xl p-6">
+                              <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                                <User className="w-5 h-5" />
+                                Dati Cliente
+                              </h4>
+                              <div className="space-y-2 text-sm">
+                                <div className="flex justify-between"><span className="text-slate-400">Nome:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
+                                <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
+                                {data.lineType && (
+                                  <>
+                                    <div className="flex justify-between"><span className="text-slate-400">Tipo Linea:</span><span className="text-white">{data.lineType}</span></div>
+                                    <div className="flex justify-between"><span className="text-slate-400">Tecnologia:</span><span className="text-white">{data.technology}</span></div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Appuntamento */}
+                            {(data.appointmentData || data.appointmentOra) && (
+                              <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-4">
+                                <h5 className="font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+                                  <Calendar className="w-4 h-4" />
+                                  Appuntamento Installazione
+                                </h5>
+                                <div className="space-y-2 text-sm">
+                                  {data.appointmentData && (
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Data:</span>
+                                      <span className="text-white">{new Date(data.appointmentData).toLocaleDateString('it-IT')}</span>
+                                    </div>
+                                  )}
+                                  {(data.appointmentOra || data.appointmentOraFine) && (
+                                    <div className="flex justify-between">
+                                      <span className="text-slate-400">Orario:</span>
+                                      <span className="text-white">{data.appointmentOra || '--:--'} - {data.appointmentOraFine || '--:--'}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            <button
+                              onClick={handleSubmit}
+                              disabled={loading || !practiceId}
+                              className="w-full bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                            >
+                              {loading ? 'Salvataggio...' : <><Check className="w-5 h-5" /> Completa Pratica</>}
+                            </button>
+                            {!practiceId && <p className="text-rose-400 text-center text-sm">ID mancante - errore Step 1</p>}
+                          </div>
+                        )}
 
                         {!isLastStep(step.id) && (
                           <div className="flex justify-between mt-6 pt-6 border-t border-slate-800">

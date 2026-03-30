@@ -134,28 +134,28 @@ export class Practice {
     lavorazioniPost?: string; 
   };
 
-@Column({ name: 'additional_packages', type: 'jsonb', nullable: true })
-additionalPackages?: { 
-  selectedIds: string[]; 
-  totalPrice: number; 
-};
-
-@Column({ nullable: true })
-createdByName: string; // "Mario Rossi"
-
-@Column({ nullable: true })
-assignedToName: string; // "Mario Rossi"
-
-@Column({ name: 'wash_config', type: 'jsonb', nullable: true })
-washConfig?: {
-  enabled: boolean;
-  type: 'suspect' | 'none';
-  suspectData?: {
-    clientCode: string;
-    action: 'disattiva' | 'mantieni';
+  @Column({ name: 'additional_packages', type: 'jsonb', nullable: true })
+  additionalPackages?: { 
+    selectedIds: string[]; 
+    totalPrice: number; 
   };
-  timestamp?: Date;
-};
+
+  @Column({ nullable: true })
+  createdByName: string; 
+  
+  @Column({ nullable: true })
+  assignedToName: string; 
+  
+  @Column({ name: 'wash_config', type: 'jsonb', nullable: true })
+  washConfig?: {
+    enabled: boolean;
+    type: 'suspect' | 'none';
+    suspectData?: {
+      clientCode: string;
+      action: 'disattiva' | 'mantieni';
+    };
+    timestamp?: Date;
+  };
 
   @Column({ name: 'notes_history', type: 'jsonb', nullable: true })
   notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string }>;
@@ -168,6 +168,16 @@ washConfig?: {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+  
+  @Column({ name: 'source_import_job_id', type: 'uuid', nullable: true })
+  sourceImportJobId: string;
+
+  @Column({ name: 'import_metadata', type: 'jsonb', nullable: true })
+  importMetadata: {
+    originalRowNumber?: number;
+    rawDataSnapshot?: any;
+    validationOverrides?: string[];
+  };
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;

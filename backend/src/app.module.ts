@@ -16,6 +16,10 @@ import { OffersModule } from './modules/offers/offers.module';
 import { EmailModule } from './modules/email/email.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { CleanupModule } from './modules/cleanup/cleanup.module';
+import { ImportsModule } from './modules/imports/imports.module';
+import { ExportsModule } from './modules/exports/exports.module';
+import { ImportJob } from './modules/imports/entities/import-job.entity';
+import { ImportTemplate } from './modules/imports/entities/import-template.entity';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -56,7 +60,9 @@ import { Offer } from './modules/offers/entities/offer.entity';
         InventoryItem,
         InventoryMovement,
         SalesPractice,
-        Offer
+        Offer,
+		ImportJob,         
+        ImportTemplate,
       ],
       synchronize: process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
@@ -83,6 +89,8 @@ import { Offer } from './modules/offers/entities/offer.entity';
     OffersModule,
     EmailModule,
     CleanupModule,
+	ImportsModule,      
+    ExportsModule, 
   ],
 })
 export class AppModule {}

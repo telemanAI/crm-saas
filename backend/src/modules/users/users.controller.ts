@@ -123,7 +123,7 @@ export class UsersController {
     // Genera password temporanea e token verifica
     const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
     const verificationToken = uuidv4();
-const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
+    const verificationTokenExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     const tenant = await this.tenantsService.findById(tenantId);
 

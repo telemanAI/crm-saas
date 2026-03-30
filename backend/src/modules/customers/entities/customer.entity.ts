@@ -58,6 +58,17 @@ export class Customer {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+  
+    @Column({ name: 'source_import_job_id', type: 'uuid', nullable: true })
+  sourceImportJobId: string;
+
+  @Column({ name: 'import_metadata', type: 'jsonb', nullable: true })
+  importMetadata: {
+    originalRowNumber?: number;
+    rawDataSnapshot?: any;
+    validationOverrides?: string[];
+  };
+  
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;

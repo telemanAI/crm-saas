@@ -1,5 +1,5 @@
+import { Injectable } from '@nestjs/common';
 import * as XLSX from 'xlsx';
-import * as fs from 'fs';
 
 export interface ParsedExcelData {
   headers: string[];
@@ -8,9 +8,10 @@ export interface ParsedExcelData {
   sheetNames: string[];
 }
 
+@Injectable()
 export class ExcelParser {
-  static parse(filePath: string, sheetIndex: number = 0): ParsedExcelData {
-    const workbook = XLSX.readFile(filePath);
+  parse(buffer: Buffer, sheetIndex: number = 0): ParsedExcelData {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[sheetIndex];
     const worksheet = workbook.Sheets[sheetName];
     
@@ -39,8 +40,8 @@ export class ExcelParser {
     };
   }
 
-  static async parsePreview(filePath: string, maxRows: number = 10): Promise<ParsedExcelData> {
-    const fullData = this.parse(filePath);
+  parsePreview(buffer: Buffer, maxRows: number = 10): ParsedExcelData {
+    const fullData = this.parse(buffer);
     return {
       ...fullData,
       rows: fullData.rows.slice(0, maxRows),

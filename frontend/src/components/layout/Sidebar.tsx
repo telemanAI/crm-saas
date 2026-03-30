@@ -9,7 +9,9 @@ import {
   SignOut,
   List,
   ChartBar,
-  TelevisionSimple
+  TelevisionSimple,
+  Upload,
+  Download
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -22,6 +24,8 @@ const menuItems = [
   { icon: FileText, label: 'Pratiche', href: '/practices' },
   { icon: Plus, label: 'Nuova Pratica', href: '/practices/new', highlight: true },
   { icon: ChartBar, label: 'Report', href: '/reports' },
+  { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
+  { icon: Download, label: 'Esportazioni', href: '/operator/exports' },
   { icon: Gear, label: 'Impostazioni', href: '/settings' },
 ];
 
@@ -123,8 +127,6 @@ export function Sidebar() {
                         ? 'bg-amber-600/20 text-amber-400 border border-amber-600/30' 
                         : 'text-slate-400 hover:bg-slate-800 hover:text-amber-400'}`}
                   >
-				  
-				  
                     <TelevisionSimple className="w-6 h-6 flex-shrink-0" />
                     <AnimatePresence>
                       {!collapsed && (
@@ -146,27 +148,6 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-// Dopo i link esistenti, aggiungi:
-{
-  href: '/operator/imports',
-  icon: (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-    </svg>
-  ),
-  label: 'Importazioni',
-},
-{
-  href: '/operator/exports',
-  icon: (
-    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-    </svg>
-  ),
-  label: 'Esportazioni',
-},
-
 
       {/* User section */}
       <div className="p-4 border-t border-slate-800">

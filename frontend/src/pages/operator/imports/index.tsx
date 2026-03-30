@@ -32,11 +32,9 @@ export default function ImportsPage() {
       completed: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
       cancelled: 'bg-gray-100 text-gray-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
-    return (colors as Record<string, string>)[status] || 'bg-gray-100 text-gray-800';
-  };
+   };
+  return colors[status] || 'bg-gray-100 text-gray-800';
+};
 
   const getEntityLabel = (entity: string) => {
     const labels = {

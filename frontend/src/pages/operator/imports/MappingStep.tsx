@@ -290,11 +290,11 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
 
       {/* Actions */}
       <div className="flex justify-between pt-6 border-t">
-        <Button onClick={onBack} variant="outline">
+        <Button onClick={onBack} variant="ghost">
           ← Indietro
         </Button>
         <div className="flex space-x-3">
-          <Button onClick={onCancel} variant="outline">
+          <Button onClick={onCancel} variant="ghost">
             Annulla
           </Button>
           <Button

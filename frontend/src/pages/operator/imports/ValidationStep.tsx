@@ -85,7 +85,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
         <p className="text-gray-600 mt-2">{error}</p>
         <div className="mt-6 space-x-3">
           <Button onClick={onBack}>← Torna al Mapping</Button>
-          <Button onClick={validateImport} variant="outline">Riprova</Button>
+          <Button onClick={validateImport} variant="ghost">Riprova</Button>
         </div>
       </div>
     );
@@ -298,11 +298,11 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
 
       {/* Actions */}
       <div className="flex justify-between pt-6 border-t">
-        <Button onClick={onBack} variant="outline" disabled={executing}>
+        <Button onClick={onBack} variant="ghost" disabled={executing}>
           ← Indietro
         </Button>
         <div className="flex space-x-3">
-          <Button onClick={onCancel} variant="outline" disabled={executing}>
+          <Button onClick={onCancel} variant="ghost" disabled={executing}>
             Annulla
           </Button>
           <Button

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ChartLine, FileText, Download, Calendar, TrendUp } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
@@ -80,7 +80,7 @@ export default function Reports() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Report</h1>
-          <p className="text-gray-500 dark:text-slate-400">Visualizza e analizza le attivitÃ  del periodo</p>
+          <p className="text-gray-500 dark:text-slate-400">Visualizza e analizza le attività del periodo</p>
         </div>
       </div>
 

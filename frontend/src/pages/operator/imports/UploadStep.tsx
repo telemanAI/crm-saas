@@ -245,7 +245,7 @@ export default function UploadStep({ onComplete, onCancel }: Props) {
 
       {/* Actions */}
       <div className="flex justify-between pt-6 border-t">
-        <Button onClick={onCancel} variant="outline">
+        <Button onClick={onCancel} variant="ghost">
           Annulla
         </Button>
         <Button

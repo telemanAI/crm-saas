@@ -32,9 +32,9 @@ export default function ImportsPage() {
       completed: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
       cancelled: 'bg-gray-100 text-gray-800',
-   };
-  return colors[status] || 'bg-gray-100 text-gray-800';
-};
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800';
+  };
 
   const getEntityLabel = (entity: string) => {
     const labels: Record<string, string> = {
@@ -85,78 +85,79 @@ export default function ImportsPage() {
         ) : (
           <div className="space-y-4">
             {jobs.map((job: any) => (
-             <div key={job.id} onClick={() => router.push(`/operator/imports/${job.id}`)} className="cursor-pointer">
-  <Card className="hover:shadow-lg transition-shadow">
-                <div className="flex items-center justify-between p-6">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-2xl">{getEntityLabel(job.targetEntity).split(' ')[0]}</div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{job.fileName}</h3>
-                        <p className="text-sm text-gray-500">{getEntityLabel(job.targetEntity).split(' ').slice(1).join(' ')}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Progress Bar */}
-                    {job.status === 'processing' && (
-                      <div className="mt-4">
-                        <div className="flex justify-between text-sm text-gray-600 mb-1">
-                          <span>Elaborazione in corso...</span>
-                          <span>{job.stats.processedRows} / {job.stats.totalRows}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div
-                            className="bg-blue-600 h-2 rounded-full transition-all"
-                            style={{ width: `${(job.stats.processedRows / job.stats.totalRows) * 100}%` }}
-                          />
+              <div key={job.id} onClick={() => router.push(`/operator/imports/${job.id}`)} className="cursor-pointer">
+                <Card className="hover:shadow-lg transition-shadow">
+                  <div className="flex items-center justify-between p-6">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3">
+                        <div className="text-2xl">{getEntityLabel(job.targetEntity).split(' ')[0]}</div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">{job.fileName}</h3>
+                          <p className="text-sm text-gray-500">{getEntityLabel(job.targetEntity).split(' ').slice(1).join(' ')}</p>
                         </div>
                       </div>
-                    )}
-
-                    {/* Stats */}
-                    {job.status === 'completed' && (
-                      <div className="mt-4 flex space-x-6 text-sm">
-                        <div className="flex items-center text-green-600">
-                          <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                          <span>{job.stats.successfulRows} riuscite</span>
-                        </div>
-                        {job.stats.failedRows > 0 && (
-                          <div className="flex items-center text-red-600">
-                            <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            <span>{job.stats.failedRows} fallite</span>
+                      
+                      {/* Progress Bar */}
+                      {job.status === 'processing' && (
+                        <div className="mt-4">
+                          <div className="flex justify-between text-sm text-gray-600 mb-1">
+                            <span>Elaborazione in corso...</span>
+                            <span>{job.stats.processedRows} / {job.stats.totalRows}</span>
                           </div>
-                        )}
-                        <div className="text-gray-600">
-                          {job.stats.createdPractices > 0 && <span>{job.stats.createdPractices} pratiche create</span>}
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all"
+                              style={{ width: `${(job.stats.processedRows / job.stats.totalRows) * 100}%` }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
 
-                  <div className="flex flex-col items-end space-y-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(job.status)}`}>
-                      {job.status === 'pending' && 'In Attesa'}
-                      {job.status === 'processing' && 'Elaborazione'}
-                      {job.status === 'completed' && 'Completato'}
-                      {job.status === 'failed' && 'Fallito'}
-                      {job.status === 'cancelled' && 'Annullato'}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {new Date(job.createdAt).toLocaleDateString('it-IT', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
+                      {/* Stats */}
+                      {job.status === 'completed' && (
+                        <div className="mt-4 flex space-x-6 text-sm">
+                          <div className="flex items-center text-green-600">
+                            <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span>{job.stats.successfulRows} riuscite</span>
+                          </div>
+                          {job.stats.failedRows > 0 && (
+                            <div className="flex items-center text-red-600">
+                              <svg className="w-5 h-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                              <span>{job.stats.failedRows} fallite</span>
+                            </div>
+                          )}
+                          <div className="text-gray-600">
+                            {job.stats.createdPractices > 0 && <span>{job.stats.createdPractices} pratiche create</span>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col items-end space-y-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(job.status)}`}>
+                        {job.status === 'pending' && 'In Attesa'}
+                        {job.status === 'processing' && 'Elaborazione'}
+                        {job.status === 'completed' && 'Completato'}
+                        {job.status === 'failed' && 'Fallito'}
+                        {job.status === 'cancelled' && 'Annullato'}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        {new Date(job.createdAt).toLocaleDateString('it-IT', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
         )}

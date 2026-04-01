@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+ï»¿import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -83,8 +83,6 @@ export default function OperatorDashboard() {
   const [recentPractices, setRecentPractices] = useState<RecentPractice[]>([]);
   const [trendPeriod, setTrendPeriod] = useState<'month' | 'day'>('month');
   const [loading, setLoading] = useState(true);
-  
-  // Stato per mostrare/nascondere il benvenuto
   const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
@@ -93,7 +91,6 @@ export default function OperatorDashboard() {
     }
   }, [isAuthenticated, router]);
 
-  // Timer per far scomparire il benvenuto dopo 3 secondi
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowWelcome(false);
@@ -150,7 +147,6 @@ export default function OperatorDashboard() {
 
   return (
     <OperatorLayout title="Dashboard">
-      {/* Benvenuto che scompare dopo 3 secondi */}
       <AnimatePresence>
         {showWelcome && (
           <motion.div
@@ -164,13 +160,12 @@ export default function OperatorDashboard() {
               Benvenuto
             </h1>
             <p className="text-gray-500 dark:text-slate-400">
-              Ecco il riepilogo delle attività oggi
+              Ecco il riepilogo delle attivita oggi
             </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Contenuto sempre visibile */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Clienti" value={stats.customers} icon={Users} color="indigo" trend="+0" loading={loading} />
         <StatCard title="Pratiche" value={stats.practices} icon={ShoppingCart} color="violet" trend="+0" loading={loading} />

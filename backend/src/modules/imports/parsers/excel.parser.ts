@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 
 export interface ParsedExcelData {
@@ -8,7 +7,6 @@ export interface ParsedExcelData {
   sheetNames: string[];
 }
 
-@Injectable()
 export class ExcelParser {
   static parse(filePath: string, sheetIndex: number = 0): ParsedExcelData {
     const workbook = XLSX.readFile(filePath);

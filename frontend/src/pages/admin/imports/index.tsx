@@ -21,7 +21,7 @@ export default function SuperAdminImportsPage() {
   const loadAllJobs = async () => {
     try {
       // Endpoint super admin che carica job di tutti i tenant
-      const response = await axios.get('/api/super-admin/imports/jobs');
+      const response = await axios.get('/api/admin/imports/jobs');
       setJobs(response.data.jobs);
     } catch (error) {
       console.error('Errore caricamento jobs:', error);
@@ -34,7 +34,7 @@ export default function SuperAdminImportsPage() {
     if (!confirm('Vuoi mettere in pausa questo import?')) return;
     setActionLoading(true);
     try {
-      await axios.post(`/api/super-admin/imports/${jobId}/pause`);
+      await axios.post(`/api/admin/imports/${jobId}/pause`);
       loadAllJobs();
     } catch (error) {
       alert('Errore durante la pausa');
@@ -46,7 +46,7 @@ export default function SuperAdminImportsPage() {
   const handleResumeJob = async (jobId: string) => {
     setActionLoading(true);
     try {
-      await axios.post(`/api/super-admin/imports/${jobId}/resume`);
+      await axios.post(`/api/admin/imports/${jobId}/resume`);
       loadAllJobs();
     } catch (error) {
       alert('Errore durante il resume');
@@ -59,7 +59,7 @@ export default function SuperAdminImportsPage() {
     if (!confirm(`Vuoi saltare la riga ${rowNumber} e continuare?`)) return;
     setActionLoading(true);
     try {
-      await axios.post(`/api/super-admin/imports/${jobId}/skip-row`, { rowNumber });
+      await axios.post(`/api/admin/imports/${jobId}/skip-row`, { rowNumber });
       loadAllJobs();
     } catch (error) {
       alert('Errore durante lo skip');
@@ -77,7 +77,7 @@ export default function SuperAdminImportsPage() {
     
     setActionLoading(true);
     try {
-      await axios.post(`/api/super-admin/imports/${jobId}/rollback`, { mode });
+      await axios.post(`/api/admin/imports/${jobId}/rollback`, { mode });
       alert('Rollback completato');
       loadAllJobs();
     } catch (error) {

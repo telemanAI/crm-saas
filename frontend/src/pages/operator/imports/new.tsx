@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { Layout } from '../../../components/layout/Layout';
 import { Card } from '../../../components/ui/Card';
-import UploadStep from '../../../components/imports/UploadStep';
-import MappingStep from '../../../components/imports/MappingStep';
-import ValidationStep from '../../../components/imports/ValidationStep';
+import UploadStep from './UploadStep';
+import MappingStep from './MappingStep';
+import ValidationStep from './ValidationStep';
 
 export default function NewImportPage() {
   const router = useRouter();

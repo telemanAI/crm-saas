@@ -6,13 +6,6 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'uuid', name: 'tenant_id' , nullable: true })// null per super admin 
-  tenantId: string | null;
-
-@ManyToOne(() => Tenant, tenant => tenant.id, { nullable: true })  // Relazione opzionale
-@JoinColumn({ name: 'tenant_id' })
-tenant: Tenant | null;
-
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
@@ -25,16 +18,37 @@ tenant: Tenant | null;
   @Column({ type: 'varchar', length: 100, name: 'last_name', nullable: true })
   lastName: string;
 
-  @Column({ type: 'varchar', length: 50, name: 'role', default: 'ADMIN' })
-  role: string;
-
   @Column({ type: 'varchar', length: 50, name: 'phone', nullable: true })
   phone: string;
 
-  @Column({ type: 'boolean', default: true, name: 'is_active' })
+  // Role: SUPER_ADMIN (no tenant), ADMIN/FOUNDER/OPERATOR (con tenant)
+  @Column({
+    type: 'enum',
+    enum: ['SUPER_ADMIN', 'ADMIN', 'FOUNDER', 'OPERATOR'],
+    default: 'OPERATOR',
+  })
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'FOUNDER' | 'OPERATOR';
+
+  // Relazione tenant (null per Super Admin)
+  @Column({ type: 'uuid', name: 'tenant_id', nullable: true })
+  tenantId: string | null;
+
+  @ManyToOne(() => Tenant, tenant => tenant.id, { nullable: true })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant: Tenant | null;
+
+  // Stato utente
+  @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
-@Column({ type: 'boolean', default: false, name: 'email_verified' })
+  @Column({ name: 'must_change_password', default: false })
+  mustChangePassword: boolean;
+
+  @Column({ name: 'last_login', nullable: true })
+  lastLogin: Date;
+
+  // Verifica email
+  @Column({ type: 'boolean', default: false, name: 'email_verified' })
   emailVerified: boolean;
 
   @Column({ type: 'varchar', length: 255, name: 'verification_token', nullable: true })
@@ -43,6 +57,7 @@ tenant: Tenant | null;
   @Column({ type: 'timestamp', name: 'verification_token_expires', nullable: true })
   verificationTokenExpires: Date | null;
 
+  // Timestamp
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

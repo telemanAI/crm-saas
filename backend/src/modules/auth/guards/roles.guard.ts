@@ -1,29 +1,31 @@
-﻿import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+﻿import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from '../decorators/roles.decorator';
 
+/**
+ * Guard per verificare i ruoli utente
+ * Usato insieme a @Roles('SUPER_ADMIN', 'ADMIN', etc)
+ */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [
       context.getHandler(),
       context.getClass(),
     ]);
-    
-    if (!requiredRoles) return true;  // Nessun ruolo richiesto = accesso libero
-    
-    const { user } = context.switchToHttp().getRequest();
-    
-    // Se non c'è l'utente, non autorizzare
-    if (!user) {
-      throw new UnauthorizedException('Utente non autenticato');
+
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true;
     }
-    
-    // Super Admin può tutto
-    if (user.isSuperAdmin || user.role === 'SUPER_ADMIN') return true;
-    
-    return requiredRoles.includes(user.role);
+
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+
+    if (!user) {
+      return false;
+    }
+
+    return requiredRoles.some((role) => user.role === role);
   }
 }

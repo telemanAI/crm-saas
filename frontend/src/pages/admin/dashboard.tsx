@@ -126,8 +126,9 @@ export default function AdminDashboard() {
         <Link href="/admin/offers" className="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white font-medium transition-colors">
           📋 Gestione Offerte
         </Link>
-		<Link href="/admin/imports" className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-medium transition-colors">
-    📥 Import Control Center
+        <Link href="/admin/imports" className="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-white font-medium transition-colors">
+          📥 Import Control Center
+        </Link>
       </div>
 
       <p className="mb-6 text-gray-200 text-lg">

@@ -37,7 +37,7 @@ export default function ImportsPage() {
 };
 
   const getEntityLabel = (entity: string) => {
-    const labels = {
+    const labels: Record<string, string> = {
       CUSTOMER_ONLY: '👤 Solo Clienti',
       FIXED_LINE_PRACTICE: '📡 Pratiche Linea Fissa',
       MOBILE_PRACTICE: '📱 Pratiche Mobile',

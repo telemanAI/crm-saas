@@ -123,10 +123,10 @@ export default function NewImportPage() {
 
           {currentStep === 2 && (
             <MappingStep
-              jobId={importData.jobId}
+              jobId={importData.jobId as string}
               headers={importData.headers}
               previewRows={importData.previewRows}
-              targetEntity={importData.targetEntity}
+              targetEntity={importData.targetEntity as string}
               onComplete={handleStepComplete}
               onBack={handleBack}
               onCancel={handleCancel}
@@ -135,9 +135,9 @@ export default function NewImportPage() {
 
           {currentStep === 3 && (
             <ValidationStep
-              jobId={importData.jobId}
+              jobId={importData.jobId as string}
               mappingConfig={importData.mappingConfig}
-              fileName={importData.fileName}
+              fileName={importData.fileName as string}
               totalRows={importData.totalRows}
               onComplete={() => router.push('/operator/imports')}
               onBack={handleBack}

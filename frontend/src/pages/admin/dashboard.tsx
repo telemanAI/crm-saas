@@ -173,7 +173,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between mb-4">
-              <Building className="w-10 h-10" weight="fill" />
+              <Buildings className="w-10 h-10" weight="fill" />
               <TrendUp className="w-6 h-6" weight="bold" />
             </div>
             <p className="text-indigo-200 text-sm font-medium mb-1">Negozi Totali</p>
@@ -226,7 +226,7 @@ export default function AdminDashboard() {
 
           <Link href="/admin/offers">
             <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-indigo-500 hover:shadow-lg transition-all cursor-pointer">
-              <Building className="w-12 h-12 text-indigo-600 mb-4" weight="fill" />
+              <Buildings className="w-12 h-12 text-indigo-600 mb-4" weight="fill" />
               <h3 className="text-lg font-bold text-gray-900 mb-2">Gestione Offerte</h3>
               <p className="text-gray-600 text-sm">
                 Gestisci offerte e pacchetti disponibili per i negozi
@@ -250,7 +250,7 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Building className="w-6 h-6 text-indigo-600" weight="fill" />
+              <Buildings className="w-6 h-6 text-indigo-600" weight="fill" />
               Gestione Negozi ({tenants.length})
             </h2>
           </div>
@@ -420,4 +420,5 @@ export default function AdminDashboard() {
     </SuperAdminLayout>
   );
 }
+
 

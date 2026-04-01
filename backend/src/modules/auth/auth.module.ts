@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { TenantsModule } from '../tenants/tenants.module';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -12,6 +13,7 @@ import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
+    forwardRef(() => TenantsModule),
     TypeOrmModule.forFeature([User]),
     PassportModule,
     JwtModule.register({
@@ -34,3 +36,4 @@ import { UsersModule } from '../users/users.module';
   ],
 })
 export class AuthModule {}
+

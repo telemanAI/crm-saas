@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
   MagnifyingGlass,
@@ -58,7 +58,6 @@ const STATUS_COLORS: Record<string, string> = {
   Bozza: '#64748b',
   Completata: '#10b981',
   Annullata: '#f43f5e',
-  // Operational Status colors
   PENDING: '#f59e0b',
   IN_PROGRESS: '#3b82f6',
   ACTIVATED: '#10b981',
@@ -69,7 +68,7 @@ const CHART_COLORS = ['#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#64748b'];
 
 export default function OperatorDashboard() {
   const router = useRouter();
-  const { isAuthenticated, token } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const { request } = useApi();
   
   const [stats, setStats] = useState<DashboardStats>({
@@ -84,12 +83,23 @@ export default function OperatorDashboard() {
   const [recentPractices, setRecentPractices] = useState<RecentPractice[]>([]);
   const [trendPeriod, setTrendPeriod] = useState<'month' | 'day'>('month');
   const [loading, setLoading] = useState(true);
+  
+  // Stato per mostrare/nascondere il benvenuto
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
     }
   }, [isAuthenticated, router]);
+
+  // Timer per far scomparire il benvenuto dopo 3 secondi
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowWelcome(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -140,19 +150,27 @@ export default function OperatorDashboard() {
 
   return (
     <OperatorLayout title="Dashboard">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-          Benvenuto! ??
-        </h1>
-        <p className="text-gray-500 dark:text-slate-400">
-          Ecco il riepilogo delle attività oggi
-        </p>
-      </motion.div>
+      {/* Benvenuto che scompare dopo 3 secondi */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8 overflow-hidden"
+          >
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">
+              Benvenuto
+            </h1>
+            <p className="text-gray-500 dark:text-slate-400">
+              Ecco il riepilogo delle attività oggi
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      {/* Contenuto sempre visibile */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Clienti" value={stats.customers} icon={Users} color="indigo" trend="+0" loading={loading} />
         <StatCard title="Pratiche" value={stats.practices} icon={ShoppingCart} color="violet" trend="+0" loading={loading} />

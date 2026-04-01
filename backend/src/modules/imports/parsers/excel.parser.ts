@@ -10,8 +10,8 @@ export interface ParsedExcelData {
 
 @Injectable()
 export class ExcelParser {
-  parse(buffer: Buffer, sheetIndex: number = 0): ParsedExcelData {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+  static parse(filePath: string, sheetIndex: number = 0): ParsedExcelData {
+    const workbook = XLSX.readFile(filePath);
     const sheetName = workbook.SheetNames[sheetIndex];
     const worksheet = workbook.Sheets[sheetName];
     
@@ -40,8 +40,8 @@ export class ExcelParser {
     };
   }
 
-  parsePreview(buffer: Buffer, maxRows: number = 10): ParsedExcelData {
-    const fullData = this.parse(buffer);
+  static parsePreview(filePath: string, maxRows: number = 10): ParsedExcelData {
+    const fullData = this.parse(filePath);
     return {
       ...fullData,
       rows: fullData.rows.slice(0, maxRows),

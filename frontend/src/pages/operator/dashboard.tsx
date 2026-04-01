@@ -146,10 +146,10 @@ export default function OperatorDashboard() {
         className="mb-8"
       >
         <h1 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-2">
-          Benvenuto! ??
+          Benvenuto! 👋
         </h1>
         <p className="text-gray-500 dark:text-slate-400">
-          Ecco il riepilogo delle attivit� oggi
+          Ecco il riepilogo delle attività oggi
         </p>
       </motion.div>
 

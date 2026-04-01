@@ -285,7 +285,7 @@ export default function SuperAdminImportsPage() {
 
                     <Button
                       onClick={() => setSelectedJob(job)}
-                      variant="outline"
+                      variant="ghost"
                       className="text-sm"
                     >
                       👁️ Dettagli

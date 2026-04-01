@@ -85,7 +85,8 @@ export default function ImportsPage() {
         ) : (
           <div className="space-y-4">
             {jobs.map((job: any) => (
-              <Card key={job.id} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push(`/operator/imports/${job.id}`)}>
+             <div key={job.id} onClick={() => router.push(`/operator/imports/${job.id}`)} className="cursor-pointer">
+  <Card className="hover:shadow-lg transition-shadow">
                 <div className="flex items-center justify-between p-6">
                   <div className="flex-1">
                     <div className="flex items-center space-x-3">

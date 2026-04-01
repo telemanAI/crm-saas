@@ -339,7 +339,7 @@ function PracticeItem({ number, customer, type, status, date }: { number: string
       </div>
       <div className="text-right">
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-opacity-20 ${config.color.replace('bg-', 'bg-')} ${config.color.replace('bg-', 'text-')}`}>{config.label}</span>
-        <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">{date}</p>
+        <p className="text-xs text-gray-500 dark:text-slate-500 mt-1">{date}</p
       </div>
     </div>
   );

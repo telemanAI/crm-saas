@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/layout/Layout';
+import { Layout } from '../../../components/layout/Layout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';

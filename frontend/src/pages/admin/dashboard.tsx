@@ -6,7 +6,7 @@ import api from '@/lib/axios';
 import Link from 'next/link';
 import { Layout as SuperAdminLayout } from '../../components/layout/Layout';
 import {
-  Building,
+  Buildings,
   Users,
   FileText,
   ChartBar,

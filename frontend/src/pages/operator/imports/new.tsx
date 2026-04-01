@@ -9,7 +9,16 @@ import ValidationStep from './ValidationStep';
 export default function NewImportPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
-  const [importData, setImportData] = useState({
+  const [importData, setImportData] = useState<{
+    jobId: string | null;
+    targetEntity: string | null;
+    fileName: string | null;
+    headers: string[];
+    previewRows: any[];
+    totalRows: number;
+    mappingConfig: any;
+    validationResults: any;
+  }>({
     jobId: null,
     targetEntity: null,
     fileName: null,

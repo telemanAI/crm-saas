@@ -170,7 +170,7 @@ export function Sidebar() {
                 className="flex-1 min-w-0"
               >
                 <p className="text-sm font-medium text-slate-200 truncate">
-                  {user?.name || user?.email}
+                  {user?.firstName || user?.email}
                 </p>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
               </motion.div>

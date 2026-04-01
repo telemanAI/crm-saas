@@ -4,7 +4,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/lib/api';
 import api from '@/lib/axios';
 import Link from 'next/link';
-import SuperAdminLayout from '../../components/layout/Layout';
+import { Layout as SuperAdminLayout } from '../../components/layout/Layout';
 import {
   Building,
   Users,

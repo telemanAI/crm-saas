@@ -184,7 +184,7 @@ export class CustomersService {
 
     // ORA ELIMINA IL CLIENTE
     await this.customerRepo.remove(customer);
-  }  // <-- ✅ QUESTA PARENTESI GRAFFA DEVE ESSERE PRESENTE!
+  }
 
   async addNote(tenantId: string, customerId: string, text: string, userId: string, userName: string): Promise<Customer> {
     const customer = await this.findOne(tenantId, customerId);
@@ -208,9 +208,9 @@ export class CustomersService {
     return this.customerRepo.save(customer);
   }
 
-async count(): Promise<number> {
-  return await this.customersRepository.count();
-}
+  async count(): Promise<number> {
+    return await this.customerRepo.count();
+  }
 
   async deleteNote(tenantId: string, customerId: string, noteIndex: number, userId: string): Promise<Customer> {
     const customer = await this.customerRepo.findOne({

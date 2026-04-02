@@ -68,7 +68,7 @@ export class SuperAdminStatsController {
       success: true,
       activities: activities.map((log) => ({
         id: log.id,
-        message: log.action || log.details || 'Attività',
+        message: log.action || (log as any).details || 'Attività',
         timestamp: log.createdAt,
         user: log.user
           ? {
@@ -100,9 +100,9 @@ export class SuperAdminStatsController {
 
     return logs.map((log) => ({
       id: log.id,
-      level: log.level || 'info',
+      level: (log as any).level || 'info',
       action: log.action,
-      message: log.details,
+      message: (log as any).details || log.action || 'Nessun dettaglio',
       timestamp: log.createdAt,
       user: log.user
         ? {
@@ -111,7 +111,7 @@ export class SuperAdminStatsController {
           }
         : null,
       tenantId: log.tenant?.id,
-      metadata: log.metadata || {},
+      metadata: (log as any).metadata || {},
     }));
   }
 }

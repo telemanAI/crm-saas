@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { ImportJob } from './entities/import-job.entity';
 import { ImportTemplate } from './entities/import-template.entity';
 import { ExcelParser } from './parsers/excel.parser';
@@ -73,18 +73,6 @@ export class ImportsService {
       throw new NotFoundException('Import job non trovato');
     }
 
-async countRecent(days: number): Promise<number> {
-  const date = new Date();
-  date.setDate(date.getDate() - days);
-  
-  return await this.importJobsRepository.count({
-    where: {
-      createdAt: MoreThan(date),
-    },
-  });
-}
-
-
     const preview = await ExcelParser.parsePreview(job.filePath, 10);
     
     // Se c'è un template, carica il mapping
@@ -104,6 +92,17 @@ async countRecent(days: number): Promise<number> {
       totalRows: preview.totalRows,
       suggestedMapping,
     };
+  }
+
+  async countRecent(days: number): Promise<number> {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    
+    return await this.importJobRepository.count({
+      where: {
+        createdAt: MoreThan(date),
+      },
+    });
   }
 
   async validateImport(jobId: string, mappingConfig: any, tenantId: string): Promise<any> {

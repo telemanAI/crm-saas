@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import SuperAdminLayout from '../../components/layout/SuperAdminLayout';
+import { Layout } from '../../components/layout/Layout'; // ✅ CORRETTO: Layout invece di SuperAdminLayout
 import axios from '../../lib/axios';
 import {
   MagnifyingGlass,
@@ -19,7 +19,7 @@ import {
 
 export default function TenantsManagementPage() {
   const router = useRouter();
-  const [tenants, setTenants] = useState([]);
+  const [tenants, setTenants] = useState<any[]>([]); // ✅ AGGIUNTO: tipo any[]
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [expandedTenant, setExpandedTenant] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export default function TenantsManagementPage() {
       });
       alert(`Negozio ${mode === 'soft' ? 'disabilitato' : 'eliminato'} con successo`);
       loadTenants();
-    } catch (error) {
+    } catch (error: any) {
       alert('Errore: ' + error.response?.data?.message);
     }
   };
@@ -91,7 +91,7 @@ export default function TenantsManagementPage() {
         isActive: !currentStatus,
       });
       loadTenants();
-    } catch (error) {
+    } catch (error: any) {
       alert('Errore: ' + error.response?.data?.message);
     }
   };
@@ -104,7 +104,7 @@ export default function TenantsManagementPage() {
   );
 
   return (
-    <SuperAdminLayout>
+    <Layout> {/* ✅ CORRETTO: Layout invece di SuperAdminLayout */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-6">
@@ -313,6 +313,6 @@ export default function TenantsManagementPage() {
           )}
         </div>
       </div>
-    </SuperAdminLayout>
+    </Layout> // ✅ CHIUSURA CORRETTA
   );
 }

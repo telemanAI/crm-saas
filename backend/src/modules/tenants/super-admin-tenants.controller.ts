@@ -22,7 +22,7 @@ import { ImportsService } from '../imports/imports.service';
  * Controller per gestione Super Admin dei Tenant (Negozi)
  * Accesso: SOLO SUPER_ADMIN
  */
-@Controller('api/super-admin/tenants')
+@Controller('super-admin/tenants')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
 export class SuperAdminTenantsController {

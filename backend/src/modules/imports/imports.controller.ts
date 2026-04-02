@@ -18,7 +18,7 @@ import { ValidateImportDto } from './dto/validate-import.dto';
 import { ExecuteImportDto } from './dto/execute-import.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
 
-@Controller('api/imports')
+@Controller('imports')
 @UseGuards(JwtAuthGuard)
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}

@@ -12,7 +12,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { ImportsService } from './imports.service';
 import { SuperAdminImportsService } from './super-admin-imports.service';
 
-@Controller('api/super-admin/imports')
+@Controller('super-admin/imports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('super_admin')
 export class SuperAdminImportsController {

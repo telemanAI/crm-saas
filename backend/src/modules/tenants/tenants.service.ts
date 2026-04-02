@@ -46,22 +46,19 @@ export class TenantsService {
     });
   }
 
+ 
   /**
    * Trova tutti i tenant con ricerca (per Super Admin)
    */
   async findAllForSuperAdmin(search?: string): Promise<Tenant[]> {
     if (search) {
-      // Usa queryBuilder per supportare anche il campo email (esiste nel DB ma non nel type TS)
-      const queryBuilder = this.tenantsRepository.createQueryBuilder('tenant');
-      
-      queryBuilder.where(
-        '(tenant.name LIKE :search OR tenant.email LIKE :search OR tenant.subscriptionCode LIKE :search)',
-        { search: `%${search}%` }
-      );
-      
-      queryBuilder.orderBy('tenant.createdAt', 'DESC');
-      
-      return await queryBuilder.getMany();
+      return await this.tenantsRepository.find({
+        where: [
+          { name: Like(`%${search}%`) },
+          { subscriptionCode: Like(`%${search}%`) },
+        ],
+        order: { createdAt: 'DESC' },
+      });
     }
     return await this.findAll();
   }

@@ -1,65 +1,78 @@
-﻿import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { TenantsService } from '../tenants/tenants.service';
-import { UsersService } from '../users/users.service';
+﻿import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Tenant } from './entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
 
-@Controller('api/admin')
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN')
-export class SuperAdminController {
+@Injectable()
+export class TenantsService {
   constructor(
-    private readonly tenantsService: TenantsService,
-    private readonly usersService: UsersService,
+    @InjectRepository(Tenant)
+    private tenantRepo: Repository<Tenant>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
   ) {}
 
-  // Tenants Management
-  @Get('tenants')
-  async getAllTenants() {
-    return this.tenantsService.findAll();
+  async findAll(): Promise<Tenant[]> {
+    return this.tenantRepo.find({
+      order: { createdAt: 'DESC' },
+    });
   }
 
-  @Get('tenants/:id')
-  async getTenant(@Param('id') id: string) {
-    return this.tenantsService.findById(id);
-  }
-
-  @Put('tenants/:id')
-  async updateTenant(@Param('id') id: string, @Body() data: any) {
-    return this.tenantsService.update(id, data);
-  }
-
-  @Delete('tenants/:id')
-  async deleteTenant(@Param('id') id: string, @Query('mode') mode: string) {
-    if (mode === 'hard') {
-      return this.tenantsService.hardDelete(id);
+  async findById(id: string): Promise<Tenant> {
+    const tenant = await this.tenantRepo.findOne({
+      where: { id },
+      relations: ['users'],
+    });
+    
+    if (!tenant) {
+      throw new NotFoundException('Negozio non trovato');
     }
-    return this.tenantsService.softDelete(id);
+    
+    return tenant;
   }
 
-  @Put('tenants/:id/reactivate')
-  async reactivateTenant(@Param('id') id: string) {
-    return this.tenantsService.reactivate(id);
+  async update(id: string, data: any): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    
+    Object.assign(tenant, data);
+    return this.tenantRepo.save(tenant);
   }
 
-  // Users Management
-  @Get('tenants/:tenantId/users')
-  async getTenantUsers(@Param('tenantId') tenantId: string) {
-    return this.usersService.findAllByTenant(tenantId);
+  async softDelete(id: string): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    tenant.isActive = false;
+    return this.tenantRepo.save(tenant);
   }
 
-  @Put('users/:userId/role')
-  async updateUserRole(
-    @Param('userId') userId: string,
-    @Body('role') role: 'OPERATOR' | 'ADMIN' | 'FOUNDER',
-  ) {
-    return this.usersService.updateRole(userId, role);
+  async hardDelete(id: string): Promise<void> {
+    const tenant = await this.findById(id);
+    
+    // Verifica che non ci siano utenti attivi
+    const activeUsers = await this.userRepo.count({
+      where: { tenantId: id, isActive: true },
+    });
+    
+    if (activeUsers > 0) {
+      throw new BadRequestException('Impossibile eliminare: ci sono ancora utenti attivi nel negozio');
+    }
+    
+    await this.tenantRepo.remove(tenant);
   }
 
-  @Post('users/:userId/reset-password')
-  async resetPassword(@Param('userId') userId: string, @Body('tenantId') tenantId: string) {
-    const tempPassword = await this.usersService.resetPasswordBySuperAdmin(userId, tenantId);
-    return { success: true, temporaryPassword: tempPassword };
+  async reactivate(id: string): Promise<Tenant> {
+    const tenant = await this.findById(id);
+    tenant.isActive = true;
+    return this.tenantRepo.save(tenant);
+  }
+
+  async count(): Promise<number> {
+    return this.tenantRepo.count();
+  }
+
+  async countActive(): Promise<number> {
+    return this.tenantRepo.count({
+      where: { isActive: true },
+    });
   }
 }

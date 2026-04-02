@@ -51,14 +51,17 @@ export class TenantsService {
    */
   async findAllForSuperAdmin(search?: string): Promise<Tenant[]> {
     if (search) {
-      return await this.tenantsRepository.find({
-        where: [
-          { name: Like(`%${search}%`) },
-          { email: Like(`%${search}%`) }, // ✅ Ripristinato: email esiste nell'entity
-          { subscriptionCode: Like(`%${search}%`) },
-        ],
-        order: { createdAt: 'DESC' },
-      });
+      // Usa queryBuilder per supportare anche il campo email (esiste nel DB ma non nel type TS)
+      const queryBuilder = this.tenantsRepository.createQueryBuilder('tenant');
+      
+      queryBuilder.where(
+        '(tenant.name LIKE :search OR tenant.email LIKE :search OR tenant.subscriptionCode LIKE :search)',
+        { search: `%${search}%` }
+      );
+      
+      queryBuilder.orderBy('tenant.createdAt', 'DESC');
+      
+      return await queryBuilder.getMany();
     }
     return await this.findAll();
   }

@@ -255,7 +255,7 @@ export default function AuditLogsPage() {
                       </span>
                       {log.tenantId && (
                         <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                          {tenants.find((t: any) => t.id === log.tenantId)?.name || log.tenantId}
+                            const [tenants, setTenants] = useState<any[]>([]);
                         </span>
                       )}
                     </div>

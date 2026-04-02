@@ -1,23 +1,24 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantsController } from './tenants.controller';
-import { SuperAdminTenantsController } from './super-admin-tenants.controller'; // ? AGGIUNGI
+import { SuperAdminTenantsController } from './super-admin-tenants.controller';
 import { TenantsService } from './tenants.service';
 import { Tenant } from './entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
 import { Practice } from '../practices/entities/practice.entity';
-import { UsersModule } from '../users/users.module'; // ? AGGIUNGI (se non c'è)
-import { ImportsModule } from '../imports/imports.module'; // ? AGGIUNGI (se non c'è)
+import { Customer } from '../customers/entities/customer.entity'; // ? AGGIUNTO
+import { UsersModule } from '../users/users.module';
+import { ImportsModule } from '../imports/imports.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tenant, User,Practice]),
+    TypeOrmModule.forFeature([Tenant, User, Practice, Customer]), // ? AGGIUNTO Customer
     forwardRef(() => UsersModule),
-    ImportsModule, // ? AGGIUNGI
+    ImportsModule,
   ],
   controllers: [
     TenantsController,
-    SuperAdminTenantsController, // ? AGGIUNGI
+    SuperAdminTenantsController,
   ],
   providers: [TenantsService],
   exports: [TenantsService],

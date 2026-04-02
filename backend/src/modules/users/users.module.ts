@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
+import { Practice } from '../practices/entities/practice.entity'; // ✅ AGGIUNTO
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { AdminUsersController } from './admin-users.controller';
@@ -9,9 +10,9 @@ import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Practice]), // ✅ AGGIUNTO Practice qui
     EmailModule,
-    forwardRef(() => TenantsModule), // ✅ FIX: Aggiunto forwardRef per dipendenza circolare
+    forwardRef(() => TenantsModule),
   ],
   controllers: [
     UsersController,

@@ -18,18 +18,6 @@ import api from '@/lib/axios';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
-const menuItems = [
-  { icon: House, label: 'Dashboard', href: '/dashboard' },
-  { icon: Users, label: 'Clienti', href: '/customers' },
-  { icon: FileText, label: 'Pratiche', href: '/practices' },
-  { icon: ChartBar, label: 'Report', href: '/reports' },
-  // Report WASH viene inserito dinamicamente dopo Report
-  { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
-  { icon: Download, label: 'Esportazioni', href: '/operator/exports' },
-  { icon: UserList, label: 'Operatori', href: '/operator/users' },
-  { icon: Gear, label: 'Impostazioni', href: '/settings' },
-];
-
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [showWashReport, setShowWashReport] = useState(false);
@@ -53,6 +41,30 @@ export function Sidebar() {
     clearAuth();
     router.push('/login');
   };
+
+  // Menu base visibile a tutti
+  const getMenuItems = () => {
+    const items = [
+      { icon: House, label: 'Dashboard', href: '/dashboard' },
+      { icon: Users, label: 'Clienti', href: '/customers' },
+      { icon: FileText, label: 'Pratiche', href: '/practices' },
+      { icon: ChartBar, label: 'Report', href: '/reports' },
+      { icon: UserList, label: 'Operatori', href: '/operator/users' },
+      { icon: Gear, label: 'Impostazioni', href: '/settings' },
+    ];
+
+    // Mostra Import/Export solo a FOUNDER e SUPER_ADMIN
+    if (user?.role === 'FOUNDER' || user?.role === 'SUPER_ADMIN') {
+      items.splice(4, 0,
+        { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
+        { icon: Download, label: 'Esportazioni', href: '/operator/exports' }
+      );
+    }
+
+    return items;
+  };
+
+  const menuItems = getMenuItems();
 
   return (
     <motion.aside
@@ -122,7 +134,7 @@ export function Sidebar() {
                 </motion.div>
               </Link>
 
-              {/* 🔴 REPORT WASH - Link indipendente subito sotto Report */}
+              {/* REPORT WASH - Link indipendente subito sotto Report */}
               {item.label === 'Report' && showWashReport && (
                 <Link href="/operator/reports/wash">
                   <motion.div

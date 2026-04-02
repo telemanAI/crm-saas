@@ -14,6 +14,7 @@ import {
   TrendUp,
   Clock,
   CheckCircle,
+  MagnifyingGlass,
 } from 'phosphor-react';
 
 export default function AdminDashboard() {
@@ -26,6 +27,7 @@ export default function AdminDashboard() {
   
   // Gestione tenants
   const [tenants, setTenants] = useState([]);
+  const [searchTenant, setSearchTenant] = useState('');
   const [configModal, setConfigModal] = useState<{ open: boolean; tenant: any | null }>({ 
     open: false, 
     tenant: null 
@@ -39,7 +41,8 @@ export default function AdminDashboard() {
   const [savingConfig, setSavingConfig] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || (user?.role !== 'SUPER_ADMIN' && user?.role !== 'ADMIN')) {
+    // ✅ FIX: Solo SUPER_ADMIN può accedere alle route /admin/*
+    if (!isAuthenticated || !user || user.role !== 'SUPER_ADMIN') {
       router.push('/login');
       return;
     }
@@ -54,7 +57,7 @@ export default function AdminDashboard() {
       // Carica stats globali e tenants in parallelo
       const [statsRes, tenantsRes, activityRes] = await Promise.all([
         api.get('/api/super-admin/stats').catch(() => null),
-        api.get('/tenants'),
+        api.get('/api/tenants'),
         api.get('/api/super-admin/activity/recent').catch(() => null)
       ]);
 
@@ -97,9 +100,9 @@ export default function AdminDashboard() {
     
     try {
       if (isActive) {
-        await api.delete(`/admin/tenants/${tenantId}`);
+        await api.delete(`/api/admin/tenants/${tenantId}`);
       } else {
-        await api.put(`/admin/tenants/${tenantId}/reactivate`);
+        await api.put(`/api/admin/tenants/${tenantId}/reactivate`);
       }
       loadDashboardData();
     } catch (error: any) {
@@ -109,10 +112,14 @@ export default function AdminDashboard() {
 
   const hardDeleteTenant = async (tenantId: string, tenantName: string) => {
     if (!confirm(`⚠️ ATTENZIONE: Stai per ELIMINARE DEFINITIVAMENTE "${tenantName}".\n\nTutti i dati verranno persi!\n\nSei sicuro?`)) return;
-    if (!confirm(`CONFERMA FINALE: Scrivi SI per eliminare definitivamente "${tenantName}"`)) return;
+    const confirmText = prompt(`Scrivi "ELIMINA" in maiuscolo per confermare l'eliminazione di "${tenantName}"`);
+    if (confirmText !== 'ELIMINA') {
+      alert('Eliminazione annullata');
+      return;
+    }
     
     try {
-      await api.delete(`/admin/tenants/${tenantId}/permanent`);
+      await api.delete(`/api/admin/tenants/${tenantId}/permanent`);
       alert('Negozio eliminato definitivamente');
       loadDashboardData();
     } catch (error: any) {
@@ -123,7 +130,7 @@ export default function AdminDashboard() {
   const openConfigModal = async (tenant: any) => {
     setConfigModal({ open: true, tenant });
     try {
-      const response = await api.get(`/tenants/${tenant.id}/config`);
+      const response = await api.get(`/api/tenants/${tenant.id}/config`);
       setTenantConfig(response.data);
     } catch (error) {
       setTenantConfig({ enableWashStep: false, enableAdditionalPackages: true });
@@ -134,7 +141,7 @@ export default function AdminDashboard() {
     if (!configModal.tenant) return;
     setSavingConfig(true);
     try {
-      await api.put(`/tenants/${configModal.tenant.id}/config`, tenantConfig);
+      await api.put(`/api/tenants/${configModal.tenant.id}/config`, tenantConfig);
       alert('Configurazione salvata!');
       setConfigModal({ open: false, tenant: null });
     } catch (error: any) {
@@ -143,6 +150,13 @@ export default function AdminDashboard() {
       setSavingConfig(false);
     }
   };
+
+  // Filtro tenants per ricerca
+  const filteredTenants = tenants.filter((tenant: any) =>
+    tenant.name?.toLowerCase().includes(searchTenant.toLowerCase()) ||
+    tenant.email?.toLowerCase().includes(searchTenant.toLowerCase()) ||
+    tenant.subscriptionCode?.toLowerCase().includes(searchTenant.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -171,15 +185,17 @@ export default function AdminDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <Buildings className="w-10 h-10" weight="fill" />
-              <TrendUp className="w-6 h-6" weight="bold" />
+          <Link href="/admin/tenants">
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl p-6 text-white cursor-pointer hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <Buildings className="w-10 h-10" weight="fill" />
+                <TrendUp className="w-6 h-6" weight="bold" />
+              </div>
+              <p className="text-indigo-200 text-sm font-medium mb-1">Negozi Totali</p>
+              <p className="text-4xl font-bold">{stats?.totalTenants || 0}</p>
+              <p className="text-indigo-200 text-sm mt-2">{stats?.activeTenants || 0} attivi</p>
             </div>
-            <p className="text-indigo-200 text-sm font-medium mb-1">Negozi Totali</p>
-            <p className="text-4xl font-bold">{stats?.totalTenants || 0}</p>
-            <p className="text-indigo-200 text-sm mt-2">{stats?.activeTenants || 0} attivi</p>
-          </div>
+          </Link>
 
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white">
             <div className="flex items-center justify-between mb-4">
@@ -201,63 +217,87 @@ export default function AdminDashboard() {
             <p className="text-green-200 text-sm mt-2">Su tutta la piattaforma</p>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white">
-            <div className="flex items-center justify-between mb-4">
-              <ChartBar className="w-10 h-10" weight="fill" />
-              <TrendUp className="w-6 h-6" weight="bold" />
+          <Link href="/admin/imports">
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white cursor-pointer hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between mb-4">
+                <ChartBar className="w-10 h-10" weight="fill" />
+                <TrendUp className="w-6 h-6" weight="bold" />
+              </div>
+              <p className="text-purple-200 text-sm font-medium mb-1">Import Recenti</p>
+              <p className="text-4xl font-bold">{stats?.recentImports || 0}</p>
+              <p className="text-purple-200 text-sm mt-2">Ultimi 7 giorni</p>
             </div>
-            <p className="text-purple-200 text-sm font-medium mb-1">Import Recenti</p>
-            <p className="text-4xl font-bold">{stats?.recentImports || 0}</p>
-            <p className="text-purple-200 text-sm mt-2">Ultimi 7 giorni</p>
-          </div>
+          </Link>
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Link href="/admin/tenants">
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-indigo-500 hover:shadow-lg transition-all cursor-pointer">
+              <Buildings className="w-12 h-12 text-indigo-600 mb-4" weight="fill" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Gestione Negozi</h3>
+              <p className="text-gray-600 text-sm">
+                Visualizza e gestisci tutti i negozi della piattaforma
+              </p>
+            </div>
+          </Link>
+
           <Link href="/admin/imports">
             <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-blue-500 hover:shadow-lg transition-all cursor-pointer">
               <ChartBar className="w-12 h-12 text-blue-600 mb-4" weight="fill" />
               <h3 className="text-lg font-bold text-gray-900 mb-2">Import Control</h3>
               <p className="text-gray-600 text-sm">
-                Monitora importazioni Excel/CSV di tutti i negozi in tempo reale
+                Monitora importazioni Excel/CSV di tutti i negozi
               </p>
             </div>
           </Link>
 
-          <Link href="/admin/offers">
-            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-indigo-500 hover:shadow-lg transition-all cursor-pointer">
-              <Buildings className="w-12 h-12 text-indigo-600 mb-4" weight="fill" />
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Gestione Offerte</h3>
+          <Link href="/admin/exports">
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-green-500 hover:shadow-lg transition-all cursor-pointer">
+              <FileText className="w-12 h-12 text-green-600 mb-4" weight="fill" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Export Dati</h3>
               <p className="text-gray-600 text-sm">
-                Gestisci offerte e pacchetti disponibili per i negozi
+                Esporta dati di qualsiasi negozio
               </p>
             </div>
           </Link>
 
-          <button
-            onClick={() => router.push('/admin/audit')}
-            className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-purple-500 hover:shadow-lg transition-all text-left"
-          >
-            <Warning className="w-12 h-12 text-purple-600 mb-4" weight="fill" />
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Logs & Audit</h3>
-            <p className="text-gray-600 text-sm">
-              Visualizza log di sistema e attività degli utenti
-            </p>
-          </button>
+          <Link href="/admin/audit">
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-purple-500 hover:shadow-lg transition-all cursor-pointer">
+              <Warning className="w-12 h-12 text-purple-600 mb-4" weight="fill" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Logs & Audit</h3>
+              <p className="text-gray-600 text-sm">
+                Visualizza log di sistema e attività utenti
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Tabella Tenants */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mb-8">
           <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <Buildings className="w-6 h-6 text-indigo-600" weight="fill" />
-              Gestione Negozi ({tenants.length})
-            </h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Buildings className="w-6 h-6 text-indigo-600" weight="fill" />
+                Gestione Negozi ({filteredTenants.length})
+              </h2>
+              {/* Ricerca Tenant */}
+              <div className="relative">
+                <MagnifyingGlass className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Cerca negozio..."
+                  value={searchTenant}
+                  onChange={(e) => setSearchTenant(e.target.value)}
+                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+            </div>
           </div>
           
-          {tenants.length === 0 ? (
+          {filteredTenants.length === 0 ? (
             <div className="p-8 text-center text-gray-600">
-              Nessun negozio registrato.
+              {searchTenant ? 'Nessun negozio trovato' : 'Nessun negozio registrato.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -271,7 +311,7 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {tenants.map((tenant: any) => (
+                  {filteredTenants.map((tenant: any) => (
                     <tr key={tenant.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="text-sm font-bold text-gray-900">{tenant.name}</div>
@@ -293,6 +333,11 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2 flex-wrap">
+                          <Link href={`/admin/tenants/${tenant.id}`}>
+                            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+                              👁️ Dettagli
+                            </button>
+                          </Link>
                           <button 
                             onClick={() => enterTenantCRM(tenant.id)} 
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
@@ -303,7 +348,7 @@ export default function AdminDashboard() {
                             onClick={() => openConfigModal(tenant)} 
                             className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
                           >
-                            ⚙️ Configura
+                            ⚙️ Config
                           </button>
                           <button 
                             onClick={() => toggleTenantStatus(tenant.id, tenant.name, tenant.isActive)} 
@@ -420,5 +465,3 @@ export default function AdminDashboard() {
     </SuperAdminLayout>
   );
 }
-
-

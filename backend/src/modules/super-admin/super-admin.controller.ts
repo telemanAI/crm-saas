@@ -27,20 +27,20 @@ export class SuperAdminController {
 
   @Put('tenants/:id')
   async updateTenant(@Param('id') id: string, @Body() data: any) {
-    return this.tenantsService.update(id, data);
+    return this.tenantsService.updateTenant(id, data); // ✅ Corretto: updateTenant non update
   }
 
   @Delete('tenants/:id')
   async deleteTenant(@Param('id') id: string, @Query('mode') mode: string) {
     if (mode === 'hard') {
-      return this.tenantsService.hardDelete(id);
+      return this.tenantsService.hardDeleteTenant(id); // ✅ Corretto: hardDeleteTenant non hardDelete
     }
-    return this.tenantsService.softDelete(id);
+    return this.tenantsService.softDeleteTenant(id); // ✅ Corretto: softDeleteTenant non softDelete
   }
 
   @Put('tenants/:id/reactivate')
   async reactivateTenant(@Param('id') id: string) {
-    return this.tenantsService.reactivate(id);
+    return this.tenantsService.reactivateTenant(id); // ✅ Corretto: reactivateTenant non reactivate
   }
 
   // Users Management

@@ -20,7 +20,7 @@ export class TenantsService {
   ) {}
 
   /**
-   * ✅ NUOVO: Trova tenant per codice sottoscrizione
+   * Trova tenant per codice sottoscrizione
    */
   async findBySubscriptionCode(subscriptionCode: string): Promise<Tenant | null> {
     return await this.tenantsRepository.findOne({
@@ -29,7 +29,7 @@ export class TenantsService {
   }
 
   /**
-   * ✅ NUOVO: Trova tenant per slug (usato per subdomain/URL)
+   * Trova tenant per slug (usato per subdomain/URL)
    */
   async findBySlug(slug: string): Promise<Tenant | null> {
     return await this.tenantsRepository.findOne({
@@ -54,7 +54,7 @@ export class TenantsService {
       return await this.tenantsRepository.find({
         where: [
           { name: Like(`%${search}%`) },
-          { email: Like(`%${search}%`) },
+          { email: Like(`%${search}%`) }, // ✅ Ripristinato: email esiste nell'entity
           { subscriptionCode: Like(`%${search}%`) },
         ],
         order: { createdAt: 'DESC' },
@@ -91,7 +91,7 @@ export class TenantsService {
     // Ricerca
     if (search) {
       queryBuilder.andWhere(
-        '(tenant.name LIKE :search OR tenant.email LIKE :search OR tenant.subscriptionCode LIKE :search)',
+        '(tenant.name LIKE :search OR tenant.email LIKE :search OR tenant.subscriptionCode LIKE :search)', // ✅ Ripristinato: email esiste
         { search: `%${search}%` },
       );
     }
@@ -208,6 +208,32 @@ export class TenantsService {
   }
 
   /**
+   * Aggiorna configurazione tenant (per tenants.controller.ts)
+   */
+  async updateTenantConfig(tenantId: string, config: { enableWashStep?: boolean; enableAdditionalPackages?: boolean }): Promise<Tenant> {
+    const tenant = await this.findById(tenantId);
+    
+    // Salva config nel campo config o come campi separati se esistono nell'entity
+    if ((tenant as any).config) {
+      (tenant as any).config = { ...(tenant as any).config, ...config };
+    } else {
+      // Se non esiste campo config, usa campi diretti se esistono
+      if (config.enableWashStep !== undefined) (tenant as any).enableWashStep = config.enableWashStep;
+      if (config.enableAdditionalPackages !== undefined) (tenant as any).enableAdditionalPackages = config.enableAdditionalPackages;
+    }
+    
+    return await this.tenantsRepository.save(tenant);
+  }
+
+  /**
+   * Ottieni configurazione tenant
+   */
+  async getTenantConfig(tenantId: string) {
+    const tenant = await this.findById(tenantId);
+    return (tenant as any).config || { enableWashStep: false, enableAdditionalPackages: true };
+  }
+
+  /**
    * Aggiorna stato tenant
    */
   async updateTenantStatus(
@@ -218,9 +244,6 @@ export class TenantsService {
     const tenant = await this.findById(id);
     tenant.isActive = status === 'active';
     
-    // Se hai un campo status separato, aggiornalo qui
-    // tenant.status = status;
-    
     return await this.tenantsRepository.save(tenant);
   }
 
@@ -229,9 +252,6 @@ export class TenantsService {
    */
   async updateTenantPlan(id: string, planData: any): Promise<Tenant> {
     const tenant = await this.findById(id);
-    // Aggiorna i campi del piano
-    // tenant.plan = planData.plan;
-    // tenant.planExpiry = planData.planExpiry;
     return await this.tenantsRepository.save(tenant);
   }
 
@@ -358,11 +378,6 @@ export class TenantsService {
    */
   async getOrCreateConfig(tenantId: string) {
     const tenant = await this.findById(tenantId);
-    
-    // Se hai un campo config nel tenant entity
-    // return tenant.config || { enableWashStep: false, enableAdditionalPackages: true };
-    
-    // Altrimenti restituisci config di default
     return {
       enableWashStep: false,
       enableAdditionalPackages: true,
@@ -370,16 +385,9 @@ export class TenantsService {
   }
 
   /**
-   * Aggiorna configurazione tenant
+   * Alias per updateTenantConfig (retrocompatibilità)
    */
   async updateConfig(tenantId: string, config: any) {
-    const tenant = await this.findById(tenantId);
-    
-    // Se hai un campo config nel tenant entity
-    // tenant.config = config;
-    // return await this.tenantsRepository.save(tenant);
-    
-    // Altrimenti salva in modo alternativo (es. tabella separata)
-    return config;
+    return this.updateTenantConfig(tenantId, config);
   }
 }

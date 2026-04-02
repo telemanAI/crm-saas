@@ -23,12 +23,12 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
-    level: 'all', // all, info, warning, error
+    level: 'all',
     dateFrom: '',
     dateTo: '',
     tenantId: '',
   });
-  const [tenants, setTenants] = useState([]);
+  const [tenants, setTenants] = useState<any[]>([]); // ✅ FIX: Aggiunto tipo any[]
 
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'SUPER_ADMIN') {
@@ -255,7 +255,7 @@ export default function AuditLogsPage() {
                       </span>
                       {log.tenantId && (
                         <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                            const [tenants, setTenants] = useState<any[]>([]);
+                          {tenants.find((t: any) => t.id === log.tenantId)?.name || log.tenantId} // ✅ FIX: Ripristinata logica corretta
                         </span>
                       )}
                     </div>

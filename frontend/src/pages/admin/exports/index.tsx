@@ -1,5 +1,3 @@
-
-
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
@@ -20,7 +18,7 @@ export default function SuperAdminExportsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
   
-  const [tenants, setTenants] = useState([]);
+  const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenant, setSelectedTenant] = useState<string>('');
   const [exportType, setExportType] = useState<'practices' | 'customers'>('practices');
   const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');

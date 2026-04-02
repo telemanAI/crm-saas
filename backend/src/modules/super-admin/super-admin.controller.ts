@@ -1,90 +1,65 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Tenant } from '../tenants/entities/tenant.entity';
-import { User } from '../users/entities/user.entity';
-import { Practice } from '../practices/entities/practice.entity';
-import { Customer } from '../customers/entities/customer.entity';
+import { TenantsService } from '../tenants/tenants.service';
+import { UsersService } from '../users/users.service';
 
-/**
- * Controller per API Super Admin generiche
- */
-@Controller('api/super-admin')
+@Controller('api/admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
 export class SuperAdminController {
   constructor(
-    @InjectRepository(Tenant)
-    private tenantRepository: Repository<Tenant>,
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-    @InjectRepository(Practice)
-    private practiceRepository: Repository<Practice>,
-    @InjectRepository(Customer)
-    private customerRepository: Repository<Customer>,
+    private readonly tenantsService: TenantsService,
+    private readonly usersService: UsersService,
   ) {}
 
-  /**
-   * GET /api/super-admin/stats
-   * Statistiche globali per dashboard
-   */
-  @Get('stats')
-  async getGlobalStats() {
-    const [
-      totalTenants,
-      activeTenants,
-      totalUsers,
-      totalPractices,
-      totalCustomers,
-    ] = await Promise.all([
-      this.tenantRepository.count(),
-      this.tenantRepository.count({ where: { isActive: true } }),
-      this.userRepository.count(),
-      this.practiceRepository.count(),
-      this.customerRepository.count(),
-    ]);
-
-    // Import recenti (ultimi 7 giorni)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    return {
-      success: true,
-      totalTenants,
-      activeTenants,
-      totalUsers,
-      totalPractices,
-      totalCustomers,
-    };
+  // Tenants Management
+  @Get('tenants')
+  async getAllTenants() {
+    return this.tenantsService.findAll();
   }
 
-  /**
-   * GET /api/super-admin/activity/recent
-   * Attività recente (placeholder per ora)
-   */
-  @Get('activity/recent')
-  async getRecentActivity() {
-    // TODO: Implementare audit log table
-    return {
-      success: true,
-      activities: [],
-    };
+  @Get('tenants/:id')
+  async getTenant(@Param('id') id: string) {
+    return this.tenantsService.findById(id);
   }
 
-  /**
-   * GET /api/super-admin/audit
-   * Logs di sistema (placeholder)
-   */
-  @Get('audit')
-  async getAuditLogs() {
-    // TODO: Implementare sistema di logging
-    return {
-      success: true,
-      logs: [],
-      message: 'Sistema audit in sviluppo',
-    };
+  @Put('tenants/:id')
+  async updateTenant(@Param('id') id: string, @Body() data: any) {
+    return this.tenantsService.update(id, data);
+  }
+
+  @Delete('tenants/:id')
+  async deleteTenant(@Param('id') id: string, @Query('mode') mode: string) {
+    if (mode === 'hard') {
+      return this.tenantsService.hardDelete(id);
+    }
+    return this.tenantsService.softDelete(id);
+  }
+
+  @Put('tenants/:id/reactivate')
+  async reactivateTenant(@Param('id') id: string) {
+    return this.tenantsService.reactivate(id);
+  }
+
+  // Users Management
+  @Get('tenants/:tenantId/users')
+  async getTenantUsers(@Param('tenantId') tenantId: string) {
+    return this.usersService.findAllByTenant(tenantId);
+  }
+
+  @Put('users/:userId/role')
+  async updateUserRole(
+    @Param('userId') userId: string,
+    @Body('role') role: 'OPERATOR' | 'ADMIN' | 'FOUNDER',
+  ) {
+    return this.usersService.updateRole(userId, role);
+  }
+
+  @Post('users/:userId/reset-password')
+  async resetPassword(@Param('userId') userId: string, @Body('tenantId') tenantId: string) {
+    const tempPassword = await this.usersService.resetPasswordBySuperAdmin(userId, tenantId);
+    return { success: true, temporaryPassword: tempPassword };
   }
 }

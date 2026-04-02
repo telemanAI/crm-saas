@@ -11,7 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLog } from '../audit/entities/audit-log.entity';
 
-@Controller('api/super-admin')
+@Controller('super-admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
 export class SuperAdminStatsController {

@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { StatsController } from './stats.controller';
 import { StatsService } from './stats.service';
-import { SuperAdminStatsController } from './super-admin-stats.controller'; // ✅ NUOVO
+import { SuperAdminStatsController } from './super-admin-stats.controller';
 import { AuditLog } from '../audit/entities/audit-log.entity';
+import { Customer } from '../customers/entities/customer.entity'; // ✅ AGGIUNTO
+import { Practice } from '../practices/entities/practice.entity'; // ✅ AGGIUNTO
 import { TenantsModule } from '../tenants/tenants.module';
 import { UsersModule } from '../users/users.module';
 import { PracticesModule } from '../practices/practices.module';
@@ -12,7 +14,7 @@ import { ImportsModule } from '../imports/imports.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AuditLog]),
+    TypeOrmModule.forFeature([AuditLog, Customer, Practice]), // ✅ AGGIUNTI Customer e Practice
     TenantsModule,
     UsersModule,
     PracticesModule,
@@ -21,7 +23,7 @@ import { ImportsModule } from '../imports/imports.module';
   ],
   controllers: [
     StatsController,
-    SuperAdminStatsController, // ✅ NUOVO
+    SuperAdminStatsController,
   ],
   providers: [StatsService],
   exports: [StatsService],

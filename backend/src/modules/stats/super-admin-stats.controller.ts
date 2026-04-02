@@ -1,117 +1,65 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { TenantsService } from '../tenants/tenants.service';
 import { UsersService } from '../users/users.service';
-import { PracticesService } from '../practices/practices.service';
-import { CustomersService } from '../customers/customers.service';
-import { ImportsService } from '../imports/imports.service';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AuditLog } from '../audit/entities/audit-log.entity';
 
-@Controller('api/super-admin')
+@Controller('api/admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
-export class SuperAdminStatsController {
+export class SuperAdminController {
   constructor(
     private readonly tenantsService: TenantsService,
     private readonly usersService: UsersService,
-    private readonly practicesService: PracticesService,
-    private readonly customersService: CustomersService,
-    private readonly importsService: ImportsService,
-    @InjectRepository(AuditLog)
-    private readonly auditLogRepository: Repository<AuditLog>,
   ) {}
 
-  /**
-   * GET /api/super-admin/stats
-   * Statistiche globali della piattaforma
-   */
-  @Get('stats')
-  async getGlobalStats() {
-    const [tenants, users, practices, customers, recentImports] = await Promise.all([
-      this.tenantsService.count(),
-      this.usersService.count(),
-      this.practicesService.count(),
-      this.customersService.count(),
-      this.importsService.countRecent(7), // ultimi 7 giorni
-    ]);
-
-    const activeTenants = await this.tenantsService.countActive();
-
-    return {
-      success: true,
-      totalTenants: tenants,
-      activeTenants: activeTenants,
-      totalUsers: users,
-      totalPractices: practices,
-      totalCustomers: customers,
-      recentImports: recentImports,
-    };
+  // Tenants Management
+  @Get('tenants')
+  async getAllTenants() {
+    return this.tenantsService.findAll();
   }
 
-  /**
-   * GET /api/super-admin/activity/recent
-   * Attività recente sulla piattaforma
-   */
-  @Get('activity/recent')
-  async getRecentActivity() {
-    const activities = await this.auditLogRepository.find({
-      order: { createdAt: 'DESC' },
-      take: 20,
-      relations: ['user', 'tenant'],
-    });
-
-    return {
-      success: true,
-      activities: activities.map((log) => ({
-        id: log.id,
-        message: log.action || (log as any).details || 'Attività',
-        timestamp: log.createdAt,
-        user: log.user
-          ? {
-              id: log.user.id,
-              email: log.user.email,
-            }
-          : null,
-        tenant: log.tenant
-          ? {
-              id: log.tenant.id,
-              name: log.tenant.name,
-            }
-          : null,
-      })),
-    };
+  @Get('tenants/:id')
+  async getTenant(@Param('id') id: string) {
+    return this.tenantsService.findById(id);
   }
 
-  /**
-   * GET /api/super-admin/audit
-   * Log di audit filtrabili
-   */
-  @Get('audit')
-  async getAuditLogs() {
-    const logs = await this.auditLogRepository.find({
-      order: { createdAt: 'DESC' },
-      take: 100,
-      relations: ['user', 'tenant'],
-    });
+  @Put('tenants/:id')
+  async updateTenant(@Param('id') id: string, @Body() data: any) {
+    return this.tenantsService.update(id, data);
+  }
 
-    return logs.map((log) => ({
-      id: log.id,
-      level: (log as any).level || 'info',
-      action: log.action,
-      message: (log as any).details || log.action || 'Nessun dettaglio',
-      timestamp: log.createdAt,
-      user: log.user
-        ? {
-            id: log.user.id,
-            email: log.user.email,
-          }
-        : null,
-      tenantId: log.tenant?.id,
-      metadata: (log as any).metadata || {},
-    }));
+  @Delete('tenants/:id')
+  async deleteTenant(@Param('id') id: string, @Query('mode') mode: string) {
+    if (mode === 'hard') {
+      return this.tenantsService.hardDelete(id);
+    }
+    return this.tenantsService.softDelete(id);
+  }
+
+  @Put('tenants/:id/reactivate')
+  async reactivateTenant(@Param('id') id: string) {
+    return this.tenantsService.reactivate(id);
+  }
+
+  // Users Management
+  @Get('tenants/:tenantId/users')
+  async getTenantUsers(@Param('tenantId') tenantId: string) {
+    return this.usersService.findAllByTenant(tenantId);
+  }
+
+  @Put('users/:userId/role')
+  async updateUserRole(
+    @Param('userId') userId: string,
+    @Body('role') role: 'OPERATOR' | 'ADMIN' | 'FOUNDER',
+  ) {
+    return this.usersService.updateRole(userId, role);
+  }
+
+  @Post('users/:userId/reset-password')
+  async resetPassword(@Param('userId') userId: string, @Param('tenantId') tenantId: string) {
+    const tempPassword = await this.usersService.resetPasswordBySuperAdmin(userId, tenantId);
+    return { success: true, temporaryPassword: tempPassword };
   }
 }

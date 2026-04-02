@@ -375,6 +375,10 @@ export class PracticesService {
       throw new NotFoundException('Nota non trovata');
     }
     
+	async count(): Promise<number> {
+  return await this.practicesRepository.count();
+}
+	
     // Verifica che solo l'autore possa eliminare
     const note = practice.notesHistory[noteIndex];
     if (note.createdById !== userId) {

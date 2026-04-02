@@ -157,12 +157,13 @@ export class AuthService {
       isActive: true,
     });
 
+    // Crea primo utente come FOUNDER (non ADMIN)
     const user = await this.usersService.create({
       email,
       passwordHash,
       firstName: 'Admin',
       lastName: name,
-      role: 'ADMIN',
+      role: 'FOUNDER', // ← FOUNDER invece di ADMIN
       tenantId: tenant.id,
       isActive: true,
       emailVerified: false,

@@ -208,6 +208,10 @@ export class CustomersService {
     return this.customerRepo.save(customer);
   }
 
+async count(): Promise<number> {
+  return await this.customersRepository.count();
+}
+
   async deleteNote(tenantId: string, customerId: string, noteIndex: number, userId: string): Promise<Customer> {
     const customer = await this.customerRepo.findOne({
       where: { id: customerId, tenantId },

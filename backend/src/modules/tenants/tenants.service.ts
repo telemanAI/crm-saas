@@ -256,6 +256,14 @@ export class TenantsService {
     return founder[0];
   }
 
+async count(): Promise<number> {
+  return await this.tenantsRepository.count();
+}
+
+async countActive(): Promise<number> {
+  return await this.tenantsRepository.count({ where: { isActive: true } });
+}
+
   async getTenantCustomers(id: string, page: number, limit: number): Promise<any> {
     return { data: [], total: 0, page, limit };
   }

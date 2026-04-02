@@ -20,6 +20,7 @@ import { ImportsModule } from './modules/imports/imports.module';
 import { ExportsModule } from './modules/exports/exports.module';
 import { ImportJob } from './modules/imports/entities/import-job.entity';
 import { ImportTemplate } from './modules/imports/entities/import-template.entity';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -87,6 +88,7 @@ import { Offer } from './modules/offers/entities/offer.entity';
     SalesModule,
     StatsModule,
     OffersModule,
+	SuperAdminModule,
     EmailModule,
     CleanupModule,
 	ImportsModule,      

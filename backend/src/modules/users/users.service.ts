@@ -128,6 +128,27 @@ export class UsersService {
 
     return await this.usersRepository.save(user);
   }
+
+  /**
+   * ✅ NUOVO: Aggiorna ruolo utente (solo per Super Admin)
+   */
+  async updateRole(userId: string, role: 'OPERATOR' | 'ADMIN' | 'FOUNDER'): Promise<User> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    
+    if (!user) {
+      throw new NotFoundException('Utente non trovato');
+    }
+
+    user.role = role as any;
+    return await this.usersRepository.save(user);
+  }
+
+  /**
+   * ✅ NUOVO: Conta tutti gli utenti
+   */
+  async count(): Promise<number> {
+    return await this.usersRepository.count();
+  }
   
   async findByVerificationToken(token: string): Promise<User | null> {
     return this.usersRepository.findOne({ 

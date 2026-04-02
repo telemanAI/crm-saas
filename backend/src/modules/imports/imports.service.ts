@@ -73,6 +73,18 @@ export class ImportsService {
       throw new NotFoundException('Import job non trovato');
     }
 
+async countRecent(days: number): Promise<number> {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  
+  return await this.importJobsRepository.count({
+    where: {
+      createdAt: MoreThan(date),
+    },
+  });
+}
+
+
     const preview = await ExcelParser.parsePreview(job.filePath, 10);
     
     // Se c'è un template, carica il mapping

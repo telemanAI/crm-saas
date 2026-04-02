@@ -21,6 +21,8 @@ export class SuperAdminImportsController {
     private readonly superAdminService: SuperAdminImportsService,
   ) {}
 
+  // ========== GET METHODS ==========
+  
   @Get('jobs')
   async getAllJobs() {
     const jobs = await this.superAdminService.getAllJobsAllTenants();
@@ -29,6 +31,26 @@ export class SuperAdminImportsController {
       jobs,
     };
   }
+
+  @Get('tenants/:tenantId/imports/jobs')
+  async getTenantImportJobs(@Param('tenantId') tenantId: string) {
+    const jobs = await this.importsService.getJobs(tenantId);
+    return {
+      success: true,
+      jobs,
+    };
+  }
+
+  @Get(':jobId/conflicts')
+  async getConflicts(@Param('jobId') jobId: string) {
+    const conflicts = await this.superAdminService.getConflicts(jobId);
+    return {
+      success: true,
+      conflicts,
+    };
+  }
+
+  // ========== POST METHODS ==========
 
   @Post(':jobId/pause')
   async pauseJob(@Param('jobId') jobId: string) {
@@ -49,7 +71,10 @@ export class SuperAdminImportsController {
   }
 
   @Post(':jobId/skip-row')
-  async skipRow(@Param('jobId') jobId: string, @Body() body: { rowNumber: number }) {
+  async skipRow(
+    @Param('jobId') jobId: string, 
+    @Body() body: { rowNumber: number }
+  ) {
     await this.superAdminService.skipRow(jobId, body.rowNumber);
     return {
       success: true,
@@ -58,7 +83,10 @@ export class SuperAdminImportsController {
   }
 
   @Post(':jobId/rollback')
-  async rollback(@Param('jobId') jobId: string, @Body() body: { mode: 'partial' | 'full' }) {
+  async rollback(
+    @Param('jobId') jobId: string, 
+    @Body() body: { mode: 'partial' | 'full' }
+  ) {
     const result = await this.superAdminService.rollback(jobId, body.mode);
     return {
       success: true,
@@ -66,17 +94,11 @@ export class SuperAdminImportsController {
     };
   }
 
-  @Get(':jobId/conflicts')
-  async getConflicts(@Param('jobId') jobId: string) {
-    const conflicts = await this.superAdminService.getConflicts(jobId);
-    return {
-      success: true,
-      conflicts,
-    };
-  }
-
   @Post(':jobId/remap')
-  async remapJob(@Param('jobId') jobId: string, @Body() body: any) {
+  async remapJob(
+    @Param('jobId') jobId: string, 
+    @Body() body: any
+  ) {
     await this.superAdminService.remapJob(jobId, body.mappingConfig, body.dryRun);
     return {
       success: true,

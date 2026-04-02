@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './entities/user.entity';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
-import { AdminUsersController } from './admin-users.controller'; // ✅ NUOVO
+import { AdminUsersController } from './admin-users.controller';
 import { EmailModule } from '../email/email.module';
 import { TenantsModule } from '../tenants/tenants.module';
 
@@ -11,11 +11,11 @@ import { TenantsModule } from '../tenants/tenants.module';
   imports: [
     TypeOrmModule.forFeature([User]),
     EmailModule,
-    TenantsModule,
+    forwardRef(() => TenantsModule), // ✅ FIX: Aggiunto forwardRef per dipendenza circolare
   ],
   controllers: [
     UsersController,
-    AdminUsersController, // ✅ NUOVO
+    AdminUsersController,
   ],
   providers: [UsersService],
   exports: [UsersService],

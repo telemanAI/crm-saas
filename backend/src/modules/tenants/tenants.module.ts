@@ -5,12 +5,13 @@ import { SuperAdminTenantsController } from './super-admin-tenants.controller'; 
 import { TenantsService } from './tenants.service';
 import { Tenant } from './entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
+import { Practice } from '../practices/entities/practice.entity';
 import { UsersModule } from '../users/users.module'; // ? AGGIUNGI (se non c'è)
 import { ImportsModule } from '../imports/imports.module'; // ? AGGIUNGI (se non c'è)
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tenant, User]),
+    TypeOrmModule.forFeature([Tenant, User,Practice]),
     forwardRef(() => UsersModule),
     ImportsModule, // ? AGGIUNGI
   ],

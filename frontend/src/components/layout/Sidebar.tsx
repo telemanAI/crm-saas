@@ -54,7 +54,8 @@ export function Sidebar() {
     ];
 
     // Mostra Import/Export solo a FOUNDER e SUPER_ADMIN
-    if (user?.role === 'FOUNDER' || user?.role === 'SUPER_ADMIN') {
+      // Mostra Import/Export solo a FOUNDER e SUPER_ADMIN
+    if ((user?.role as string) === 'FOUNDER' || user?.role === 'SUPER_ADMIN') {
       items.splice(4, 0,
         { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
         { icon: Download, label: 'Esportazioni', href: '/operator/exports' }

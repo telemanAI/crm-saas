@@ -1,7 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SuperAdminController } from './super-admin.controller';
-import { SuperAdminStatsController } from './super-admin-stats.controller';
 import { TenantsModule } from '../tenants/tenants.module';
 import { UsersModule } from '../users/users.module';
 import { Tenant } from '../tenants/entities/tenant.entity';
@@ -13,12 +12,12 @@ import { AuditLog } from '../audit/entities/audit-log.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Tenant, User, Practice, Customer, AuditLog]),
-    forwardRef(() => TenantsModule), // ✅ TenantsService disponibile
-    forwardRef(() => UsersModule),   // ✅ UsersService disponibile
+    forwardRef(() => TenantsModule),
+    forwardRef(() => UsersModule),
   ],
   controllers: [
     SuperAdminController,
-    SuperAdminStatsController,
+    // ✅ RIMOSSO: SuperAdminStatsController è già registrato in StatsModule
   ],
 })
 export class SuperAdminModule {}

@@ -8,7 +8,7 @@ import {
   Play, 
   Pause, 
   SkipForward, 
-  RotateCcw, 
+  ArrowCounterClockwise, 
   FileSearch, 
   TrendUp, 
   TrendDown, 
@@ -151,7 +151,7 @@ export default function SuperAdminImportsPage() {
       completed: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: CheckCircle, label: 'Completato' },
       failed: { color: 'bg-rose-100 text-rose-800 border-rose-200', icon: XCircle, label: 'Fallito' },
       paused: { color: 'bg-orange-100 text-orange-800 border-orange-200', icon: Pause, label: 'In Pausa' },
-      rolled_back: { color: 'bg-gray-100 text-gray-600 border-gray-200', icon: RotateCcw, label: 'Annullato' },
+      rolled_back: { color: 'bg-gray-100 text-gray-600 border-gray-200', icon: ArrowCounterClockwise, label: 'Annullato' },
     };
     return configs[status as keyof typeof configs] || configs.pending;
   };
@@ -496,7 +496,7 @@ export default function SuperAdminImportsPage() {
                             disabled={actionLoading === `rollback-${job.id}`}
                             className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm justify-center"
                           >
-                            <RotateCcw className="w-4 h-4 mr-2" />
+                            <ArrowCounterClockwise className="w-4 h-4 mr-2" />
                             Rollback
                           </Button>
                         )}

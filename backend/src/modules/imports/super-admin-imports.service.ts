@@ -1,40 +1,40 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ImportJob } from './entities/import-job.entity';
 
 @Injectable()
 export class SuperAdminImportsService {
   constructor(
     @InjectRepository(ImportJob)
-    private importJobRepository: Repository<ImportJob>,
+    private readonly importJobRepository: Repository<ImportJob>,
   ) {}
 
-  // ==========================================
-  // OPERAZIONI BASE (Esistenti)
-  // ==========================================
+  async findAllJobs(filters: { 
+    status?: string; 
+    tenantId?: string; 
+    dateFrom?: Date; 
+    dateTo?: Date; 
+  }): Promise<ImportJob[]> {
+    const query = this.importJobRepository.createQueryBuilder('job')
+      .leftJoinAndSelect('job.tenant', 'tenant')
+      .leftJoinAndSelect('job.creator', 'creator')
+      .orderBy('job.createdAt', 'DESC');
 
-  async findAllJobs(filters: {
-    status?: string;
-    tenantId?: string;
-    dateFrom?: Date;
-    dateTo?: Date;
-  }) {
-    const where: any = {};
-    
-    if (filters.status) where.status = filters.status;
-    if (filters.tenantId) where.tenantId = filters.tenantId;
-    if (filters.dateFrom || filters.dateTo) {
-      where.createdAt = {};
-      if (filters.dateFrom) where.createdAt = { ...where.createdAt, $gte: filters.dateFrom };
-      if (filters.dateTo) where.createdAt = { ...where.createdAt, $lte: filters.dateTo };
+    if (filters.status) {
+      query.andWhere('job.status = :status', { status: filters.status });
+    }
+    if (filters.tenantId) {
+      query.andWhere('job.tenantId = :tenantId', { tenantId: filters.tenantId });
+    }
+    if (filters.dateFrom) {
+      query.andWhere('job.createdAt >= :dateFrom', { dateFrom: filters.dateFrom });
+    }
+    if (filters.dateTo) {
+      query.andWhere('job.createdAt <= :dateTo', { dateTo: filters.dateTo });
     }
 
-    return await this.importJobRepository.find({
-      where,
-      order: { createdAt: 'DESC' },
-      take: 100,
-    });
+    return await query.getMany();
   }
 
   async pauseJob(jobId: string): Promise<ImportJob> {
@@ -59,9 +59,11 @@ export class SuperAdminImportsService {
     
     if (!job.errorLog) job.errorLog = [];
     
+    // ✅ FIX: Aggiunto rawData: {} obbligatorio
     job.errorLog.push({
       row: rowNumber,
       error: `Riga ${rowNumber} saltata manualmente da admin`,
+      rawData: {},
       level: 'warning',
       timestamp: new Date().toISOString(),
     });
@@ -69,31 +71,27 @@ export class SuperAdminImportsService {
     return await this.importJobRepository.save(job);
   }
 
-  // ==========================================
-  // OPERAZIONI AVANZATE (Nuove)
-  // ==========================================
-
-  async retryJob(jobId: string, tenantId: string): Promise<{ newJobId: string }> {
+  async retryJob(jobId: string, tenantId: string): Promise<{ newJobId: string; status: string }> {
     const oldJob = await this.importJobRepository.findOne({ 
-      where: { id: jobId, tenantId } 
+      where: { id: jobId, tenantId },
+      relations: ['template'] 
     });
-    
-    if (!oldJob) throw new NotFoundException('Job originale non trovato');
+    if (!oldJob) throw new NotFoundException('Job non trovato');
 
-    // Crea nuovo job copiato dal vecchio ma resettato
     const newJob = this.importJobRepository.create({
-      tenantId,
+      tenantId: oldJob.tenantId,
       createdBy: oldJob.createdBy,
       targetEntity: oldJob.targetEntity,
-      fileName: `retry_${oldJob.fileName}`,
+      fileName: oldJob.fileName,
       filePath: oldJob.filePath,
       fileSize: oldJob.fileSize,
-      fileFormat: oldJob.fileFormat,
       status: 'pending',
-      mappingConfig: oldJob.mappingConfig,
       templateId: oldJob.templateId,
+      duplicateStrategy: oldJob.duplicateStrategy,
+      columnMapping: oldJob.columnMapping,
+      mappingConfig: oldJob.mappingConfig,
       stats: {
-        totalRows: oldJob.stats?.totalRows || 0,
+        totalRows: 0,
         processedRows: 0,
         successfulRows: 0,
         failedRows: 0,
@@ -105,8 +103,8 @@ export class SuperAdminImportsService {
       errorLog: [],
     });
 
-    const saved = await this.importJobRepository.save(newJob);
-    return { newJobId: saved.id };
+    await this.importJobRepository.save(newJob);
+    return { newJobId: newJob.id, status: newJob.status };
   }
 
   async simulateImport(jobId: string, tenantId: string): Promise<any> {
@@ -116,11 +114,9 @@ export class SuperAdminImportsService {
     
     if (!job) throw new NotFoundException('Job non trovato');
 
-    // Analisi simulata basata sui dati già presenti
-    const validation = job.validationResults || { preview: [] };
+    const validation = job.validationResults || { preview: [], summary: {} };
     const totalRows = job.stats?.totalRows || 0;
     
-    // Conta tipologie
     let withPractice = 0;
     let onlyCustomer = 0;
     
@@ -129,33 +125,47 @@ export class SuperAdminImportsService {
       else onlyCustomer++;
     });
 
+    // ✅ FIX: uso || {} per evitare errori se summary undefined
+    const summary = validation.summary || {};
+
     return {
       totalRows,
-      wouldCreateCustomers: validation.summary?.totalCustomers || onlyCustomer + withPractice,
-      wouldCreatePractices: validation.summary?.customersWithPractice || withPractice,
-      wouldUpdateExisting: validation.summary?.existingCustomers || 0,
+      wouldCreateCustomers: summary.totalCustomers || (onlyCustomer + withPractice),
+      wouldCreatePractices: summary.customersWithPractice || withPractice,
+      wouldUpdateExisting: summary.existingCustomers || 0,
       strategy: job.mappingConfig?.duplicateStrategy || 'UPDATE',
       fileFormat: job.fileFormat || 'flat',
       quality: this.assessDataQuality(validation.preview),
     };
   }
 
-  async getGlobalStats(days: number): Promise<any> {
-    const since = new Date();
-    since.setDate(since.getDate() - days);
-
-    const [total, completed, failed, processing, paused] = await Promise.all([
-      this.importJobRepository.count({ where: { createdAt: MoreThan(since) as any } }),
-      this.importJobRepository.count({ where: { status: 'completed', createdAt: MoreThan(since) as any } }),
-      this.importJobRepository.count({ where: { status: 'failed', createdAt: MoreThan(since) as any } }),
-      this.importJobRepository.count({ where: { status: 'processing', createdAt: MoreThan(since) as any } }),
-      this.importJobRepository.count({ where: { status: 'paused', createdAt: MoreThan(since) as any } }),
-    ]);
-
-    const activeNow = await this.importJobRepository.count({ 
-      where: { status: 'processing' } 
-    });
-
+  async getGlobalStats(days: number): Promise<{
+    total: number;
+    completed: number;
+    failed: number;
+    processing: number;
+    paused: number;
+    activeNow: number;
+    successRate: number;
+    failureRate: number;
+  }> {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    
+    const jobs = await this.importJobRepository
+      .createQueryBuilder('job')
+      .where('job.createdAt >= :date', { date })
+      .getMany();
+    
+    const total = jobs.length;
+    const completed = jobs.filter(j => j.status === 'completed').length;
+    const failed = jobs.filter(j => j.status === 'failed').length;
+    const processing = jobs.filter(j => j.status === 'processing').length;
+    const paused = jobs.filter(j => j.status === 'paused').length;
+    const activeNow = processing;
+    const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const failureRate = total > 0 ? Math.round((failed / total) * 100) : 0;
+    
     return {
       total,
       completed,
@@ -163,37 +173,32 @@ export class SuperAdminImportsService {
       processing,
       paused,
       activeNow,
-      successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
-      failureRate: total > 0 ? Math.round((failed / total) * 100) : 0,
+      successRate,
+      failureRate,
     };
   }
 
-  async logAdminAction(action: {
-    action: string;
-    jobId: string;
-    tenantId: string;
-    adminId: string;
-    reason: string;
-    timestamp: Date;
+  async logAdminAction(data: { 
+    action: string; 
+    jobId: string; 
+    tenantId: string; 
+    adminId: string; 
+    reason: string; 
+    timestamp: Date; 
   }): Promise<void> {
-    // Log strutturato per audit
-    console.log(JSON.stringify({
-      type: 'ADMIN_AUDIT',
-      ...action,
-    }));
-    
-    // Qui puoi aggiungere salvataggio su DB se hai una tabella audit_logs
+    // Qui puoi implementare il salvataggio su audit log
+    console.log('[ADMIN ACTION]', {
+      ...data,
+      timestamp: data.timestamp.toISOString(),
+    });
   }
 
   private assessDataQuality(preview: any[]): string {
     if (!preview || preview.length === 0) return 'unknown';
-    
-    const valid = preview.filter((r: any) => r.valid).length;
-    const rate = (valid / preview.length) * 100;
-    
-    if (rate === 100) return 'excellent';
-    if (rate >= 90) return 'good';
-    if (rate >= 70) return 'fair';
-    return 'poor';
+    const validRows = preview.filter(p => p.isValid !== false).length;
+    const ratio = validRows / preview.length;
+    if (ratio > 0.95) return 'excellent';
+    if (ratio > 0.8) return 'good';
+    return 'needs_review';
   }
 }

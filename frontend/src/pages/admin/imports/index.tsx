@@ -22,7 +22,7 @@ import {
   Download,
   Eye,
   Calendar,
-  Filter
+ Faders
 } from 'phosphor-react';
 
 interface Job {
@@ -265,7 +265,7 @@ export default function SuperAdminImportsPage() {
 
         {/* Filtri */}
         <div className="flex flex-wrap gap-2 mb-6 items-center">
-          <Filter className="w-4 h-4 text-slate-400" />
+         <Faders className="w-4 h-4 text-slate-400" />
           <select 
             value={filterStatus} 
             onChange={(e) => setFilterStatus(e.target.value)}

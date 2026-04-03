@@ -596,7 +596,7 @@ export default function SuperAdminImportsPage() {
                     {(selectedJob.stats.matchedByCache || 0) > 0 && (
                       <div className="mt-3 pt-3 border-t border-blue-200 text-xs text-blue-700 flex items-center gap-2">
                         <span className="bg-blue-200 px-2 py-1 rounded">⚡ Ottimizzazione</span>
-                        {formatNumber(selectedJob.stats.matchedByCache)} clienti trovati in cache (velocità +{Math.round((selectedJob.stats.matchedByCache / (selectedJob.stats.createdCustomers + selectedJob.stats.updatedCustomers)) * 100)}%)
+                     {formatNumber(selectedJob.stats.matchedByCache ?? 0)} clienti trovati in cache (velocità +{Math.round(((selectedJob.stats.matchedByCache ?? 0) / ((selectedJob.stats.createdCustomers ?? 0) + (selectedJob.stats.updatedCustomers ?? 0)) * 100) || 0)}%)
                       </div>
                     )}
                   </div>

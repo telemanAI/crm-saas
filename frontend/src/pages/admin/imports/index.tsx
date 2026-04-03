@@ -440,8 +440,10 @@ export default function SuperAdminImportsPage() {
                             
                             {job.errorLog && job.errorLog.length > 0 && (
                               <Button
-                                onClick={() => handleAction('skip', job.id, { row: job.errorLog[job.errorLog.length - 1]?.row })}
-                                disabled={actionLoading === `skip-${job.id}`}
+                              onClick={() => {
+  const lastError = job.errorLog?.[job.errorLog.length - 1];
+  handleAction('skip', job.id, { row: lastError?.row });
+}}
                                 className="bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200 text-sm justify-center"
                               >
                                 <SkipForward className="w-4 h-4 mr-2" weight="fill" />

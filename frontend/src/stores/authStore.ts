@@ -6,7 +6,7 @@ export interface User {
   email: string;
   firstName: string;
   lastName: string;
-  role: 'SUPER_ADMIN' | 'ADMIN' | 'OPERATOR';
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'FOUNDER' | 'OPERATOR'; // ✅ FIX: Aggiunto FOUNDER
   tenantId?: string;
   isActive: boolean;
 }

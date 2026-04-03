@@ -57,7 +57,7 @@ export default function AdminDashboard() {
       // Carica stats globali e tenants in parallelo
       const [statsRes, tenantsRes, activityRes] = await Promise.all([
         api.get('/api/super-admin/stats').catch(() => null),
-        api.get('/api/tenants'),
+        api.get('/api/admin/tenants'), // ✅ FIX: Cambiato da '/api/tenants' a '/api/admin/tenants'
         api.get('/api/super-admin/activity/recent').catch(() => null)
       ]);
 
@@ -70,7 +70,10 @@ export default function AdminDashboard() {
         recentImports: 0,
       });
       
-      setTenants(tenantsRes.data || []);
+      // ✅ FIX: admin-tenants ritorna { data: [...] } o diretto l'array, verifichiamo la struttura
+      const tenantsData = tenantsRes.data?.data || tenantsRes.data || [];
+      setTenants(tenantsData);
+      
       setRecentActivity(activityRes?.data?.activities || []);
     } catch (error) {
       console.error('Errore caricamento dashboard:', error);

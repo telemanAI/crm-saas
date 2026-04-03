@@ -2,8 +2,11 @@ import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDa
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
 
-export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-export type ImportTargetEntity = 'CUSTOMER_ONLY' | 'FIXED_LINE_PRACTICE' | 'MOBILE_PRACTICE' | 'ENERGY_PRACTICE';
+// ✅ AGGIUNTI: paused e rolled_back
+export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'rolled_back';
+
+// ✅ AGGIUNTO: UNIFIED_IMPORT
+export type ImportTargetEntity = 'CUSTOMER_ONLY' | 'FIXED_LINE_PRACTICE' | 'MOBILE_PRACTICE' | 'ENERGY_PRACTICE' | 'UNIFIED_IMPORT';
 
 @Entity('import_jobs')
 export class ImportJob {
@@ -36,7 +39,11 @@ export class ImportJob {
   @Column({ name: 'file_size' })
   fileSize: number;
 
-  @Column({ type: 'enum', enum: ['pending', 'processing', 'completed', 'failed', 'cancelled'], default: 'pending' })
+  // ✅ AGGIUNTO: formato file
+  @Column({ name: 'file_format', type: 'varchar', default: 'flat' })
+  fileFormat: string;
+
+  @Column({ type: 'enum', enum: ['pending', 'processing', 'completed', 'failed', 'cancelled', 'paused', 'rolled_back'], default: 'pending' })
   status: ImportStatus;
 
   @Column({ name: 'template_id', nullable: true })
@@ -52,6 +59,7 @@ export class ImportJob {
     duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW';
   };
 
+  // ✅ AGGIUNTI: matchedByCache e matchedByDB
   @Column({ name: 'stats', type: 'jsonb', default: {} })
   stats: {
     totalRows: number;
@@ -62,14 +70,18 @@ export class ImportJob {
     createdCustomers: number;
     updatedCustomers: number;
     createdPractices: number;
+    matchedByCache?: number;
+    matchedByDB?: number;
   };
 
+  // ✅ AGGIUNTO: timestamp negli errori
   @Column({ name: 'error_log', type: 'jsonb', default: [] })
   errorLog: Array<{
     row: number;
     error: string;
     rawData: any;
     level: 'error' | 'warning';
+    timestamp?: string;
   }>;
 
   @Column({ name: 'validation_results', type: 'jsonb', nullable: true })
@@ -78,6 +90,12 @@ export class ImportJob {
     warnings: number;
     errors: number;
     preview: any[];
+    summary?: {
+      totalCustomers: number;
+      customersWithPractice: number;
+      newCustomers?: number;
+      existingCustomers?: number;
+    };
   };
 
   @Column({ name: 'started_at', nullable: true })

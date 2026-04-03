@@ -482,4 +482,19 @@ export default function AdminDashboard() {
                 onClick={() => setConfigModal({ open: false, tenant: null })}
                 className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
               >
-                An
+                Annulla
+              </button>
+              <button
+                onClick={saveConfig}
+                disabled={savingConfig}
+                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors disabled:opacity-50"
+              >
+                {savingConfig ? 'Salvataggio...' : 'Salva'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </SuperAdminLayout>
+  );
+}

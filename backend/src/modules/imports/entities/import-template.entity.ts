@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
+import { ImportTemplate } from './import-template.entity'; // ✅ AGGIUNTO: Import del template
 
 // ✅ EXPORT DEL TYPE (usato da entrambe le entità)
 export type ImportTargetEntity = 'CUSTOMER_ONLY' | 'FIXED_LINE_PRACTICE' | 'MOBILE_PRACTICE' | 'ENERGY_PRACTICE' | 'UNIFIED_IMPORT';
@@ -41,6 +42,23 @@ export class ImportJob {
 
   @Column({ name: 'template_id', nullable: true })
   templateId: string | null;
+
+  // ✅ AGGIUNTO: Relazione ManyToOne con ImportTemplate
+  @ManyToOne(() => ImportTemplate, { nullable: true })
+  @JoinColumn({ name: 'template_id' })
+  template: ImportTemplate | null;
+
+  // ✅ AGGIUNTO: Campi dal template per storico configurazione
+  @Column({ name: 'duplicate_strategy', nullable: true })
+  duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW' | null;
+
+  @Column({ name: 'column_mapping', type: 'jsonb', nullable: true })
+  columnMapping: Array<{
+    source: string;
+    target: string;
+    transformer?: string;
+    required: boolean;
+  }> | null;
 
   @Column({ type: 'jsonb', default: {} })
   stats: {

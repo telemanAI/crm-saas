@@ -71,27 +71,27 @@ export class SuperAdminImportsService {
     return await this.importJobRepository.save(job);
   }
 
-  async retryJob(jobId: string, tenantId: string): Promise<{ newJobId: string; status: string }> {
+  async retryJob(jobId: string, tenantId: string): Promise<{ newJobId: string }> {
     const oldJob = await this.importJobRepository.findOne({ 
-      where: { id: jobId, tenantId },
-      relations: ['template'] 
+      where: { id: jobId, tenantId } 
     });
-    if (!oldJob) throw new NotFoundException('Job non trovato');
+    
+    if (!oldJob) throw new NotFoundException('Job originale non trovato');
 
+    // ✅ FIX: Usa mappingConfig unificato invece di campi separati (duplicateStrategy, columnMapping)
     const newJob = this.importJobRepository.create({
-      tenantId: oldJob.tenantId,
+      tenantId,
       createdBy: oldJob.createdBy,
       targetEntity: oldJob.targetEntity,
-      fileName: oldJob.fileName,
+      fileName: `retry_${oldJob.fileName}`,
       filePath: oldJob.filePath,
       fileSize: oldJob.fileSize,
+      fileFormat: oldJob.fileFormat,
       status: 'pending',
+      mappingConfig: oldJob.mappingConfig, // ✅ Contiene duplicateStrategy, columns, validationRules
       templateId: oldJob.templateId,
-      duplicateStrategy: oldJob.duplicateStrategy,
-      columnMapping: oldJob.columnMapping,
-      mappingConfig: oldJob.mappingConfig,
       stats: {
-        totalRows: 0,
+        totalRows: oldJob.stats?.totalRows || 0,
         processedRows: 0,
         successfulRows: 0,
         failedRows: 0,
@@ -103,8 +103,8 @@ export class SuperAdminImportsService {
       errorLog: [],
     });
 
-    await this.importJobRepository.save(newJob);
-    return { newJobId: newJob.id, status: newJob.status };
+    const saved = await this.importJobRepository.save(newJob);
+    return { newJobId: saved.id };
   }
 
   async simulateImport(jobId: string, tenantId: string): Promise<any> {
@@ -114,7 +114,20 @@ export class SuperAdminImportsService {
     
     if (!job) throw new NotFoundException('Job non trovato');
 
-    const validation = job.validationResults || { preview: [], summary: {} };
+    // ✅ FIX: Tipo completo per validationResults con valori di default sicuri
+    const validation = job.validationResults || { 
+      valid: 0, 
+      warnings: 0, 
+      errors: 0, 
+      preview: [],
+      summary: {
+        totalCustomers: 0,
+        customersWithPractice: 0,
+        newCustomers: 0,
+        existingCustomers: 0
+      }
+    };
+
     const totalRows = job.stats?.totalRows || 0;
     
     let withPractice = 0;
@@ -125,14 +138,12 @@ export class SuperAdminImportsService {
       else onlyCustomer++;
     });
 
-    // ✅ FIX: uso || {} per evitare errori se summary undefined
-    const summary = validation.summary || {};
-
+    // ✅ FIX: Usa valori di default sicuri da validation.summary
     return {
       totalRows,
-      wouldCreateCustomers: summary.totalCustomers || (onlyCustomer + withPractice),
-      wouldCreatePractices: summary.customersWithPractice || withPractice,
-      wouldUpdateExisting: summary.existingCustomers || 0,
+      wouldCreateCustomers: (validation.summary?.totalCustomers || 0) || (onlyCustomer + withPractice),
+      wouldCreatePractices: (validation.summary?.customersWithPractice || 0) || withPractice,
+      wouldUpdateExisting: validation.summary?.existingCustomers || 0,
       strategy: job.mappingConfig?.duplicateStrategy || 'UPDATE',
       fileFormat: job.fileFormat || 'flat',
       quality: this.assessDataQuality(validation.preview),

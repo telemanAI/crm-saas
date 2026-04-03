@@ -43,6 +43,14 @@ interface Job {
     matchedByCache?: number;
     matchedByDB?: number;
   };
+   mappingConfig?: {  // ✅ AGGIUNGI QUESTO
+    columns: Array<{
+      source: string;
+      target: string;
+      transformer?: string;
+    }>;
+	 duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW';
+	  };
   validationResults?: {
     valid: number;
     warnings: number;

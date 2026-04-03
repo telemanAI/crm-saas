@@ -373,7 +373,7 @@ export default function SuperAdminImportsPage() {
 
                             {(job.stats.matchedByCache || 0) > 0 && (
                               <div className="flex items-center gap-1.5 text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded-full">
-                                <span>⚡ {formatNumber(job.stats.matchedByCache)} cache hit</span>
+                               <span>⚡ {formatNumber(job.stats.matchedByCache ?? 0)} cache hit</span>
                               </div>
                             )}
                           </div>

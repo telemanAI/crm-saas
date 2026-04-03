@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function MappingStep({ jobId, headers, previewRows, targetEntity, fileFormat, onComplete, onBack, onCancel }: Props) {
-  const [targetFields, setTargetFields] = useState([]);
+ const [targetFields, setTargetFields] = useState<TargetField[]>([]);
   const [mapping, setMapping] = useState<any>({});
   const [duplicateStrategy, setDuplicateStrategy] = useState<'SKIP' | 'UPDATE' | 'CREATE_NEW'>('UPDATE');
   const [autoMapped, setAutoMapped] = useState(false);

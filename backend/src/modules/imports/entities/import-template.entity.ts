@@ -1,10 +1,12 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
-import { ImportTargetEntity } from './import-job.entity';
 
-@Entity('import_templates')
-export class ImportTemplate {
+// ✅ EXPORT DEL TYPE (usato da entrambe le entità)
+export type ImportTargetEntity = 'CUSTOMER_ONLY' | 'FIXED_LINE_PRACTICE' | 'MOBILE_PRACTICE' | 'ENERGY_PRACTICE' | 'UNIFIED_IMPORT';
+
+@Entity('import_jobs')
+export class ImportJob {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -15,45 +17,62 @@ export class ImportTemplate {
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
-  @Column()
-  name: string;
-
-  @Column({ type: 'text', nullable: true })
-  description: string;
-
-  @Column({ name: 'target_entity', type: 'varchar' })
-  targetEntity: ImportTargetEntity;
-
-  @Column({ name: 'column_mapping', type: 'jsonb' })
-  columnMapping: Array<{
-    source: string;
-    target: string;
-    transformer?: string;
-    required: boolean;
-  }>;
-
-  @Column({ name: 'validation_rules', type: 'jsonb', default: {} })
-  validationRules: {
-    requiredFields: string[];
-    uniqueFields: string[];
-    referentialChecks: boolean;
-  };
-
-  @Column({ name: 'duplicate_strategy', type: 'varchar', default: 'SKIP' })
-  duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW';
-
-  @Column({ name: 'is_default', default: false })
-  isDefault: boolean;
-
-  @Column({ name: 'is_active', default: true })
-  isActive: boolean;
-
   @Column({ name: 'created_by' })
   createdBy: string;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'created_by' })
   creator: User;
+
+  @Column({ name: 'target_entity', type: 'varchar' })
+  targetEntity: ImportTargetEntity;
+
+  @Column({ name: 'file_name' })
+  fileName: string;
+
+  @Column({ name: 'file_path' })
+  filePath: string;
+
+  @Column({ name: 'file_size' })
+  fileSize: number;
+
+  @Column({ type: 'varchar', default: 'pending' })
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+  @Column({ name: 'template_id', nullable: true })
+  templateId: string | null;
+
+  @Column({ type: 'jsonb', default: {} })
+  stats: {
+    totalRows: number;
+    processedRows: number;
+    successfulRows: number;
+    failedRows: number;
+    skippedRows: number;
+    createdCustomers: number;
+    updatedCustomers: number;
+    createdPractices: number;
+  };
+
+  @Column({ name: 'mapping_config', type: 'jsonb', nullable: true })
+  mappingConfig: any;
+
+  @Column({ name: 'validation_results', type: 'jsonb', nullable: true })
+  validationResults: any;
+
+  @Column({ name: 'error_log', type: 'jsonb', default: [] })
+  errorLog: Array<{
+    row: number;
+    error: string;
+    rawData: any;
+    level: 'error' | 'warning';
+  }>;
+
+  @Column({ name: 'started_at', nullable: true })
+  startedAt: Date | null;
+
+  @Column({ name: 'completed_at', nullable: true })
+  completedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

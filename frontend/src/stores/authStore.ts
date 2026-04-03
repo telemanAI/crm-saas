@@ -9,6 +9,7 @@ export interface User {
   role: 'SUPER_ADMIN' | 'ADMIN' | 'FOUNDER' | 'OPERATOR'; // ✅ FIX: Aggiunto FOUNDER
   tenantId?: string;
   isActive: boolean;
+  isImpersonated?: boolean; // ✅ FIX: Aggiunto flag per tracciare impersonazione
 }
 
 interface AuthState {

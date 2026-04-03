@@ -144,4 +144,26 @@ export class AdminTenantsController {
   ) {
     return this.tenantsService.getTenantCustomers(id, Number(page), Number(limit));
   }
+
+  /**
+   * Ottieni configurazione negozio (WASH step, pacchetti, etc)
+   * GET /api/admin/tenants/:id/config
+   */
+  @Get(':id/config')
+  async getTenantConfig(@Param('id', ParseUUIDPipe) id: string) {
+    return this.tenantsService.getTenantConfig(id);
+  }
+
+  /**
+   * Aggiorna configurazione negozio
+   * PUT /api/admin/tenants/:id/config
+   */
+  @Put(':id/config')
+  @HttpCode(HttpStatus.OK)
+  async updateTenantConfig(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() config: { enableWashStep?: boolean; enableAdditionalPackages?: boolean },
+  ) {
+    return this.tenantsService.updateTenantConfig(id, config);
+  }
 }

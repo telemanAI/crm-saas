@@ -7,12 +7,13 @@ interface Props {
   headers: string[];
   previewRows: any[];
   targetEntity: string;
+  fileFormat?: 'flat' | 'relational';
   onComplete: (data: any) => void;
   onBack: () => void;
   onCancel: () => void;
 }
 
-export default function MappingStep({ jobId, headers, previewRows, targetEntity, onComplete, onBack, onCancel }: Props) {
+export default function MappingStep({ jobId, headers, previewRows, targetEntity, fileFormat, onComplete, onBack, onCancel }: Props) {
   const [targetFields, setTargetFields] = useState([]);
   const [mapping, setMapping] = useState<any>({});
   const [duplicateStrategy, setDuplicateStrategy] = useState<'SKIP' | 'UPDATE' | 'CREATE_NEW'>('UPDATE');
@@ -26,7 +27,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
 
   const loadTargetFields = async () => {
     try {
-      const response = await axios.get(`/api/imports/fields/${targetEntity}`);
+      const response = await axios.get(`/api/imports/fields/UNIFIED_IMPORT`);
       setTargetFields(response.data.fields);
     } catch (error) {
       console.error('Errore caricamento campi:', error);
@@ -40,7 +41,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
     headers.forEach((header) => {
       const normalized = header.toLowerCase().trim();
       
-      // Auto-mapping intelligente
       if (normalized.includes('nome') && !normalized.includes('cognome')) {
         newMapping[header] = 'firstName';
       } else if (normalized.includes('cognome')) {
@@ -96,7 +96,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
 
     if (!value) return '-';
 
-    // Simula trasformazione
     if (transformer === 'uppercase') return String(value).toUpperCase();
     if (transformer === 'extract_price') {
       const match = String(value).match(/€?\s?(\d+[\.,]?\d*)/);
@@ -119,7 +118,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   ];
 
   const handleContinue = () => {
-    // Costruisci configurazione mapping
     const mappingConfig = {
       columns: Object.entries(mapping)
         .filter(([source, target]) => target)
@@ -169,7 +167,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       )}
 
-      {/* Progress */}
       <div className="bg-gray-50 rounded-lg p-4">
         <div className="flex justify-between text-sm mb-2">
           <span className="font-medium text-gray-700">Campi Obbligatori Mappati</span>
@@ -183,7 +180,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
-      {/* Duplicate Strategy */}
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Gestione Duplicati</h3>
         <p className="text-sm text-gray-600 mb-4">
@@ -235,60 +231,118 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
-      {/* Mapping Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
-          <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-700">
-            <div className="col-span-3">Colonna File</div>
-            <div className="col-span-3">Campo CRM</div>
-            <div className="col-span-2">Trasformazione</div>
-            <div className="col-span-4">Anteprima</div>
-          </div>
+      <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
+          <div className="col-span-3">Colonna File</div>
+          <div className="col-span-3">Campo CRM</div>
+          <div className="col-span-2">Trasformazione</div>
+          <div className="col-span-4">Anteprima Dato</div>
         </div>
-        <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-          {headers.map((header) => (
-            <div key={header} className="px-6 py-4 hover:bg-gray-50">
-              <div className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-span-3">
-                  <span className="font-medium text-gray-900">{header}</span>
+        
+        <div className="bg-blue-50 px-6 py-2 border-b border-blue-100">
+          <span className="text-sm font-semibold text-blue-900">👤 Dati Cliente</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {headers.map((header) => {
+            const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
+            if (selectedField && selectedField.category === 'customer') {
+              return (
+                <div key={header} className="px-6 py-4 hover:bg-gray-50">
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-3">
+                      <span className="font-medium text-gray-900">{header}</span>
+                    </div>
+                    <div className="col-span-3">
+                      <select
+                        value={mapping[header] || ''}
+                        onChange={(e) => handleMappingChange(header, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Non mappare --</option>
+                        {targetFields.map((field: any) => (
+                          <option key={field.name} value={field.name}>
+                            {field.label} {field.required && '*'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <select
+                        value={transformers[header] || ''}
+                        onChange={(e) => handleTransformerChange(header, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        {availableTransformers.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-4">
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
+                        {previewRows[0] ? getPreviewValue(previewRows[0], header) : '-'}
+                      </code>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-span-3">
-                  <select
-                    value={mapping[header] || ''}
-                    onChange={(e) => handleMappingChange(header, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">-- Non mappare --</option>
-                    {targetFields.map((field: any) => (
-                      <option key={field.name} value={field.name}>
-                        {field.label} {field.required && '*'}
-                      </option>
-                    ))}
-                  </select>
+              );
+            }
+            return null;
+          })}
+        </div>
+
+        <div className="bg-purple-50 px-6 py-2 border-b border-purple-100">
+          <span className="text-sm font-semibold text-purple-900">📋 Dati Pratica (Opzionali)</span>
+          <span className="text-xs text-purple-700 ml-2">Se mappati, verrà creata una pratica</span>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {headers.map((header) => {
+            const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
+            if (!selectedField || selectedField.category === 'practice') {
+              return (
+                <div key={header} className="px-6 py-4 hover:bg-gray-50">
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-3">
+                      <span className="font-medium text-gray-900">{header}</span>
+                    </div>
+                    <div className="col-span-3">
+                      <select
+                        value={mapping[header] || ''}
+                        onChange={(e) => handleMappingChange(header, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">-- Non mappare --</option>
+                        {targetFields.map((field: any) => (
+                          <option key={field.name} value={field.name}>
+                            {field.label} {field.required && '*'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <select
+                        value={transformers[header] || ''}
+                        onChange={(e) => handleTransformerChange(header, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        {availableTransformers.map((t) => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-4">
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
+                        {previewRows[0] ? getPreviewValue(previewRows[0], header) : '-'}
+                      </code>
+                    </div>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <select
-                    value={transformers[header] || ''}
-                    onChange={(e) => handleTransformerChange(header, e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                  >
-                    {availableTransformers.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-4">
-                  <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
-                    {previewRows[0] ? getPreviewValue(previewRows[0], header) : '-'}
-                  </code>
-                </div>
-              </div>
-            </div>
-          ))}
+              );
+            }
+            return null;
+          })}
         </div>
       </div>
 
-      {/* Actions */}
       <div className="flex justify-between pt-6 border-t">
         <Button onClick={onBack} variant="ghost">
           ← Indietro

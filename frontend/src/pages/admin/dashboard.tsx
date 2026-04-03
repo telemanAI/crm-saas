@@ -15,6 +15,7 @@ import {
   Clock,
   CheckCircle,
   MagnifyingGlass,
+  Tag,
 } from 'phosphor-react';
 
 export default function AdminDashboard() {
@@ -133,7 +134,8 @@ export default function AdminDashboard() {
   const openConfigModal = async (tenant: any) => {
     setConfigModal({ open: true, tenant });
     try {
-      const response = await api.get(`/api/tenants/${tenant.id}/config`);
+      // ✅ CORRETTO: Path API senza doppio /api (rimosso /api iniziale)
+      const response = await api.get(`/tenants/${tenant.id}/config`);
       setTenantConfig(response.data);
     } catch (error) {
       setTenantConfig({ enableWashStep: false, enableAdditionalPackages: true });
@@ -144,7 +146,8 @@ export default function AdminDashboard() {
     if (!configModal.tenant) return;
     setSavingConfig(true);
     try {
-      await api.put(`/api/tenants/${configModal.tenant.id}/config`, tenantConfig);
+      // ✅ CORRETTO: Path API senza doppio /api (rimosso /api iniziale)
+      await api.put(`/tenants/${configModal.tenant.id}/config`, tenantConfig);
       alert('Configurazione salvata!');
       setConfigModal({ open: false, tenant: null });
     } catch (error: any) {
@@ -274,6 +277,17 @@ export default function AdminDashboard() {
               </p>
             </div>
           </Link>
+
+          {/* ✅ FIX: Aggiunta card Gestione Offerte */}
+          <Link href="/admin/offers">
+            <div className="bg-white rounded-xl border-2 border-gray-200 p-6 hover:border-orange-500 hover:shadow-lg transition-all cursor-pointer">
+              <Tag className="w-12 h-12 text-orange-600 mb-4" weight="fill" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Gestione Offerte</h3>
+              <p className="text-gray-600 text-sm">
+                Gestisci offerte telefonia, energy e TV per tutti i negozi
+              </p>
+            </div>
+          </Link>
         </div>
 
         {/* Tabella Tenants */}
@@ -336,6 +350,22 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex gap-2 flex-wrap">
+                          {/* ✅ NUOVI: Pulsanti diretti Import/Export */}
+                          <button 
+                            onClick={() => router.push(`/admin/imports?tenantId=${tenant.id}`)} 
+                            className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                            title="Importa dati Excel/CSV nel negozio"
+                          >
+                            📥 Import
+                          </button>
+                          <button 
+                            onClick={() => router.push(`/admin/exports?tenantId=${tenant.id}`)} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                            title="Esporta dati dal negozio"
+                          >
+                            📤 Export
+                          </button>
+
                           <Link href={`/admin/tenants/${tenant.id}`}>
                             <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
                               👁️ Dettagli
@@ -452,19 +482,4 @@ export default function AdminDashboard() {
                 onClick={() => setConfigModal({ open: false, tenant: null })}
                 className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
               >
-                Annulla
-              </button>
-              <button
-                onClick={saveConfig}
-                disabled={savingConfig}
-                className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors disabled:opacity-50"
-              >
-                {savingConfig ? 'Salvataggio...' : 'Salva'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </SuperAdminLayout>
-  );
-}
+                An

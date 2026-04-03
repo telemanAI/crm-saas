@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import { ArrowLeft } from 'phosphor-react';
 
 interface Offer {
   id: string;
@@ -56,6 +57,7 @@ export default function AdminOffers() {
 
   const fetchOffers = async () => {
     try {
+      // Path corretto: /admin/offers (diventa /api/v1/admin/offers con baseURL)
       const response = await api.get('/admin/offers');
       setOffers(response.data);
     } catch (error) {
@@ -69,7 +71,6 @@ export default function AdminOffers() {
     if (!editingOffer) return;
     
     try {
-      // 🔥 FIX: Rimuovi i campi non ammessi dal DTO prima di inviare
       const { id, created_at, updated_at, ...offerData } = editingOffer as Offer;
       
       if (isCreating) {
@@ -114,12 +115,13 @@ export default function AdminOffers() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header - Responsive */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white">Gestione Offerte</h1>
-            <Link href="/admin/dashboard" className="text-blue-400 hover:underline text-sm">
-              ← Torna alla Dashboard
+            <Link href="/admin/dashboard" className="text-amber-400 hover:text-amber-300 text-sm flex items-center gap-1 mt-2">
+              <ArrowLeft className="w-4 h-4" />
+              Torna alla Dashboard Admin
             </Link>
           </div>
           <button
@@ -130,7 +132,7 @@ export default function AdminOffers() {
           </button>
         </div>
 
-        {/* Filtro Provider - Responsive */}
+        {/* Filtro Provider */}
         <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:items-center">
           <select
             value={filterProvider}
@@ -143,7 +145,7 @@ export default function AdminOffers() {
           <span className="text-gray-300 text-sm">{filteredOffers.length} offerte</span>
         </div>
 
-        {/* Modal Editing - Responsive */}
+        {/* Modal Editing */}
         {editingOffer && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-4 md:p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">

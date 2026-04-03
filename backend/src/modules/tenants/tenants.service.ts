@@ -208,29 +208,33 @@ export class TenantsService {
   }
 
   /**
-   * Aggiorna configurazione tenant (per tenants.controller.ts)
+   * Aggiorna configurazione tenant (corretto per campi diretti)
    */
   async updateTenantConfig(tenantId: string, config: { enableWashStep?: boolean; enableAdditionalPackages?: boolean }): Promise<Tenant> {
     const tenant = await this.findById(tenantId);
     
-    // Salva config nel campo config o come campi separati se esistono nell'entity
-    if ((tenant as any).config) {
-      (tenant as any).config = { ...(tenant as any).config, ...config };
-    } else {
-      // Se non esiste campo config, usa campi diretti se esistono
-      if (config.enableWashStep !== undefined) (tenant as any).enableWashStep = config.enableWashStep;
-      if (config.enableAdditionalPackages !== undefined) (tenant as any).enableAdditionalPackages = config.enableAdditionalPackages;
+    // ✅ CORRETTO: Usa campi diretti dell'entity, non .config
+    if (config.enableWashStep !== undefined) {
+      tenant.enableWashStep = config.enableWashStep;
+    }
+    if (config.enableAdditionalPackages !== undefined) {
+      tenant.enableAdditionalPackages = config.enableAdditionalPackages;
     }
     
     return await this.tenantsRepository.save(tenant);
   }
 
   /**
-   * Ottieni configurazione tenant
+   * Ottieni configurazione tenant (corretto per campi diretti)
    */
   async getTenantConfig(tenantId: string) {
     const tenant = await this.findById(tenantId);
-    return (tenant as any).config || { enableWashStep: false, enableAdditionalPackages: true };
+    
+    // ✅ CORRETTO: Legge campi diretti dell'entity
+    return {
+      enableWashStep: tenant.enableWashStep ?? false,
+      enableAdditionalPackages: tenant.enableAdditionalPackages ?? true,
+    };
   }
 
   /**

@@ -1,149 +1,199 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { ImportJob } from './entities/import-job.entity';
-import { Practice } from '../practices/entities/practice.entity';
-import { Customer } from '../customers/entities/customer.entity';
 
 @Injectable()
 export class SuperAdminImportsService {
   constructor(
     @InjectRepository(ImportJob)
     private importJobRepository: Repository<ImportJob>,
-    @InjectRepository(Practice)
-    private practiceRepository: Repository<Practice>,
-    @InjectRepository(Customer)
-    private customerRepository: Repository<Customer>,
   ) {}
 
-  async getAllJobsAllTenants(): Promise<ImportJob[]> {
+  // ==========================================
+  // OPERAZIONI BASE (Esistenti)
+  // ==========================================
+
+  async findAllJobs(filters: {
+    status?: string;
+    tenantId?: string;
+    dateFrom?: Date;
+    dateTo?: Date;
+  }) {
+    const where: any = {};
+    
+    if (filters.status) where.status = filters.status;
+    if (filters.tenantId) where.tenantId = filters.tenantId;
+    if (filters.dateFrom || filters.dateTo) {
+      where.createdAt = {};
+      if (filters.dateFrom) where.createdAt = { ...where.createdAt, $gte: filters.dateFrom };
+      if (filters.dateTo) where.createdAt = { ...where.createdAt, $lte: filters.dateTo };
+    }
+
     return await this.importJobRepository.find({
-      relations: ['tenant', 'creator'],
+      where,
       order: { createdAt: 'DESC' },
       take: 100,
     });
   }
 
-  async pauseJob(jobId: string): Promise<void> {
+  async pauseJob(jobId: string): Promise<ImportJob> {
     const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
-
-    if (job.status !== 'processing') {
-      throw new Error('Solo job in processing possono essere messi in pausa');
-    }
-
-    job.status = 'pending' as any; // Usa 'pending' come paused
-    await this.importJobRepository.save(job);
+    if (!job) throw new NotFoundException('Job non trovato');
+    
+    job.status = 'paused';
+    return await this.importJobRepository.save(job);
   }
 
-  async resumeJob(jobId: string): Promise<void> {
+  async resumeJob(jobId: string): Promise<ImportJob> {
     const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
-
+    if (!job) throw new NotFoundException('Job non trovato');
+    
     job.status = 'processing';
-    await this.importJobRepository.save(job);
-
-    // Qui puoi rilanciare il processing
-    // In un sistema reale, metteresti il job di nuovo nella coda
+    return await this.importJobRepository.save(job);
   }
 
-  async skipRow(jobId: string, rowNumber: number): Promise<void> {
+  async skipRow(jobId: string, rowNumber: number): Promise<ImportJob> {
     const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
-
-    // Aggiungi la riga skipped al log
-    job.errorLog = job.errorLog || [];
+    if (!job) throw new NotFoundException('Job non trovato');
+    
+    if (!job.errorLog) job.errorLog = [];
+    
     job.errorLog.push({
       row: rowNumber,
-      error: 'Riga saltata manualmente da Super Admin',
-      rawData: {},
+      error: `Riga ${rowNumber} saltata manualmente da admin`,
       level: 'warning',
+      timestamp: new Date().toISOString(),
     });
-
-    job.stats.skippedRows = (job.stats.skippedRows || 0) + 1;
-
-    await this.importJobRepository.save(job);
+    
+    return await this.importJobRepository.save(job);
   }
 
-  async rollback(jobId: string, mode: 'partial' | 'full'): Promise<any> {
-    const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
+  // ==========================================
+  // OPERAZIONI AVANZATE (Nuove)
+  // ==========================================
 
-    let deletedPractices = 0;
-    let deletedCustomers = 0;
+  async retryJob(jobId: string, tenantId: string): Promise<{ newJobId: string }> {
+    const oldJob = await this.importJobRepository.findOne({ 
+      where: { id: jobId, tenantId } 
+    });
+    
+    if (!oldJob) throw new NotFoundException('Job originale non trovato');
 
-    if (mode === 'full' || mode === 'partial') {
-      // Cancella tutte le pratiche create da questo import
-      // NOTA: Serve aggiungere sourceImportJobId alle entità Practice e Customer
-      const practices = await this.practiceRepository.find({
-        where: { notes: `Import ID: ${jobId}` } as any, // Placeholder - implementa tracking corretto
-      });
+    // Crea nuovo job copiato dal vecchio ma resettato
+    const newJob = this.importJobRepository.create({
+      tenantId,
+      createdBy: oldJob.createdBy,
+      targetEntity: oldJob.targetEntity,
+      fileName: `retry_${oldJob.fileName}`,
+      filePath: oldJob.filePath,
+      fileSize: oldJob.fileSize,
+      fileFormat: oldJob.fileFormat,
+      status: 'pending',
+      mappingConfig: oldJob.mappingConfig,
+      templateId: oldJob.templateId,
+      stats: {
+        totalRows: oldJob.stats?.totalRows || 0,
+        processedRows: 0,
+        successfulRows: 0,
+        failedRows: 0,
+        skippedRows: 0,
+        createdCustomers: 0,
+        updatedCustomers: 0,
+        createdPractices: 0,
+      },
+      errorLog: [],
+    });
 
-      for (const practice of practices) {
-        await this.practiceRepository.remove(practice);
-        deletedPractices++;
-      }
-    }
+    const saved = await this.importJobRepository.save(newJob);
+    return { newJobId: saved.id };
+  }
 
-    if (mode === 'full') {
-      // Cancella anche i clienti creati (solo se non hanno altre pratiche)
-      const customers = await this.customerRepository.find({
-        where: { notes: `Import ID: ${jobId}` } as any, // Placeholder
-      });
+  async simulateImport(jobId: string, tenantId: string): Promise<any> {
+    const job = await this.importJobRepository.findOne({ 
+      where: { id: jobId, tenantId } 
+    });
+    
+    if (!job) throw new NotFoundException('Job non trovato');
 
-      for (const customer of customers) {
-        const practiceCount = await this.practiceRepository.count({
-          where: { customerId: customer.id },
-        });
-
-        if (practiceCount === 0) {
-          await this.customerRepository.remove(customer);
-          deletedCustomers++;
-        }
-      }
-    }
-
-    // Aggiorna job
-    job.status = 'cancelled';
-    await this.importJobRepository.save(job);
+    // Analisi simulata basata sui dati già presenti
+    const validation = job.validationResults || { preview: [] };
+    const totalRows = job.stats?.totalRows || 0;
+    
+    // Conta tipologie
+    let withPractice = 0;
+    let onlyCustomer = 0;
+    
+    validation.preview?.forEach((row: any) => {
+      if (row.hasPractice) withPractice++;
+      else onlyCustomer++;
+    });
 
     return {
-      deletedPractices,
-      deletedCustomers,
-      message: `Rollback completato: ${deletedPractices} pratiche e ${deletedCustomers} clienti rimossi`,
+      totalRows,
+      wouldCreateCustomers: validation.summary?.totalCustomers || onlyCustomer + withPractice,
+      wouldCreatePractices: validation.summary?.customersWithPractice || withPractice,
+      wouldUpdateExisting: validation.summary?.existingCustomers || 0,
+      strategy: job.mappingConfig?.duplicateStrategy || 'UPDATE',
+      fileFormat: job.fileFormat || 'flat',
+      quality: this.assessDataQuality(validation.preview),
     };
   }
 
-  async getConflicts(jobId: string): Promise<any> {
-    const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
+  async getGlobalStats(days: number): Promise<any> {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
 
-    // Ritorna i conflitti rilevati durante la validazione
-    return job.errorLog?.filter(e => e.error.includes('duplicat')) || [];
+    const [total, completed, failed, processing, paused] = await Promise.all([
+      this.importJobRepository.count({ where: { createdAt: MoreThan(since) as any } }),
+      this.importJobRepository.count({ where: { status: 'completed', createdAt: MoreThan(since) as any } }),
+      this.importJobRepository.count({ where: { status: 'failed', createdAt: MoreThan(since) as any } }),
+      this.importJobRepository.count({ where: { status: 'processing', createdAt: MoreThan(since) as any } }),
+      this.importJobRepository.count({ where: { status: 'paused', createdAt: MoreThan(since) as any } }),
+    ]);
+
+    const activeNow = await this.importJobRepository.count({ 
+      where: { status: 'processing' } 
+    });
+
+    return {
+      total,
+      completed,
+      failed,
+      processing,
+      paused,
+      activeNow,
+      successRate: total > 0 ? Math.round((completed / total) * 100) : 0,
+      failureRate: total > 0 ? Math.round((failed / total) * 100) : 0,
+    };
   }
 
-  async remapJob(jobId: string, mappingConfig: any, dryRun: boolean = true): Promise<void> {
-    const job = await this.importJobRepository.findOne({ where: { id: jobId } });
-    if (!job) {
-      throw new NotFoundException('Job non trovato');
-    }
+  async logAdminAction(action: {
+    action: string;
+    jobId: string;
+    tenantId: string;
+    adminId: string;
+    reason: string;
+    timestamp: Date;
+  }): Promise<void> {
+    // Log strutturato per audit
+    console.log(JSON.stringify({
+      type: 'ADMIN_AUDIT',
+      ...action,
+    }));
+    
+    // Qui puoi aggiungere salvataggio su DB se hai una tabella audit_logs
+  }
 
-    if (dryRun) {
-      // Simula il nuovo mapping senza salvare
-      // Implementa logica di preview
-    } else {
-      job.mappingConfig = mappingConfig;
-      await this.importJobRepository.save(job);
-    }
+  private assessDataQuality(preview: any[]): string {
+    if (!preview || preview.length === 0) return 'unknown';
+    
+    const valid = preview.filter((r: any) => r.valid).length;
+    const rate = (valid / preview.length) * 100;
+    
+    if (rate === 100) return 'excellent';
+    if (rate >= 90) return 'good';
+    if (rate >= 70) return 'fair';
+    return 'poor';
   }
 }

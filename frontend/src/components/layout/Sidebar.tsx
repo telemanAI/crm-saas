@@ -21,13 +21,14 @@ import { useRouter } from 'next/router';
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [showWashReport, setShowWashReport] = useState(false);
-  const { user, clearAuth } = useAuthStore();
+  const { user, clearAuth, exitImpersonate } = useAuthStore();
   const router = useRouter();
 
   // Carica config WASH
   useEffect(() => {
     if (user?.tenantId) {
-      api.get(`/api/tenants/${user.tenantId}/config`)
+      // ✅ CRITICAL FIX: Path corretto /admin/tenants/... (non /api/tenants/...)
+      api.get(`/admin/tenants/${user.tenantId}/config`)
         .then(res => {
           setShowWashReport(res.data.enableWashStep === true);
         })
@@ -53,9 +54,8 @@ export function Sidebar() {
       { icon: Gear, label: 'Impostazioni', href: '/settings' },
     ];
 
-    // Mostra Import/Export solo a FOUNDER e SUPER_ADMIN
-      // Mostra Import/Export solo a FOUNDER e SUPER_ADMIN
-    if ((user?.role as string) === 'FOUNDER' || user?.role === 'SUPER_ADMIN') {
+    // Mostra Import/Export SOLO a FOUNDER/ADMIN (utenti negozio), MAI a SUPER_ADMIN puro
+    if (user?.role === 'FOUNDER' || user?.role === 'ADMIN') {
       items.splice(4, 0,
         { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
         { icon: Download, label: 'Esportazioni', href: '/operator/exports' }
@@ -191,8 +191,8 @@ export function Sidebar() {
           </AnimatePresence>
         </div>
 
-        {/* Torna al SuperAdmin - Solo se user è SUPER_ADMIN */}
-        {user?.role === 'SUPER_ADMIN' && (
+        {/* Torna al SuperAdmin - Solo se in modalità impersonazione */}
+        {user?.isImpersonated && (
           <AnimatePresence>
             {!collapsed && (
               <motion.div
@@ -200,14 +200,18 @@ export function Sidebar() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <Link href="/admin/dashboard">
-                  <div className="flex items-center gap-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg transition-colors cursor-pointer text-sm font-medium">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    <span>Torna al SuperAdmin</span>
-                  </div>
-                </Link>
+                <button 
+                  onClick={() => {
+                    exitImpersonate();
+                    router.push('/admin/dashboard');
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 rounded-lg transition-colors cursor-pointer text-sm font-medium"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  <span>Torna al SuperAdmin</span>
+                </button>
               </motion.div>
             )}
           </AnimatePresence>

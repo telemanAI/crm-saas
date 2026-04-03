@@ -270,14 +270,16 @@ export class AuthService {
     const tenant = await this.tenantsService.findById(tenantId);
     if (!tenant) throw new UnauthorizedException('Negozio non trovato');
 
-    const admin = await this.usersService.findAdminByTenantId(tenantId);
-    if (!admin) throw new UnauthorizedException('Admin non trovato');
+    // 🔥 FIX: Usa il nuovo metodo che cerca sia FOUNDER che ADMIN
+    const admin = await this.usersService.findAdminOrFounderByTenantId(tenantId);
+    if (!admin) throw new UnauthorizedException('Nessun amministratore trovato per questo negozio');
 
     const payload = {
       email: admin.email,
       sub: admin.id,
-      role: admin.role,
+      role: admin.role, // FOUNDER o ADMIN
       tenantId: admin.tenantId,
+      isImpersonated: true, // 👈 Flag per frontend
     };
 
     return {
@@ -289,6 +291,7 @@ export class AuthService {
         tenantId: admin.tenantId,
         firstName: admin.firstName,
         lastName: admin.lastName,
+        isImpersonated: true // 👈 Frontend lo usa per mostrare "Torna a SuperAdmin"
       },
     };
   }

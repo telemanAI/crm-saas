@@ -98,65 +98,33 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
         <p className="text-gray-600">Controlla i risultati della validazione prima di procedere</p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button
-          onClick={() => setSelectedTab('valid')}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            selectedTab === 'valid'
-              ? 'border-green-500 bg-green-50'
-              : 'border-gray-200 hover:border-green-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Righe Valide</p>
-              <p className="text-3xl font-bold text-green-600 mt-1">{validationResults.valid}</p>
-            </div>
-            <svg className="h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+      {/* Stats Preview */}
+      {validationResults.summary && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
+            <div className="text-2xl font-bold text-slate-900">{validationResults.summary.totalCustomers}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Clienti Totali</div>
           </div>
-        </button>
-
-        <button
-          onClick={() => setSelectedTab('warnings')}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            selectedTab === 'warnings'
-              ? 'border-yellow-500 bg-yellow-50'
-              : 'border-gray-200 hover:border-yellow-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Warning</p>
-              <p className="text-3xl font-bold text-yellow-600 mt-1">{validationResults.warnings}</p>
-            </div>
-            <svg className="h-12 w-12 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-blue-700">{validationResults.summary.customersWithPractice || 0}</div>
+            <div className="text-xs text-blue-600 uppercase tracking-wide mt-1">Con Pratica</div>
           </div>
-        </button>
-
-        <button
-          onClick={() => setSelectedTab('errors')}
-          className={`p-6 rounded-lg border-2 transition-all text-left ${
-            selectedTab === 'errors'
-              ? 'border-red-500 bg-red-50'
-              : 'border-gray-200 hover:border-red-300'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Errori Bloccanti</p>
-              <p className="text-3xl font-bold text-red-600 mt-1">{validationResults.errors}</p>
-            </div>
-            <svg className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
+            <div className="text-2xl font-bold text-gray-700">{validationResults.summary.onlyCustomers || 0}</div>
+            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Solo Anagrafica</div>
           </div>
-        </button>
-      </div>
+          <div className={`rounded-xl p-4 text-center border ${
+            validationResults.errors === 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+          }`}>
+            <div className={`text-2xl font-bold ${validationResults.errors === 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {validationResults.errors === 0 ? '✓' : validationResults.errors}
+            </div>
+            <div className={`text-xs uppercase tracking-wide mt-1 ${validationResults.errors === 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {validationResults.errors === 0 ? 'Pronto' : 'Errori'}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Info Box */}
       {validationResults.errors > 0 ? (

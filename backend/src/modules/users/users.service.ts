@@ -214,6 +214,26 @@ export class UsersService {
     });
   }
 
+  /**
+   * ✅ CRITICAL FIX: Trova admin o founder per impersonazione SuperAdmin
+   * Cerca prima un FOUNDER, se non trovato cerca un ADMIN
+   */
+  async findAdminOrFounderByTenantId(tenantId: string): Promise<User | null> {
+    // Cerca prima il FOUNDER (proprietario del negozio)
+    const founder = await this.usersRepository.findOne({ 
+      where: { tenantId, role: 'FOUNDER' },
+      relations: ['tenant'] 
+    });
+    
+    if (founder) return founder;
+    
+    // Fallback: cerca un ADMIN
+    return this.usersRepository.findOne({ 
+      where: { tenantId, role: 'ADMIN' },
+      relations: ['tenant'] 
+    });
+  }
+
   async findOperatorsByTenantId(tenantId: string): Promise<User[]> {
     return this.usersRepository.find({
       where: [

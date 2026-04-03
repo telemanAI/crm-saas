@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
 
+interface TargetField {
+  name: string;
+  label: string;
+  type: string;
+  required: boolean;
+  category: 'customer' | 'practice';
+}
+
 interface Props {
   jobId: string;
   headers: string[];

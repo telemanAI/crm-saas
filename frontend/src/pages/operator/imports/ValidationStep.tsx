@@ -25,7 +25,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
 
   const validateImport = async () => {
     try {
-      const response = await axios.post('/api/imports/validate', {
+     const response = await axios.post(`/imports/${jobId}/validate`, {
         jobId,
         mappingConfig,
       });

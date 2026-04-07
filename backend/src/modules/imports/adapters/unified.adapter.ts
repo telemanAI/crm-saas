@@ -303,6 +303,7 @@ export class UnifiedAdapter {
       tenantId,
       customerId,
       createdBy: userId,
+      createdAt: data.createdAt ? new Date(data.createdAt) : new Date(), // ✅ Usa data importata o ora corrente
       type: data.type.toUpperCase() as PracticeType,
       status: data.status || 'draft',
       operationalStatus: data.operationalStatus || 'PENDING',
@@ -363,6 +364,17 @@ export class UnifiedAdapter {
         return str.replace(/[\s\-\(\)\.]/g, '');
       case 'normalize_cf':
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      case 'parse_date':  // ✅ AGGIUNTO
+        // Converte DD/MM/YYYY o DD-MM-YYYY in YYYY-MM-DD per il DB
+        const dateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+        if (dateMatch) {
+          const [, day, month, year] = dateMatch;
+          const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
+          return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        // Se già in formato ISO (YYYY-MM-DD), lascia così
+        if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
+        return str;
       default: return value;
     }
   }
@@ -377,7 +389,7 @@ export class UnifiedAdapter {
     const fields = ['type', 'offerCode', 'offerName', 'offerCanone', 'offerAttivazione', 
                    'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
                    'offerScadenza', 'status', 'operationalStatus', 'lineType', 
-                   'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy'];
+                   'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 'createdAt'];  // ✅ AGGIUNTO createdAt
     return fields.includes(target);
   }
 
@@ -402,6 +414,8 @@ export class UnifiedAdapter {
       { name: 'offerCanone', label: 'Canone €', type: 'string', required: false, category: 'practice' },
       { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' },
       { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' },
+      { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' },
+      { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice', helpText: 'Data originale dal vecchio sistema. Formato: GG/MM/AAAA o AAAA-MM-DD' },  // ✅ AGGIUNTO
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice',
         helpText: 'FTTH, FTTC, ADSL, etc.' },
       { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice',

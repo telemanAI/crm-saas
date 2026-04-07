@@ -352,14 +352,14 @@ export default function AdminDashboard() {
                         <div className="flex gap-2 flex-wrap">
                           {/* ✅ NUOVI: Pulsanti diretti Import/Export */}
                           <button 
-                            onClick={() => router.push(`/admin/imports?tenantId=${tenant.id}`)} 
+                            onClick={() => router.push(`/operator/imports/new?tenantId=${tenant.id}&mode=admin`)} 
                             className="bg-cyan-600 hover:bg-cyan-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
                             title="Importa dati Excel/CSV nel negozio"
                           >
                             📥 Import
                           </button>
                           <button 
-                            onClick={() => router.push(`/admin/exports?tenantId=${tenant.id}`)} 
+                            onClick={() => router.push(`/operator/exports?tenantId=${tenant.id}&mode=admin`)} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
                             title="Esporta dati dal negozio"
                           >

@@ -11,7 +11,9 @@ import {
   TelevisionSimple,
   Upload,
   Download,
-  UserList
+  UserList,
+  Buildings,
+  Warning
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -43,25 +45,16 @@ export function Sidebar() {
     router.push('/login');
   };
 
-  // Menu base visibile a tutti
   const getMenuItems = () => {
     const items = [
-      { icon: House, label: 'Dashboard', href: '/dashboard' },
-      { icon: Users, label: 'Clienti', href: '/customers' },
-      { icon: FileText, label: 'Pratiche', href: '/practices' },
-      { icon: ChartBar, label: 'Report', href: '/reports' },
-      { icon: UserList, label: 'Operatori', href: '/operator/users' },
-      { icon: Gear, label: 'Impostazioni', href: '/settings' },
+      { icon: House, label: 'Dashboard', href: '/admin/dashboard' },
+      { icon: Buildings, label: 'Gestione Negozi', href: '/admin/tenants' },
+      { icon: Upload, label: 'Import Control', href: '/admin/imports' },
+      { icon: Download, label: 'Export Dati', href: '/admin/exports' },
+      { icon: Warning, label: 'Logs & Audit', href: '/admin/audit' },
+      { icon: Gear, label: 'Impostazioni', href: '/admin/settings' },
     ];
-
-    // Mostra Import/Export SOLO a FOUNDER/ADMIN (utenti negozio), MAI a SUPER_ADMIN puro
-    if (user?.role === 'FOUNDER' || user?.role === 'ADMIN') {
-      items.splice(4, 0,
-        { icon: Upload, label: 'Importazioni', href: '/operator/imports' },
-        { icon: Download, label: 'Esportazioni', href: '/operator/exports' }
-      );
-    }
-
+    
     return items;
   };
 

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
+import { useAuthStore } from '@/stores/authStore';
 import { Layout } from '../../../components/layout/Layout';
 import { Card } from '../../../components/ui/Card';
 import UploadStep from './UploadStep';
@@ -8,6 +9,8 @@ import ValidationStep from './ValidationStep';
 
 export default function NewImportPage() {
   const router = useRouter();
+  const { user } = useAuthStore();
+  const { tenantId: queryTenantId, mode } = router.query;
   const [currentStep, setCurrentStep] = useState(1);
   const [importData, setImportData] = useState<{
     jobId: string | null;
@@ -28,6 +31,8 @@ export default function NewImportPage() {
     mappingConfig: null,
     validationResults: null,
   });
+
+  const effectiveTenantId = queryTenantId || user?.tenantId;
 
   const steps = [
     { number: 1, name: 'Upload', description: 'Carica il file' },
@@ -50,7 +55,11 @@ export default function NewImportPage() {
 
   const handleCancel = () => {
     if (confirm('Sei sicuro di voler annullare? I progressi andranno persi.')) {
-      router.push('/operator/imports');
+      if (mode === 'admin') {
+        router.push('/admin/dashboard');
+      } else {
+        router.push('/operator/imports');
+      }
     }
   };
 
@@ -59,7 +68,9 @@ export default function NewImportPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Nuova Importazione</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Nuova Importazione {queryTenantId ? `(Negozio: ${queryTenantId})` : ''}
+          </h1>
           <p className="text-gray-600 mt-1">Importa dati da file Excel o CSV</p>
         </div>
 

@@ -64,18 +64,21 @@ export class ImportsController {
     };
   }
 
-  @Post('validate')
-  async validateImport(@Body() dto: ValidateImportDto, @Req() req) {
-    const results = await this.importsService.validateImport(
-      dto.jobId,
-      dto.mappingConfig,
-      req.user.tenantId,
+  // ✅ NUOVO ENDPOINT VALIDATE con supporto SuperAdmin
+  @Post(':jobId/validate')
+  async validateImport(
+    @Param('jobId') jobId: string,
+    @Body() body: { mappingConfig: any },
+    @Req() req,
+  ) {
+    // Se sei SuperAdmin con tenantId in query, usa quello, altrimenti quello dell'utente
+    const effectiveTenantId = req.query?.tenantId || req.user?.tenantId;
+    
+    return this.importsService.validateImport(
+      jobId, 
+      body.mappingConfig, 
+      effectiveTenantId
     );
-
-    return {
-      success: true,
-      validationResults: results,
-    };
   }
 
   @Post('execute')

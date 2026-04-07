@@ -35,7 +35,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
 
   const loadTargetFields = async () => {
     try {
-      const response = await axios.get(`/api/imports/fields/UNIFIED_IMPORT`);
+const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
      setTargetFields(response.data.fields as TargetField[]);
     } catch (error) {
       console.error('Errore caricamento campi:', error);

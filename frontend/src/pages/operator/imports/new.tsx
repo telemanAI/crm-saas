@@ -127,6 +127,7 @@ export default function NewImportPage() {
         <Card className="p-8">
           {currentStep === 1 && (
             <UploadStep
+              tenantId={effectiveTenantId as string}  // ✅ AGGIUNTO
               onComplete={handleStepComplete}
               onCancel={handleCancel}
             />

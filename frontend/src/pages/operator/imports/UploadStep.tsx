@@ -3,11 +3,12 @@ import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
 
 interface Props {
+  tenantId?: string;  // ✅ AGGIUNTO
   onComplete: (data: any) => void;
   onCancel: () => void;
 }
 
-export default function UploadStep({ onComplete, onCancel }: Props) {
+export default function UploadStep({ tenantId, onComplete, onCancel }: Props) {  // ✅ AGGIUNTO tenantId
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -64,8 +65,9 @@ export default function UploadStep({ onComplete, onCancel }: Props) {
       formData.append('file', file);
       formData.append('targetEntity', 'UNIFIED_IMPORT');
 
-      const response = await axios.post('/api/imports/upload', formData, {
+      const response = await axios.post('/imports/upload', formData, {  // ✅ Tolto '/api'
         headers: { 'Content-Type': 'multipart/form-data' },
+        params: { tenantId }  // ✅ Aggiunto tenantId come query param
       });
 
       const { job } = response.data;

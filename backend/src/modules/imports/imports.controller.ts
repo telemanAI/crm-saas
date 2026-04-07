@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Query,
+  BadRequestException,  // ✅ AGGIUNTO
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -28,12 +29,22 @@ export class ImportsController {
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
+    @Query('tenantId') queryTenantId: string,  // ✅ AGGIUNTO per SuperAdmin
     @Req() req,
   ) {
+    // ✅ Se SuperAdmin passa tenantId, usa quello, altrimenti quello dell'utente
+    const effectiveTenantId = (req.user.role === 'SUPER_ADMIN' && queryTenantId) 
+      ? queryTenantId 
+      : req.user.tenantId;
+
+    if (!effectiveTenantId) {
+      throw new BadRequestException('Tenant ID richiesto');
+    }
+
     const job = await this.importsService.uploadFile(
       file,
       dto.targetEntity,
-      req.user.tenantId,
+      effectiveTenantId,  // ✅ Usa questo invece di req.user.tenantId
       req.user.userId,
       dto.templateId,
     );

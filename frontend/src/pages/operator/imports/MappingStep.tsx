@@ -184,52 +184,54 @@ const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all"
-            style={{ width: `${(getMappedRequiredCount() / getRequiredFields().length) * 100}%` }}
+            style={{ width: `${getRequiredFields().length > 0 ? (getMappedRequiredCount() / getRequiredFields().length) * 100 : 0}%` }}  // ✅ FIX divisione per zero
           />
         </div>
       </div>
-{/* Guida Trasformazioni */}
-<div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-  <details className="group">
-    <summary className="flex justify-between items-center cursor-pointer list-none">
-      <h4 className="font-semibold text-blue-900 flex items-center">
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Guida alle Trasformazioni (clicca per espandere)
-      </h4>
-      <span className="transition group-open:rotate-180">
-        <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24">
-          <path d="M6 9l6 6 6-6"></path>
-        </svg>
-      </span>
-    </summary>
-    <div className="text-sm text-blue-800 mt-3 space-y-2">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-white p-2 rounded border border-blue-100">
-          <span className="font-semibold text-blue-900">Maiuscolo:</span>
-          <span className="text-gray-600 ml-2">"rossi" → "ROSSI" (per Codici Fiscali)</span>
-        </div>
-        <div className="bg-white p-2 rounded border border-blue-100">
-          <span className="font-semibold text-blue-900">Estrai Prezzo (€):</span>
-          <span className="text-gray-600 ml-2">"€ 29,99/mese" → "29,99"</span>
-        </div>
-        <div className="bg-white p-2 rounded border border-blue-100">
-          <span className="font-semibold text-blue-900">Normalizza Telefono:</span>
-          <span className="text-gray-600 ml-2">"+39 340-123-4567" → "+393401234567"</span>
-        </div>
-        <div className="bg-white p-2 rounded border border-blue-100">
-          <span className="font-semibold text-blue-900">Normalizza Stato:</span>
-          <span className="text-gray-600 ml-2">"in lavorazione" → "IN_PROGRESS"</span>
-        </div>
-        <div className="bg-white p-2 rounded border border-blue-100 md:col-span-2">
-          <span className="font-semibold text-blue-900">Normalizza Stato Operativo:</span>
-          <span className="text-gray-600 ml-2">"attivo" → "ACTIVE"</span>
-        </div>
+
+      {/* Guida Trasformazioni - Tema Dark */}
+      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6">
+        <details className="group">
+          <summary className="flex justify-between items-center cursor-pointer list-none">
+            <h4 className="font-semibold text-cyan-400 flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Guida alle Trasformazioni (clicca per espandere)
+            </h4>
+            <span className="transition group-open:rotate-180 text-slate-400">
+              <svg fill="none" height="24" shapeRendering="geometricPrecision" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" viewBox="0 0 24 24" width="24">
+                <path d="M6 9l6 6 6-6"></path>
+              </svg>
+            </span>
+          </summary>
+          <div className="text-sm text-slate-300 mt-3 space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
+                <span className="font-semibold text-cyan-400">Maiuscolo:</span>
+                <code className="text-gray-300 ml-2 text-xs">"rossi" → "ROSSI"</code>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
+                <span className="font-semibold text-cyan-400">Estrai Prezzo (€):</span>
+                <code className="text-gray-300 ml-2 text-xs">"€ 29,99/mese" → "29,99"</code>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
+                <span className="font-semibold text-cyan-400">Normalizza Telefono:</span>
+                <code className="text-gray-300 ml-2 text-xs">"+39 340-123-4567" → "+393401234567"</code>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded border border-slate-700">
+                <span className="font-semibold text-cyan-400">Normalizza Stato:</span>
+                <code className="text-gray-300 ml-2 text-xs">"in lavorazione" → "IN_PROGRESS"</code>
+              </div>
+              <div className="bg-slate-900/50 p-3 rounded border border-slate-700 md:col-span-2">
+                <span className="font-semibold text-cyan-400">Parsa Data Italiana:</span>
+                <code className="text-gray-300 ml-2 text-xs">"15/03/2025" → "2025-03-15"</code>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
-    </div>
-  </details>
-</div>
+
       <div className="bg-white border border-gray-200 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Gestione Duplicati</h3>
         <p className="text-sm text-gray-600 mb-4">

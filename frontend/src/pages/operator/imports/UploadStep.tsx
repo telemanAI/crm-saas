@@ -71,7 +71,7 @@ export default function UploadStep({ tenantId, onComplete, onCancel }: Props) { 
       });
 
       const { job } = response.data;
-      const previewResponse = await axios.get(`/api/imports/${job.id}/preview`);
+     const previewResponse = await axios.get(`/imports/${job.id}/preview`);
       
       onComplete({
         jobId: job.id,

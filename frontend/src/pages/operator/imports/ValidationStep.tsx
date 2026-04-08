@@ -171,11 +171,45 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
         </div>
       )}
 
+      {/* Tabs per filtrare */}
+      <div className="flex space-x-2 mb-4">
+        <button
+          onClick={() => setSelectedTab('valid')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            selectedTab === 'valid' 
+              ? 'bg-green-100 text-green-800' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          ✅ Valide ({validationResults?.valid || 0})
+        </button>
+        <button
+          onClick={() => setSelectedTab('warnings')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            selectedTab === 'warnings' 
+              ? 'bg-yellow-100 text-yellow-800' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          ⚠️ Warning ({validationResults?.warnings || 0})
+        </button>
+        <button
+          onClick={() => setSelectedTab('errors')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            selectedTab === 'errors' 
+              ? 'bg-red-100 text-red-800' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          ❌ Errori ({validationResults?.errors || 0})
+        </button>
+      </div>
+
       {/* Preview Table */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
           <h3 className="text-sm font-semibold text-gray-900">
-            Anteprima {selectedTab === 'valid' ? 'Righe Valide' : selectedTab === 'warnings' ? 'Warning' : 'Errori'}
+            {selectedTab === 'valid' ? 'Righe Valide' : selectedTab === 'warnings' ? 'Righe con Warning' : 'Righe con Errori'}
           </h3>
         </div>
         <div className="max-h-96 overflow-y-auto">

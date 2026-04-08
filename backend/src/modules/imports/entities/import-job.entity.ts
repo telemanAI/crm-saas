@@ -2,10 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDa
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
 
-// ✅ AGGIUNTI: paused e rolled_back
 export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'paused' | 'rolled_back';
-
-// ✅ AGGIUNTO: UNIFIED_IMPORT
 export type ImportTargetEntity = 'CUSTOMER_ONLY' | 'FIXED_LINE_PRACTICE' | 'MOBILE_PRACTICE' | 'ENERGY_PRACTICE' | 'UNIFIED_IMPORT';
 
 @Entity('import_jobs')
@@ -39,7 +36,6 @@ export class ImportJob {
   @Column({ name: 'file_size' })
   fileSize: number;
 
-  // ✅ AGGIUNTO: formato file
   @Column({ name: 'file_format', type: 'varchar', default: 'flat' })
   fileFormat: string;
 
@@ -59,7 +55,6 @@ export class ImportJob {
     duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW';
   };
 
-  // ✅ AGGIUNTI: matchedByCache e matchedByDB
   @Column({ name: 'stats', type: 'jsonb', default: {} })
   stats: {
     totalRows: number;
@@ -74,7 +69,6 @@ export class ImportJob {
     matchedByDB?: number;
   };
 
-  // ✅ AGGIUNTO: timestamp negli errori
   @Column({ name: 'error_log', type: 'jsonb', default: [] })
   errorLog: Array<{
     row: number;
@@ -103,6 +97,10 @@ export class ImportJob {
 
   @Column({ name: 'completed_at', nullable: true })
   completedAt: Date;
+
+  // ✅ NUOVO: Tracciamento rollback
+  @Column({ name: 'rollbacked_at', nullable: true })
+  rollbackedAt: Date;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

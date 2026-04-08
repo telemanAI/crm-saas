@@ -546,8 +546,9 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       </select>
                     </div>
                     <div className="col-span-4">
+                      {/* ✅ FIX COLORE AZZURRO per l'anteprima */}
                       <code 
-                        className="text-xs bg-gray-100 px-2 py-1 rounded block truncate cursor-help hover:bg-gray-200 hover:whitespace-normal hover:break-all transition-all"
+                        className="text-xs px-2 py-1 rounded block truncate cursor-help border border-cyan-500/30 bg-cyan-950/30 text-cyan-400 hover:border-cyan-400 hover:bg-cyan-900/50 hover:text-cyan-200 hover:whitespace-normal hover:break-all transition-all shadow-sm"
                         title={previewValue}
                       >
                         {previewValue}
@@ -598,8 +599,9 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       </select>
                     </div>
                     <div className="col-span-4">
+                      {/* ✅ FIX COLORE AZZURRO per l'anteprima */}
                       <code 
-                        className="text-xs bg-gray-100 px-2 py-1 rounded block truncate cursor-help hover:bg-gray-200 hover:whitespace-normal hover:break-all transition-all"
+                        className="text-xs px-2 py-1 rounded block truncate cursor-help border border-cyan-500/30 bg-cyan-950/30 text-cyan-400 hover:border-cyan-400 hover:bg-cyan-900/50 hover:text-cyan-200 hover:whitespace-normal hover:break-all transition-all shadow-sm"
                         title={previewValue}
                       >
                         {previewValue}

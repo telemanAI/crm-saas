@@ -4,7 +4,7 @@ import axios from '../../../lib/axios';
 
 interface Props {
   jobId: string;
-  tenantId: string;  // ✅ AGGIUNTO
+  tenantId: string;
   mappingConfig: any;
   fileName: string;
   totalRows: number;
@@ -13,7 +13,7 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function ValidationStep({ jobId, tenantId, mappingConfig, fileName, totalRows, onComplete, onBack, onCancel }: Props) {  // ✅ AGGIUNTO tenantId
+export default function ValidationStep({ jobId, tenantId, mappingConfig, fileName, totalRows, onComplete, onBack, onCancel }: Props) {
   const [validating, setValidating] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [validationResults, setValidationResults] = useState<any>(null);
@@ -24,14 +24,47 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
     validateImport();
   }, []);
 
+  const normalizeResults = (raw: any) => {
+    const results = raw.validationResults || raw;
+    
+    // 🛠️ FIX: Se il backend non manda summary, calcolalo dal preview
+    if (!results.summary && Array.isArray(results.preview)) {
+      const total = results.preview.length;
+      const valid = results.preview.filter((r: any) => r.valid && (!r.warnings || r.warnings.length === 0)).length;
+      const warnings = results.preview.filter((r: any) => r.valid && r.warnings && r.warnings.length > 0).length;
+      const errors = results.preview.filter((r: any) => !r.valid).length;
+      
+      results.summary = {
+        totalCustomers: total,
+        customersWithPractice: results.preview.filter((r: any) => r.data?.hasPractice).length,
+        onlyCustomers: results.preview.filter((r: any) => !r.data?.hasPractice).length,
+        valid,
+        warnings,
+        errors
+      };
+    }
+
+    // 🛠️ FIX: Assicurati che i conteggi siano sempre numeri
+    if (results.summary) {
+      results.summary.totalCustomers = results.summary.totalCustomers ?? 0;
+      results.summary.customersWithPractice = results.summary.customersWithPractice ?? 0;
+      results.summary.onlyCustomers = results.summary.onlyCustomers ?? 0;
+    }
+
+    return results;
+  };
+
   const validateImport = async () => {
     try {
       const response = await axios.post(`/imports/${jobId}/validate`, {
-  mappingConfig: mappingConfig 
+        mappingConfig: mappingConfig 
       }, {
-        params: { tenantId: tenantId }  // ✅ AGGIUNTO
+        params: { tenantId: tenantId }
       });
-      setValidationResults(response.data.validationResults || response.data);
+      
+      // 🛠️ FIX: Normalizza i risultati prima di salvarli
+      const normalized = normalizeResults(response.data);
+      setValidationResults(normalized);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore durante la validazione');
     } finally {
@@ -48,10 +81,10 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
     setError(null);
 
     try {
-      await axios.post('/imports/execute', {  // ✅ Tolto /api se necessario, usa lo stesso pattern degli altri
+      await axios.post('/imports/execute', {
         jobId 
       }, {
-        params: { tenantId }  // ✅ AGGIUNTO per supporto SuperAdmin
+        params: { tenantId }
       });
       onComplete();
     } catch (err: any) {
@@ -64,8 +97,8 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
     if (!validationResults?.preview) return [];
     
     return validationResults.preview.filter((row: any) => {
-      if (selectedTab === 'valid') return row.valid && row.warnings.length === 0;
-      if (selectedTab === 'warnings') return row.warnings.length > 0;
+      if (selectedTab === 'valid') return row.valid && (!row.warnings || row.warnings.length === 0);
+      if (selectedTab === 'warnings') return row.valid && row.warnings && row.warnings.length > 0;
       if (selectedTab === 'errors') return !row.valid;
       return true;
     });
@@ -104,36 +137,42 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
         <p className="text-gray-600">Controlla i risultati della validazione prima di procedere</p>
       </div>
 
-      {/* Stats Preview */}
+      {/* Stats Preview - 🛠️ FIX: Controlli null-safe */}
       {validationResults?.summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
-            <div className="text-2xl font-bold text-slate-900">{validationResults.summary.totalCustomers || 0}</div>
+            <div className="text-2xl font-bold text-slate-900">
+              {validationResults.summary.totalCustomers ?? 0}
+            </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Clienti Totali</div>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-blue-700">{validationResults.summary.customersWithPractice || 0}</div>
+            <div className="text-2xl font-bold text-blue-700">
+              {validationResults.summary.customersWithPractice ?? 0}
+            </div>
             <div className="text-xs text-blue-600 uppercase tracking-wide mt-1">Con Pratica</div>
           </div>
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-gray-700">{validationResults.summary.onlyCustomers || 0}</div>
+            <div className="text-2xl font-bold text-gray-700">
+              {validationResults.summary.onlyCustomers ?? 0}
+            </div>
             <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Solo Anagrafica</div>
           </div>
           <div className={`rounded-xl p-4 text-center border ${
-            validationResults.errors === 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
+            (validationResults.errors ?? 0) === 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           }`}>
-            <div className={`text-2xl font-bold ${validationResults.errors === 0 ? 'text-green-700' : 'text-red-700'}`}>
-              {validationResults.errors === 0 ? '✓' : validationResults.errors || 0}
+            <div className={`text-2xl font-bold ${(validationResults.errors ?? 0) === 0 ? 'text-green-700' : 'text-red-700'}`}>
+              {(validationResults.errors ?? 0) === 0 ? '✓' : validationResults.errors}
             </div>
-            <div className={`text-xs uppercase tracking-wide mt-1 ${validationResults.errors === 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {validationResults.errors === 0 ? 'Pronto' : 'Errori'}
+            <div className={`text-xs uppercase tracking-wide mt-1 ${(validationResults.errors ?? 0) === 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {(validationResults.errors ?? 0) === 0 ? 'Pronto' : 'Errori'}
             </div>
           </div>
         </div>
       )}
 
       {/* Info Box */}
-      {validationResults?.errors > 0 ? (
+      {(validationResults?.errors ?? 0) > 0 ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
           <svg className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -145,7 +184,7 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
             </p>
           </div>
         </div>
-      ) : validationResults?.warnings > 0 ? (
+      ) : (validationResults?.warnings ?? 0) > 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
           <svg className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -165,49 +204,50 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">Tutto pronto per l'importazione!</p>
             <p className="text-sm text-green-700 mt-1">
-              Tutte le {validationResults?.valid || 0} righe sono valide e pronte per essere importate.
+              Tutte le {validationResults?.valid ?? 0} righe sono valide e pronte per essere importate.
             </p>
           </div>
         </div>
       )}
 
-      {/* Tabs per filtrare */}
+      {/* 🆕 Tabs per filtrare - AGGIUNTO */}
       <div className="flex space-x-2 mb-4">
         <button
           onClick={() => setSelectedTab('valid')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedTab === 'valid' 
-              ? 'bg-green-100 text-green-800' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-green-100 text-green-800 border border-green-300' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
           }`}
         >
-          ✅ Valide ({validationResults?.valid || 0})
+          ✅ Valide ({validationResults?.valid ?? 0})
         </button>
         <button
           onClick={() => setSelectedTab('warnings')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedTab === 'warnings' 
-              ? 'bg-yellow-100 text-yellow-800' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
           }`}
         >
-          ⚠️ Warning ({validationResults?.warnings || 0})
+          ⚠️ Warning ({validationResults?.warnings ?? 0})
         </button>
         <button
           onClick={() => setSelectedTab('errors')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             selectedTab === 'errors' 
-              ? 'bg-red-100 text-red-800' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-red-100 text-red-800 border border-red-300' 
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
           }`}
         >
-          ❌ Errori ({validationResults?.errors || 0})
+          ❌ Errori ({validationResults?.errors ?? 0})
         </button>
       </div>
 
       {/* Preview Table */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+          {/* 🆕 Titolo dinamico in base al tab selezionato - MODIFICATO */}
           <h3 className="text-sm font-semibold text-gray-900">
             {selectedTab === 'valid' ? 'Righe Valide' : selectedTab === 'warnings' ? 'Righe con Warning' : 'Righe con Errori'}
           </h3>
@@ -242,12 +282,12 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
                       #{row.rowNumber}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {row.valid && row.warnings.length === 0 && (
+                      {row.valid && (!row.warnings || row.warnings.length === 0) && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           ✓ Valido
                         </span>
                       )}
-                      {row.warnings.length > 0 && (
+                      {row.warnings && row.warnings.length > 0 && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                           ⚠ Warning
                         </span>
@@ -260,20 +300,21 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">
                       <div className="space-y-1">
-                        {row.data.firstName && <div><span className="font-medium">Nome:</span> {row.data.firstName}</div>}
-                        {row.data.lastName && <div><span className="font-medium">Cognome:</span> {row.data.lastName}</div>}
-                        {row.data.fiscalCode && <div><span className="font-medium">CF:</span> {row.data.fiscalCode}</div>}
+                        {row.data?.customer?.firstName && <div><span className="font-medium">Nome:</span> {row.data.customer.firstName}</div>}
+                        {row.data?.customer?.lastName && <div><span className="font-medium">Cognome:</span> {row.data.customer.lastName}</div>}
+                        {row.data?.customer?.fiscalCode && <div><span className="font-medium">CF:</span> {row.data.customer.fiscalCode}</div>}
+                        {row.data?.practice?.offerName && <div><span className="font-medium">Offerta:</span> {row.data.practice.offerName}</div>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      {row.errors.length > 0 && (
+                      {row.errors && row.errors.length > 0 && (
                         <div className="space-y-1">
                           {row.errors.map((err: string, idx: number) => (
                             <div key={idx} className="text-red-600 text-xs">• {err}</div>
                           ))}
                         </div>
                       )}
-                      {row.warnings.length > 0 && (
+                      {row.warnings && row.warnings.length > 0 && (
                         <div className="space-y-1">
                           {row.warnings.map((warn: string, idx: number) => (
                             <div key={idx} className="text-yellow-600 text-xs">• {warn}</div>
@@ -315,7 +356,7 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
           </Button>
           <Button
             onClick={executeImport}
-            disabled={validationResults?.errors > 0 || executing}
+            disabled={(validationResults?.errors ?? 0) > 0 || executing}
             className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-300"
           >
             {executing ? (

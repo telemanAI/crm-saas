@@ -27,6 +27,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   const [duplicateStrategy, setDuplicateStrategy] = useState<'SKIP' | 'UPDATE' | 'CREATE_NEW'>('UPDATE');
   const [autoMapped, setAutoMapped] = useState(false);
   const [transformers, setTransformers] = useState<any>({});
+  const [forceType, setForceType] = useState<string | null>(null);  // ✅ AGGIUNTO stato per tipo forzato
 
   useEffect(() => {
     loadTargetFields();
@@ -35,8 +36,8 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
 
   const loadTargetFields = async () => {
     try {
-const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
-     setTargetFields(response.data.fields as TargetField[]);
+      const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
+      setTargetFields(response.data.fields as TargetField[]);
     } catch (error) {
       console.error('Errore caricamento campi:', error);
     }
@@ -123,7 +124,7 @@ const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
     { value: 'normalize_phone', label: 'Normalizza Telefono' },
     { value: 'normalize_status', label: 'Normalizza Stato' },
     { value: 'normalize_operational_status', label: 'Normalizza Stato Operativo' },
-    { value: 'parse_date', label: 'Parsa Data Italiana (GG/MM/AAAA)' },  // ✅ AGGIUNTO
+    { value: 'parse_date', label: 'Parsa Data Italiana (GG/MM/AAAA)' },
   ];
 
   const handleContinue = () => {
@@ -136,6 +137,7 @@ const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
           transformer: transformers[source] || undefined,
         })),
       duplicateStrategy,
+      forceType, // ✅ AGGIUNTO: null = auto-detect, string = forzato
     };
 
     onComplete({ mappingConfig });
@@ -184,8 +186,56 @@ const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
             className="bg-blue-600 h-2 rounded-full transition-all"
-            style={{ width: `${getRequiredFields().length > 0 ? (getMappedRequiredCount() / getRequiredFields().length) * 100 : 0}%` }}  // ✅ FIX divisione per zero
+            style={{ width: `${getRequiredFields().length > 0 ? (getMappedRequiredCount() / getRequiredFields().length) * 100 : 0}%` }}
           />
+        </div>
+      </div>
+
+      {/* ✅ NUOVA SEZIONE: Rilevamento Gestore */}
+      <div className="bg-indigo-900/30 border border-indigo-500/30 rounded-lg p-4 mb-6">
+        <h3 className="font-semibold text-indigo-300 mb-3">🎯 Rilevamento Gestore</h3>
+        
+        <div className="space-y-3">
+          <label className="flex items-start space-x-3 cursor-pointer">
+            <input
+              type="radio"
+              name="typeDetection"
+              checked={!forceType}
+              onChange={() => setForceType(null)}
+              className="mt-1"
+            />
+            <div>
+              <span className="font-medium text-gray-200">Auto-detect intelligente</span>
+              <p className="text-sm text-gray-400">Rileva automaticamente SKY, Vodafone, Tim, etc. dal nome offerta</p>
+            </div>
+          </label>
+          
+          <label className="flex items-start space-x-3 cursor-pointer">
+            <input
+              type="radio"
+              name="typeDetection"
+              checked={!!forceType}
+              onChange={() => setForceType('TIM_FIBRA')}
+              className="mt-1"
+            />
+            <div className="flex-1">
+              <span className="font-medium text-gray-200">Forza tipo per tutto il file</span>
+              <select 
+                value={forceType || ''}
+                onChange={(e) => setForceType(e.target.value)}
+                disabled={!forceType}
+                className="mt-1 w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-sm text-white"
+              >
+                <option value="TIM_FIBRA">TIM Fibra</option>
+                <option value="VODAFONE">Vodafone</option>
+                <option value="WINDTRE">WindTre</option>
+                <option value="SKY">Sky</option>
+                <option value="ILIAD">Iliad</option>
+                <option value="IREN">Iren</option>
+                <option value="OPTIMA">Optima</option>
+              </select>
+            </div>
+          </label>
         </div>
       </div>
 

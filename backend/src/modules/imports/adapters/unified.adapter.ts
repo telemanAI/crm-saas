@@ -40,7 +40,25 @@ export class UnifiedAdapter {
   }
 
   /**
-   * Validazione completa riga con supporto multi-formato
+   * Rileva automaticamente il tipo pratica dal nome offerta
+   */
+  private detectTypeFromOfferName(offerName: string): string | null {
+    if (!offerName) return null;
+    const nameLower = offerName.toLowerCase();
+    
+    if (nameLower.includes('sky')) return 'SKY';
+    if (nameLower.includes('vodafone')) return 'VODAFONE';
+    if (nameLower.includes('wind') || nameLower.includes('tre')) return 'WINDTRE';
+    if (nameLower.includes('iliad')) return 'ILIAD';
+    if (nameLower.includes('iren')) return 'IREN';
+    if (nameLower.includes('optima')) return 'OPTIMA';
+    if (nameLower.includes('tim')) return 'TIM_FIBRA';
+    
+    return null;
+  }
+
+  /**
+   * Validazione completa riga con supporto multi-formato + Auto-detect + ForceType
    */
   async validateRow(row: any, mapping: any, tenantId: string): Promise<UnifiedRowResult> {
     const errors: string[] = [];
@@ -66,6 +84,24 @@ export class UnifiedAdapter {
         }
       }
     });
+
+    // 🎯 SMART DETECTION: Determina il tipo pratica
+    let practiceType = practiceData.type;
+
+    // Se non c'è type mappato, prova auto-detect dal nome offerta
+    if (!practiceType && practiceData.offerName) {
+      practiceType = this.detectTypeFromOfferName(practiceData.offerName);
+    }
+
+    // Se c'è forceType nella config, sovrascrive tutto
+    if (mapping.forceType) {
+      practiceType = mapping.forceType;
+    }
+
+    // Aggiorna practiceData con il tipo finale determinato
+    if (practiceType) {
+      practiceData.type = practiceType.toUpperCase();
+    }
 
     // Validazione Cliente (almeno un identificatore necessario)
     if (!customerData.firstName) errors.push('Nome obbligatorio');
@@ -94,12 +130,12 @@ export class UnifiedAdapter {
 
     // Validazione Pratica (solo se presenti dati)
     if (hasPractice) {
-      if (!practiceData.type) {
-        errors.push('Tipo pratica obbligatorio se si inseriscono dati pratica');
+      if (!practiceType) {
+        errors.push('Impossibile rilevare il tipo pratica. Mappa il campo "Tipo" o usa "Forza tipo" nelle impostazioni');
       } else {
         const validTypes = ['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY'];
-        if (!validTypes.includes(practiceData.type.toUpperCase())) {
-          errors.push(`Tipo pratica non valido: ${practiceData.type}. Validi: ${validTypes.join(', ')}`);
+        if (!validTypes.includes(practiceType.toUpperCase())) {
+          errors.push(`Tipo pratica non valido: ${practiceType}. Validi: ${validTypes.join(', ')}`);
         }
       }
     }
@@ -373,7 +409,7 @@ export class UnifiedAdapter {
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
       case 'parse_date':
         // Converte DD/MM/YYYY o DD-MM-YYYY in YYYY-MM-DD per il DB
-        const parseDateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);  // ✅ Nome univoco
+        const parseDateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
         if (parseDateMatch) {
           const [, day, month, year] = parseDateMatch;
           const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
@@ -416,9 +452,10 @@ export class UnifiedAdapter {
       { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' },
       
       // PRATICA (opzionali - se almeno uno c'è, crea pratica)
-      { name: 'type', label: 'Tipo Pratica *', type: 'enum', required: false, category: 'practice',
-        helpText: 'Obbligatorio se si vuole creare una pratica. Valori: TIM_FIBRA, VODAFONE, WINDTRE, ILIAD, OPTIMA, IREN, SKY' },
-      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice' },
+      { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice',
+        helpText: 'Auto-rilevato da Nome Offerta se non mappato. Valori: TIM_FIBRA, VODAFONE, WINDTRE, ILIAD, OPTIMA, IREN, SKY' },
+      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice',
+        helpText: 'Usato per auto-rilevare il gestore (es. "Sky Q" -> SKY)' },
       { name: 'offerCanone', label: 'Canone €', type: 'string', required: false, category: 'practice' },
       { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' },
       { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' },

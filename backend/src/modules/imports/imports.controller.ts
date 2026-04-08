@@ -9,7 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Query,
-  BadRequestException,  // ✅ AGGIUNTO
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -29,13 +29,12 @@ export class ImportsController {
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
     @Body() dto: UploadFileDto,
-    @Query('tenantId') queryTenantId: string,  // ✅ AGGIUNTO per SuperAdmin
+    @Query('tenantId') queryTenantId: string,
     @Req() req,
   ) {
-    // ✅ Se SuperAdmin passa tenantId, usa quello, altrimenti quello dell'utente
-    const effectiveTenantId = (req.user.role === 'SUPER_ADMIN' && queryTenantId) 
+    const effectiveTenantId = (req.user?.role === 'SUPER_ADMIN' && queryTenantId) 
       ? queryTenantId 
-      : req.user.tenantId;
+      : req.user?.tenantId;
 
     if (!effectiveTenantId) {
       throw new BadRequestException('Tenant ID richiesto');
@@ -44,7 +43,7 @@ export class ImportsController {
     const job = await this.importsService.uploadFile(
       file,
       dto.targetEntity,
-      effectiveTenantId,  // ✅ Usa questo invece di req.user.tenantId
+      effectiveTenantId,
       req.user.userId,
       dto.templateId,
     );
@@ -64,15 +63,20 @@ export class ImportsController {
     };
   }
 
-  // ✅ NUOVO ENDPOINT VALIDATE con supporto SuperAdmin
   @Post(':jobId/validate')
   async validateImport(
     @Param('jobId') jobId: string,
     @Body() body: { mappingConfig: any },
+    @Query('tenantId') queryTenantId: string,
     @Req() req,
   ) {
-    // Se sei SuperAdmin con tenantId in query, usa quello, altrimenti quello dell'utente
-    const effectiveTenantId = req.query?.tenantId || req.user?.tenantId;
+    const effectiveTenantId = (req.user?.role === 'SUPER_ADMIN' && queryTenantId) 
+      ? queryTenantId 
+      : req.user?.tenantId;
+      
+    if (!effectiveTenantId) {
+      throw new BadRequestException('Tenant ID richiesto');
+    }
     
     return this.importsService.validateImport(
       jobId, 

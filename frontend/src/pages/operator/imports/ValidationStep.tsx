@@ -29,7 +29,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
         jobId,
         mappingConfig,
       });
-      setValidationResults(response.data.validationResults);
+      setValidationResults(response.data.validationResults || response.data); // ✅ Protezione per entrambi i formati
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore durante la validazione');
     } finally {
@@ -55,7 +55,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
   };
 
   const getFilteredPreview = () => {
-    if (!validationResults) return [];
+    if (!validationResults?.preview) return []; // ✅ Protezione optional chaining
     
     return validationResults.preview.filter((row: any) => {
       if (selectedTab === 'valid') return row.valid && row.warnings.length === 0;
@@ -99,10 +99,10 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
       </div>
 
       {/* Stats Preview */}
-      {validationResults.summary && (
+      {validationResults?.summary && ( // ✅ Protezione optional chaining
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
-            <div className="text-2xl font-bold text-slate-900">{validationResults.summary.totalCustomers}</div>
+            <div className="text-2xl font-bold text-slate-900">{validationResults.summary.totalCustomers || 0}</div>
             <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Clienti Totali</div>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
@@ -117,7 +117,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
             validationResults.errors === 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
           }`}>
             <div className={`text-2xl font-bold ${validationResults.errors === 0 ? 'text-green-700' : 'text-red-700'}`}>
-              {validationResults.errors === 0 ? '✓' : validationResults.errors}
+              {validationResults.errors === 0 ? '✓' : validationResults.errors || 0}
             </div>
             <div className={`text-xs uppercase tracking-wide mt-1 ${validationResults.errors === 0 ? 'text-green-600' : 'text-red-600'}`}>
               {validationResults.errors === 0 ? 'Pronto' : 'Errori'}
@@ -127,7 +127,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
       )}
 
       {/* Info Box */}
-      {validationResults.errors > 0 ? (
+      {validationResults?.errors > 0 ? (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
           <svg className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
@@ -139,7 +139,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
             </p>
           </div>
         </div>
-      ) : validationResults.warnings > 0 ? (
+      ) : validationResults?.warnings > 0 ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
           <svg className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -159,7 +159,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
           <div className="flex-1">
             <p className="text-sm font-medium text-green-800">Tutto pronto per l'importazione!</p>
             <p className="text-sm text-green-700 mt-1">
-              Tutte le {validationResults.valid} righe sono valide e pronte per essere importate.
+              Tutte le {validationResults?.valid || 0} righe sono valide e pronte per essere importate.
             </p>
           </div>
         </div>
@@ -275,7 +275,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
           </Button>
           <Button
             onClick={executeImport}
-            disabled={validationResults.errors > 0 || executing}
+            disabled={validationResults?.errors > 0 || executing}
             className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-300"
           >
             {executing ? (

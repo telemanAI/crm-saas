@@ -303,7 +303,7 @@ export class UnifiedAdapter {
       tenantId,
       customerId,
       createdBy: userId,
-      createdAt: data.createdAt ? new Date(data.createdAt) : new Date(), // ✅ Usa data importata o ora corrente
+      createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
       type: data.type.toUpperCase() as PracticeType,
       status: data.status || 'draft',
       operationalStatus: data.operationalStatus || 'PENDING',
@@ -320,6 +320,13 @@ export class UnifiedAdapter {
       currentStep: 1,
       completedSteps: [],
       sourceImportJobId: data.importJobId,
+      soldBy: data.soldBy,  // ✅ AGGIUNTO
+      enteredBy: data.enteredBy,  // ✅ AGGIUNTO
+      oldLineData: {  // ✅ AGGIUNTO
+        ...(data.oldLineNumber && { phoneNumber: data.oldLineNumber }),
+        ...(data.migrationCode && { migrationCode: data.migrationCode }),
+      },
+      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,  // ✅ AGGIUNTO
     });
 
     return await queryRunner.manager.save(practice);
@@ -364,7 +371,7 @@ export class UnifiedAdapter {
         return str.replace(/[\s\-\(\)\.]/g, '');
       case 'normalize_cf':
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
-      case 'parse_date':  // ✅ AGGIUNTO
+      case 'parse_date':
         // Converte DD/MM/YYYY o DD-MM-YYYY in YYYY-MM-DD per il DB
         const dateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
         if (dateMatch) {
@@ -389,7 +396,8 @@ export class UnifiedAdapter {
     const fields = ['type', 'offerCode', 'offerName', 'offerCanone', 'offerAttivazione', 
                    'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
                    'offerScadenza', 'status', 'operationalStatus', 'lineType', 
-                   'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 'createdAt'];  // ✅ AGGIUNTO createdAt
+                   'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
+                   'migrationCode', 'iban', 'oldLineNumber'];  // ✅ AGGIUNTI nuovi campi
     return fields.includes(target);
   }
 
@@ -415,13 +423,18 @@ export class UnifiedAdapter {
       { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' },
       { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' },
       { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' },
-      { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice', helpText: 'Data originale dal vecchio sistema. Formato: GG/MM/AAAA o AAAA-MM-DD' },  // ✅ AGGIUNTO
+      { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice', helpText: 'Data originale dal vecchio sistema. Formato: GG/MM/AAAA o AAAA-MM-DD' },
+      { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' },
+      { name: 'soldBy', label: 'Venduto Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore/agente che ha venduto' },  // ✅ AGGIUNTO
+      { name: 'enteredBy', label: 'Inserito Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore che inserisce la pratica' },  // ✅ AGGIUNTO
+      { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice', helpText: 'Codice dal vecchio sistema' },  // ✅ AGGIUNTO
+      { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice', helpText: 'IBAN per addebito' },  // ✅ AGGIUNTO
+      { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice', helpText: 'Numero da migrare' },  // ✅ AGGIUNTO
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice',
         helpText: 'FTTH, FTTC, ADSL, etc.' },
       { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice',
         helpText: 'Nuova, Migrazione, Subentro' },
       { name: 'status', label: 'Stato', type: 'enum', required: false, category: 'practice' },
-      { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' },
       { name: 'notes', label: 'Note', type: 'text', required: false, category: 'practice' },
     ];
   }

@@ -238,7 +238,7 @@ export default function ValidationStep({
       <div className="flex justify-between pt-6 border-t">
         <div className="flex space-x-3">
           <Button onClick={onCancel} variant="ghost">Annulla</Button>
-          <Button onClick={onBack} variant="outline">← Modifica mapping</Button>
+       <Button onClick={onBack} className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">← Modifica mapping</Button>
         </div>
         
         <Button 

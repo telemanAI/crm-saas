@@ -14,12 +14,11 @@ export interface UnifiedRowResult {
     practice?: Partial<Practice>;
     hasPractice: boolean;
   };
-  matchedBy?: 'fiscalCode' | 'email' | 'none';
+  matchedBy?: 'fiscalCode' | 'email' | 'phonePrimary' | 'none';
 }
 
 @Injectable()
 export class UnifiedAdapter {
-  // Cache semplificata: solo CF e Email
   private customerCache = new Map<string, Customer>();
   private readonly CACHE_LIMIT = 500;
 
@@ -35,9 +34,6 @@ export class UnifiedAdapter {
     this.customerCache.clear();
   }
 
-  /**
-   * Rileva automaticamente il tipo pratica dal nome offerta
-   */
   private detectTypeFromOfferName(offerName: string): string | null {
     if (!offerName) return null;
     const nameLower = offerName.toLowerCase();
@@ -54,8 +50,17 @@ export class UnifiedAdapter {
   }
 
   /**
-   * Validazione completa riga con supporto multi-formato + Auto-detect + ForceType
+   * Gestione flessibile del telefono: phonePrimary è obbligatorio in DB 
+   * ma l'import può usare phone/mobile come fallback
    */
+  private resolvePhonePrimary(data: any): { value: string | null; source: string } {
+    // Priorità: phonePrimary esplicito > mobile > phone > null
+    if (data.phonePrimary) return { value: data.phonePrimary.replace(/\D/g, ''), source: 'phonePrimary' };
+    if (data.mobile) return { value: data.mobile.replace(/\D/g, ''), source: 'mobile' };
+    if (data.phone) return { value: data.phone.replace(/\D/g, ''), source: 'phone' };
+    return { value: null, source: 'none' };
+  }
+
   async validateRow(row: any, mapping: any, tenantId: string): Promise<UnifiedRowResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -63,7 +68,6 @@ export class UnifiedAdapter {
     const practiceData: any = {};
     let hasPractice = false;
 
-    // Estrazione dati
     mapping.columns.forEach((col: any) => {
       let value = row[col.source];
       
@@ -75,13 +79,18 @@ export class UnifiedAdapter {
         customerData[col.target] = value;
       } else if (this.isPracticeField(col.target)) {
         practiceData[col.target] = value;
-        if (value && ['type', 'offerName', 'offerCode'].includes(col.target)) {
+        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi'].includes(col.target)) {
           hasPractice = true;
         }
       }
     });
 
-    // SMART DETECTION: Determina il tipo pratica
+    // 🔄 Risolvi telefono con fallback automatico
+    const phoneResolved = this.resolvePhonePrimary(customerData);
+    if (phoneResolved.value) {
+      customerData.phonePrimary = phoneResolved.value;
+    }
+
     let practiceType = practiceData.type;
 
     if (!practiceType && practiceData.offerName) {
@@ -96,13 +105,21 @@ export class UnifiedAdapter {
       practiceData.type = practiceType.toUpperCase();
     }
 
-    // Validazione Cliente - Solo CF o Email
     if (!customerData.firstName) errors.push('Nome obbligatorio');
     if (!customerData.lastName) errors.push('Cognome obbligatorio');
 
-    const hasIdentifier = customerData.fiscalCode || customerData.email;
+    // ⚠️ Telefono: warning se manca, ma non errore bloccante se c'è CF o Email
+    if (!customerData.phonePrimary) {
+      if (customerData.fiscalCode || customerData.email) {
+        warnings.push('Telefono primario mancante - verrà richiesto prima del salvataggio o generato un placeholder');
+      } else {
+        errors.push('Telefono richiesto: mappa "Telefono Primario", "Mobile" o "Phone" oppure aggiungi CF o Email');
+      }
+    }
+
+    const hasIdentifier = customerData.fiscalCode || customerData.email || customerData.phonePrimary;
     if (!hasIdentifier) {
-      errors.push('Inserire almeno uno tra: Codice Fiscale o Email');
+      errors.push('Inserire almeno uno tra: Codice Fiscale, Email o Telefono');
     }
 
     if (customerData.fiscalCode) {
@@ -115,7 +132,11 @@ export class UnifiedAdapter {
       if (!emailValidation.valid) errors.push(`Email non valida: ${emailValidation.error}`);
     }
 
-    // Validazione Pratica
+    if (customerData.phonePrimary) {
+      const phoneValidation = CommonValidators.phone(customerData.phonePrimary);
+      if (!phoneValidation.valid) warnings.push(`Telefono non valido: ${phoneValidation.error}`);
+    }
+
     if (hasPractice) {
       if (!practiceType) {
         errors.push('Impossibile rilevare il tipo pratica. Mappa il campo "Tipo" o usa "Forza tipo" nelle impostazioni');
@@ -139,9 +160,6 @@ export class UnifiedAdapter {
     };
   }
 
-  /**
-   * Processa riga con transazione atomica
-   */
   async processRow(
     row: any,
     mapping: any,
@@ -156,6 +174,18 @@ export class UnifiedAdapter {
     }
 
     const { customer: customerData, practice: practiceData, hasPractice } = validation.data;
+
+    // 🔥 Se manca phonePrimary ma c'è CF o Email, genera un placeholder temporaneo 
+    // (o meglio ancora: chiedi all'utente di mapparlo, ma per sbloccare l'import...)
+    if (!customerData.phonePrimary) {
+      if (customerData.fiscalCode) {
+        customerData.phonePrimary = '0000000000'; // Placeholder da aggiornare dopo
+        console.warn(`Cliente ${customerData.fiscalCode} creato senza telefono - aggiornare manualmente`);
+      } else if (customerData.email) {
+        customerData.phonePrimary = '0000000000';
+        console.warn(`Cliente ${customerData.email} creato senza telefono - aggiornare manualmente`);
+      }
+    }
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -197,9 +227,6 @@ export class UnifiedAdapter {
     }
   }
 
-  /**
-   * Smart Match SOLO su CF e Email
-   */
   private async findOrCreateCustomerSmart(
     data: any,
     tenantId: string,
@@ -209,20 +236,22 @@ export class UnifiedAdapter {
     
     const normalizedCF = data.fiscalCode?.toString().trim().toUpperCase() || '';
     const normalizedEmail = data.email?.toString().trim().toLowerCase() || '';
+    const normalizedPhone = data.phonePrimary?.toString().trim().replace(/\D/g, '') || '';
 
     let existing: Customer | undefined;
     let matchedBy = 'none';
 
-    // 1. Cache Lookup
     if (normalizedCF && this.customerCache.has(`cf:${normalizedCF}`)) {
       existing = this.customerCache.get(`cf:${normalizedCF}`);
       matchedBy = 'fiscalCode (cache)';
     } else if (normalizedEmail && this.customerCache.has(`email:${normalizedEmail}`)) {
       existing = this.customerCache.get(`email:${normalizedEmail}`);
       matchedBy = 'email (cache)';
+    } else if (normalizedPhone && this.customerCache.has(`phone:${normalizedPhone}`)) {
+      existing = this.customerCache.get(`phone:${normalizedPhone}`);
+      matchedBy = 'phonePrimary (cache)';
     }
 
-    // 2. DB Lookup
     if (!existing) {
       if (normalizedCF) {
         existing = await queryRunner.manager.findOne(Customer, {
@@ -237,50 +266,74 @@ export class UnifiedAdapter {
         });
         if (existing) matchedBy = 'email';
       }
+
+      if (!existing && normalizedPhone && normalizedPhone !== '0000000000') {
+        existing = await queryRunner.manager
+          .createQueryBuilder(Customer, 'customer')
+          .where('customer.tenantId = :tenantId', { tenantId })
+          .andWhere("REGEXP_REPLACE(customer.phonePrimary, '\\D', '', 'g') = :phone", { phone: normalizedPhone })
+          .getOne();
+        if (existing) matchedBy = 'phonePrimary';
+      }
     }
 
-    // Gestione cliente esistente
     if (existing) {
       if (strategy === 'SKIP') {
-        this.updateCache(existing, normalizedCF, normalizedEmail);
+        this.updateCache(existing, normalizedCF, normalizedEmail, normalizedPhone);
         return { customer: existing, isNew: false, matchedBy };
       }
 
       if (strategy === 'UPDATE') {
-        // Aggiorna solo campi che esistono sicuramente
         if (data.firstName) existing.firstName = data.firstName;
         if (data.lastName) existing.lastName = data.lastName;
         if (data.email) existing.email = data.email;
         if (data.fiscalCode && !existing.fiscalCode) existing.fiscalCode = normalizedCF;
-        // 🔥 RIMOSSO: telefono - campo non esiste o ha nome diverso
+        if (data.phonePrimary && data.phonePrimary !== '0000000000') existing.phonePrimary = data.phonePrimary;
+        if (data.phoneSecondary) existing.phoneSecondary = data.phoneSecondary.replace(/\D/g, '');
+        
+        if (data.wash || data.pacchettiAggiuntivi) {
+          existing.importMetadata = {
+            ...existing.importMetadata,
+            wash: data.wash,
+            pacchettiAggiuntivi: data.pacchettiAggiuntivi,
+            updatedAt: new Date()
+          };
+        }
         
         existing = await queryRunner.manager.save(existing);
       }
 
-      this.updateCache(existing, normalizedCF, normalizedEmail);
+      this.updateCache(existing, normalizedCF, normalizedEmail, normalizedPhone);
       return { customer: existing, isNew: false, matchedBy };
     }
 
-    // Creazione nuovo cliente - solo campi sicuri
+    // Creazione nuovo cliente
     const newCustomer = queryRunner.manager.create(Customer, {
       tenantId,
       firstName: data.firstName,
       lastName: data.lastName,
       fiscalCode: normalizedCF || null,
-      email: data.email,
-      // 🔥 RIMOSSO: campo telefono non esiste nell'entità
+      email: data.email || null,
+      phonePrimary: data.phonePrimary, // Ora è garantito esista (anche se placeholder)
+      phoneSecondary: data.phoneSecondary?.replace(/\D/g, '') || null,
       address: data.address || {},
       status: 'active',
       sourceImportJobId: data.importJobId,
+      importMetadata: {
+        wash: data.wash,
+        phonePlaceholder: data.phonePrimary === '0000000000',
+        rawDataSnapshot: data,
+        importedAt: new Date()
+      }
     });
 
     const saved = await queryRunner.manager.save(newCustomer);
-    this.updateCache(saved, normalizedCF, normalizedEmail);
+    this.updateCache(saved, normalizedCF, normalizedEmail, normalizedPhone);
     
     return { customer: saved, isNew: true, matchedBy: 'created' };
   }
 
-  private updateCache(customer: Customer, cf: string, email: string) {
+  private updateCache(customer: Customer, cf: string, email: string, phone: string) {
     if (this.customerCache.size >= this.CACHE_LIMIT) {
       const firstKey = this.customerCache.keys().next().value;
       this.customerCache.delete(firstKey);
@@ -288,6 +341,7 @@ export class UnifiedAdapter {
 
     if (cf) this.customerCache.set(`cf:${cf}`, customer);
     if (email) this.customerCache.set(`email:${email}`, customer);
+    if (phone) this.customerCache.set(`phone:${phone}`, customer);
   }
 
   private async createPractice(
@@ -297,12 +351,12 @@ export class UnifiedAdapter {
     userId: string,
     queryRunner: any,
   ): Promise<Practice> {
-    const practice = queryRunner.manager.create(Practice, {
+    const practiceData: any = {
       tenantId,
       customerId,
       createdBy: userId,
       createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
-      type: data.type.toUpperCase() as PracticeType,
+      type: data.type?.toUpperCase() as PracticeType,
       status: data.status || 'draft',
       operationalStatus: data.operationalStatus || 'PENDING',
       offerCode: data.offerCode,
@@ -325,8 +379,15 @@ export class UnifiedAdapter {
         ...(data.migrationCode && { migrationCode: data.migrationCode }),
       },
       paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,
-    });
+    };
 
+    if (data.pacchettiAggiuntivi) {
+      practiceData.offerNote = practiceData.offerNote 
+        ? `${practiceData.offerNote} | Pacchetti: ${data.pacchettiAggiuntivi}`
+        : `Pacchetti: ${data.pacchettiAggiuntivi}`;
+    }
+
+    const practice = queryRunner.manager.create(Practice, practiceData);
     return await queryRunner.manager.save(practice);
   }
 
@@ -383,53 +444,72 @@ export class UnifiedAdapter {
   }
 
   private isCustomerField(target: string): boolean {
-    // 🔥 Solo campi che esistono sicuramente nell'entità
-    const fields = ['firstName', 'lastName', 'fiscalCode', 'email', 
-                   'address', 'vatNumber', 'notes', 'city', 'postalCode', 'province'];
+    const fields = [
+      'firstName', 'lastName', 'fiscalCode', 'email', 
+      'phonePrimary', 'phoneSecondary',
+      'mobile', 'phone', // Mappati automaticamente a phonePrimary
+      'vatNumber', 'address', 'customerSegment', 
+      'status', 'notes', 'assignedTo',
+      'wash'
+    ];
     return fields.includes(target);
   }
 
   private isPracticeField(target: string): boolean {
-    const fields = ['type', 'offerCode', 'offerName', 'offerCanone', 'offerAttivazione', 
-                   'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
-                   'offerScadenza', 'status', 'operationalStatus', 'lineType', 
-                   'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
-                   'migrationCode', 'iban', 'oldLineNumber'];
+    const fields = [
+      'type', 'offerCode', 'offerName', 'offerCanone', 'offerAttivazione', 
+      'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
+      'offerScadenza', 'status', 'operationalStatus', 'lineType', 
+      'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
+      'migrationCode', 'iban', 'oldLineNumber', 'pacchettiAggiuntivi'
+    ];
     return fields.includes(target);
   }
 
   getTargetFields(): Array<{ name: string; label: string; type: string; required: boolean; category: 'customer' | 'practice'; helpText?: string }> {
     return [
+      // === CLIENTE ===
       { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' },
       { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' },
       { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer', 
-        helpText: 'Identificatore principale per il matching' },
+        helpText: 'Identificatore principale' },
       { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer',
-        helpText: 'Identificatore secondario. Deve essere univoca.' },
+        helpText: 'Identificatore secondario' },
+      { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer',
+        helpText: 'Obbligatorio in DB, ma se manca usa Mobile/Phone come fallback, o viene generato placeholder 0000000000 se hai CF/Email' },
+      { name: 'mobile', label: 'Cellulare (fallback)', type: 'string', required: false, category: 'customer',
+        helpText: 'Se mappato e phonePrimary vuoto, verrà usato questo' },
+      { name: 'phone', label: 'Telefono (fallback)', type: 'string', required: false, category: 'customer',
+        helpText: 'Alias per phonePrimary se usi nomi diversi' },
+      { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' },
+      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer',
+        helpText: 'Campo wash salvato in importMetadata' },
       { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' },
-      { name: 'address', label: 'Indirizzo', type: 'string', required: false, category: 'customer' },
-      { name: 'city', label: 'Città', type: 'string', required: false, category: 'customer' },
-      { name: 'postalCode', label: 'CAP', type: 'string', required: false, category: 'customer' },
+      { name: 'address', label: 'Indirizzo (JSON)', type: 'string', required: false, category: 'customer' },
+      { name: 'customerSegment', label: 'Segmento', type: 'string', required: false, category: 'customer' },
+      { name: 'notes', label: 'Note', type: 'text', required: false, category: 'customer' },
       
+      // === PRATICA ===
       { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice',
-        helpText: 'Auto-rilevato da Nome Offerta se non mappato' },
-      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice',
-        helpText: 'Usato per auto-rilevare il gestore (es. "Sky Q" -> SKY)' },
+        helpText: 'Auto-rilevato da Nome Offerta' },
+      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice' },
+      { name: 'pacchettiAggiuntivi', label: 'Pacchetti Aggiuntivi', type: 'string', required: false, category: 'practice',
+        helpText: 'Salvati nelle note offerta' },
       { name: 'offerCanone', label: 'Canone €', type: 'string', required: false, category: 'practice' },
       { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' },
       { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' },
       { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' },
-      { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice', helpText: 'Formato: GG/MM/AAAA o AAAA-MM-DD' },
+      { name: 'createdAt', label: 'Data Inserimento', type: 'date', required: false, category: 'practice', 
+        helpText: 'GG/MM/AAAA' },
       { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' },
-      { name: 'soldBy', label: 'Venduto Da (nome)', type: 'string', required: false, category: 'practice' },
-      { name: 'enteredBy', label: 'Inserito Da (nome)', type: 'string', required: false, category: 'practice' },
+      { name: 'soldBy', label: 'Venduto Da', type: 'string', required: false, category: 'practice' },
+      { name: 'enteredBy', label: 'Inserito Da', type: 'string', required: false, category: 'practice' },
       { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice' },
       { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice' },
       { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice' },
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice' },
       { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice' },
-      { name: 'status', label: 'Stato', type: 'enum', required: false, category: 'practice' },
-      { name: 'notes', label: 'Note', type: 'text', required: false, category: 'practice' },
+      { name: 'notes', label: 'Note Pratica', type: 'text', required: false, category: 'practice' },
     ];
   }
 }

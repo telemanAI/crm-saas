@@ -74,6 +74,29 @@ export class UnifiedAdapter {
     return { value: null, source: 'none' };
   }
 
+  /**
+   * 🔥 FIX: Logica intelligente WASH
+   * Se contiene "NO" (prima o con WASH) → NON è wash
+   * Se contiene "WASH" o "SI" → È wash (suspect)
+   */
+  private parseWashConfig(washValue: any): { enabled: boolean; type: 'suspect' | 'none' } | null {
+    if (!washValue) return null;
+    
+    const value = String(washValue).toLowerCase().trim();
+    
+    // Se c'è "no" (compreso "no wash", "nowash", "no") → NON è wash
+    if (value.includes('no')) {
+      return { enabled: false, type: 'none' };
+    }
+    
+    // Se c'è "wash" o "si" → È wash suspect
+    if (value.includes('wash') || value === 'si' || value.includes('suspect')) {
+      return { enabled: true, type: 'suspect' };
+    }
+    
+    return null;
+  }
+
   async validateRow(row: any, mapping: any, tenantId: string): Promise<UnifiedRowResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -92,7 +115,7 @@ export class UnifiedAdapter {
         customerData[col.target] = value;
       } else if (this.isPracticeField(col.target)) {
         practiceData[col.target] = value;
-        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti'].includes(col.target)) {
+        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData', 'iban'].includes(col.target)) {
           hasPractice = true;
         }
       }
@@ -133,8 +156,11 @@ export class UnifiedAdapter {
       errors.push('Inserire almeno uno tra: Codice Fiscale, Email o Telefono');
     }
 
+    // 🔥 FIX: Validazione CF con pulizia spazi
     if (customerData.fiscalCode) {
-      const cfValidation = CommonValidators.fiscalCode(customerData.fiscalCode);
+      const cleanedCF = String(customerData.fiscalCode).replace(/\s/g, '').toUpperCase();
+      customerData.fiscalCode = cleanedCF; // Salva pulito
+      const cfValidation = CommonValidators.fiscalCode(cleanedCF);
       if (!cfValidation.valid) warnings.push(`CF non valido: ${cfValidation.error}`);
     }
 
@@ -177,6 +203,7 @@ export class UnifiedAdapter {
     tenantId: string,
     userId: string,
     duplicateStrategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW',
+    importJobId?: string
   ): Promise<{ customer?: Customer; practice?: Practice; action: string }> {
     
     const validation = await this.validateRow(row, mapping, tenantId);
@@ -201,7 +228,8 @@ export class UnifiedAdapter {
         customerData, 
         tenantId, 
         duplicateStrategy,
-        queryRunner
+        queryRunner,
+        importJobId
       );
 
       let practice: Practice | undefined;
@@ -212,7 +240,8 @@ export class UnifiedAdapter {
           customerResult.customer.id, 
           tenantId, 
           userId,
-          queryRunner
+          queryRunner,
+          importJobId
         );
       }
 
@@ -237,11 +266,12 @@ export class UnifiedAdapter {
     tenantId: string,
     strategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW',
     queryRunner: any,
+    importJobId?: string
   ): Promise<{ customer: Customer; isNew: boolean; matchedBy: string }> {
     
-    const normalizedCF = data.fiscalCode?.toString().trim().toUpperCase() || '';
+    // 🔥 FIX: Pulizia CF da spazi
+    const normalizedCF = data.fiscalCode?.toString().trim().toUpperCase().replace(/\s/g, '') || '';
     const normalizedEmail = data.email?.toString().trim().toLowerCase() || '';
-    // 🔥 FIX: Conversione esplicita a String per phonePrimary
     const normalizedPhone = data.phonePrimary 
       ? String(data.phonePrimary).replace(/\D/g, '') 
       : '';
@@ -296,23 +326,11 @@ export class UnifiedAdapter {
         if (data.lastName) existing.lastName = data.lastName;
         if (data.email) existing.email = data.email;
         if (data.fiscalCode && !existing.fiscalCode) existing.fiscalCode = normalizedCF;
-        // 🔥 FIX: Conversione esplicita per phonePrimary e phoneSecondary
         if (data.phonePrimary && data.phonePrimary !== '0000000000') {
           existing.phonePrimary = String(data.phonePrimary).replace(/\D/g, '');
         }
         if (data.phoneSecondary) {
           existing.phoneSecondary = String(data.phoneSecondary).replace(/\D/g, '');
-        }
-        
-        if (data.wash || data.pacchettiAggiuntivi || data.prodotti) {
-          const currentMetadata = (existing.importMetadata || {}) as any;
-          existing.importMetadata = {
-            ...currentMetadata,
-            wash: data.wash,
-            pacchettiAggiuntivi: data.pacchettiAggiuntivi,
-            prodotti: data.prodotti,
-            updatedAt: new Date().toISOString()
-          };
         }
         
         existing = await queryRunner.manager.save(existing);
@@ -333,11 +351,9 @@ export class UnifiedAdapter {
       phoneSecondary: data.phoneSecondary ? String(data.phoneSecondary).replace(/\D/g, '') : null,
       address: data.address || {},
       status: 'active',
-      sourceImportJobId: data.importJobId,
+      sourceImportJobId: importJobId,
       importMetadata: {
         wash: data.wash,
-        pacchettiAggiuntivi: data.pacchettiAggiuntivi,
-        prodotti: data.prodotti,
         phonePlaceholder: data.phonePrimary === '0000000000',
         rawDataSnapshot: data,
         importedAt: new Date().toISOString()
@@ -367,7 +383,23 @@ export class UnifiedAdapter {
     tenantId: string,
     userId: string,
     queryRunner: any,
+    importJobId?: string
   ): Promise<Practice> {
+    
+    // 🔥 FIX: Gestione WASH intelligente
+    const washConfig = this.parseWashConfig(data.wash);
+    
+    // 🔥 FIX: Gestione appuntamento (senza controlli rigidi)
+    let appointmentData = null;
+    if (data.appointmentData) {
+      // Se è già un oggetto, usalo; se è stringa, wrappa
+      if (typeof data.appointmentData === 'object') {
+        appointmentData = data.appointmentData;
+      } else {
+        appointmentData = { raw: String(data.appointmentData) };
+      }
+    }
+
     const practiceData: any = {
       tenantId,
       customerId,
@@ -388,20 +420,30 @@ export class UnifiedAdapter {
       installationAddress: data.installationAddress || {},
       currentStep: 1,
       completedSteps: [],
-      sourceImportJobId: data.importJobId,
+      sourceImportJobId: importJobId,
       soldBy: data.soldBy,
       enteredBy: data.enteredBy,
       oldLineData: {
         ...(data.oldLineNumber && { phoneNumber: data.oldLineNumber }),
         ...(data.migrationCode && { migrationCode: data.migrationCode }),
       },
-      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,
+      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : {},
+      // 🔥 FIX: WASH config
+      washConfig: washConfig || undefined,
+      // 🔥 FIX: Appointment data
+      appointmentData: appointmentData,
+      importMetadata: {
+        originalRowNumber: data._rowNumber,
+        rawDataSnapshot: data,
+        validationOverrides: []
+      }
     };
 
     // Gestione campi extra nelle note
     const extraFields: string[] = [];
     if (data.pacchettiAggiuntivi) extraFields.push(`Pacchetti: ${data.pacchettiAggiuntivi}`);
     if (data.prodotti) extraFields.push(`Prodotti: ${data.prodotti}`);
+    if (data.wash && !washConfig?.enabled) extraFields.push(`Wash: ${data.wash}`);
     
     if (extraFields.length > 0) {
       practiceData.offerNote = practiceData.offerNote 
@@ -451,6 +493,7 @@ export class UnifiedAdapter {
       case 'normalize_phone':
         return str.replace(/\D/g, '');
       case 'normalize_cf':
+        // 🔥 FIX: Rimuove anche spazi dal CF
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
       case 'parse_date':
         const parseDateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
@@ -484,20 +527,17 @@ export class UnifiedAdapter {
       'offerScadenza', 'status', 'operationalStatus', 'lineType', 
       'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
       'migrationCode', 'iban', 'oldLineNumber', 
-      'pacchettiAggiuntivi', 'prodotti' // ✅ Aggiunto prodotti
+      'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData'
     ];
     return fields.includes(target);
   }
 
-  /**
-   * 🔥 Campi ordinati ALFABETICAMENTE per label (con categorie separate)
-   */
   getTargetFields(): Array<{ name: string; label: string; type: string; required: boolean; category: 'customer' | 'practice'; helpText?: string }> {
     const customerFields = [
       { name: 'address', label: 'Indirizzo (JSON)', type: 'string', required: false, category: 'customer' as const },
       { name: 'customerSegment', label: 'Segmento Cliente', type: 'string', required: false, category: 'customer' as const },
       { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer' as const, helpText: 'Identificatore secondario' },
-      { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer' as const, helpText: 'Identificatore principale' },
+      { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer' as const, helpText: 'Identificatore principale (tollera spazi)' },
       { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' as const },
       { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' as const },
       { name: 'mobile', label: 'Cellulare (fallback)', type: 'string', required: false, category: 'customer' as const, helpText: 'Usato come phonePrimary se vuoto' },
@@ -506,10 +546,11 @@ export class UnifiedAdapter {
       { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer' as const, helpText: 'Obbligatorio in DB, ma fallback disponibile' },
       { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' as const },
       { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' as const },
-      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer' as const, helpText: 'Campo wash salvato in importMetadata' },
+      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer' as const, helpText: 'Valori: SI, WASH, NO WASH, NO' },
     ];
 
     const practiceFields = [
+      { name: 'appointmentData', label: 'Dati Appuntamento', type: 'json', required: false, category: 'practice' as const, helpText: 'Data, ora e note installazione' },
       { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice' as const, helpText: 'Formato: GG/MM/AAAA' },
       { name: 'enteredBy', label: 'Inserito Da', type: 'string', required: false, category: 'practice' as const },
       { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice' as const },
@@ -524,15 +565,15 @@ export class UnifiedAdapter {
       { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' as const },
       { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' as const },
       { name: 'pacchettiAggiuntivi', label: 'Pacchetti Aggiuntivi', type: 'string', required: false, category: 'practice' as const, helpText: 'Servizi extra (Netflix, Sky Sport, etc.)' },
-      { name: 'prodotti', label: 'Prodotti', type: 'string', required: false, category: 'practice' as const, helpText: 'Prodotti associati alla pratica' }, // ✅ Aggiunto
+      { name: 'prodotti', label: 'Prodotti', type: 'string', required: false, category: 'practice' as const, helpText: 'Prodotti associati alla pratica' },
       { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice' as const },
       { name: 'soldBy', label: 'Venduto Da', type: 'string', required: false, category: 'practice' as const },
       { name: 'status', label: 'Stato Pratica', type: 'enum', required: false, category: 'practice' as const },
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice' as const },
       { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice' as const, helpText: 'Auto-rilevato da Nome Offerta se non mappato' },
+      { name: 'wash', label: 'Wash Config', type: 'string', required: false, category: 'practice' as const, helpText: 'SI/WASH = wash attiva, NO/NO WASH = wash disattiva' },
     ];
 
-    // 🔥 Ordinamento alfabetico per label all'interno di ogni categoria
     const sortByLabel = (a: any, b: any) => a.label.localeCompare(b.label, 'it');
     
     return [

@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
-import Select from 'react-select';
 
 interface TargetField {
   name: string;
@@ -22,64 +21,153 @@ interface Props {
   onCancel: () => void;
 }
 
-// Stili custom per react-select (tema dark/scuro del CRM)
-const selectStyles = {
-  control: (base: any, state: any) => ({
-    ...base,
-    backgroundColor: '#0f172a', // slate-900
-    borderColor: state.isFocused ? '#6366f1' : '#334155', // indigo-500 / slate-700
-    boxShadow: state.isFocused ? '0 0 0 1px #6366f1' : 'none',
-    '&:hover': {
-      borderColor: '#475569', // slate-600
-    },
-    minHeight: '38px',
-  }),
-  option: (base: any, state: any) => ({
-    ...base,
-    backgroundColor: state.isSelected 
-      ? '#6366f1' // indigo-500
-      : state.isFocused 
-        ? '#1e293b' // slate-800
-        : '#0f172a', // slate-900
-    color: state.isSelected ? 'white' : '#e2e8f0', // slate-200
-    cursor: 'pointer',
-    '&:active': {
-      backgroundColor: '#4f46e5', // indigo-600
-    },
-  }),
-  menu: (base: any) => ({
-    ...base,
-    backgroundColor: '#0f172a', // slate-900
-    border: '1px solid #334155', // slate-700
-    zIndex: 100,
-  }),
-  input: (base: any) => ({
-    ...base,
-    color: '#e2e8f0', // slate-200
-  }),
-  placeholder: (base: any) => ({
-    ...base,
-    color: '#64748b', // slate-500
-  }),
-  singleValue: (base: any) => ({
-    ...base,
-    color: '#e2e8f0', // slate-200
-  }),
-  dropdownIndicator: (base: any) => ({
-    ...base,
-    color: '#64748b', // slate-500
-    '&:hover': {
-      color: '#94a3b8', // slate-400
-    },
-  }),
-  indicatorSeparator: (base: any) => ({
-    ...base,
-    backgroundColor: '#334155', // slate-700
-  }),
-  noOptionsMessage: (base: any) => ({
-    ...base,
-    color: '#64748b', // slate-500
-  }),
+// ✅ Componente custom per select con ricerca (senza librerie esterne)
+const SearchableSelect = ({ 
+  options, 
+  value, 
+  onChange, 
+  placeholder = "Cerca campo..." 
+}: { 
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selectedOption = options.find(opt => opt.value === value);
+
+  // Filtra le opzioni in base alla ricerca
+  const filteredOptions = useMemo(() => {
+    if (!searchTerm.trim()) return options;
+    const term = searchTerm.toLowerCase();
+    return options.filter(opt => 
+      opt.label.toLowerCase().includes(term) ||
+      opt.value.toLowerCase().includes(term)
+    );
+  }, [options, searchTerm]);
+
+  // Chiudi quando clicchi fuori
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Reset search quando si apre/chiude
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm('');
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [isOpen]);
+
+  const handleSelect = (optionValue: string) => {
+    onChange(optionValue);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange('');
+    setSearchTerm('');
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      {/* Input che mostra il valore selezionato o permette la ricerca */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        className={`
+          w-full px-3 py-2 rounded-md border cursor-pointer flex items-center justify-between
+          ${isOpen ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-600 hover:border-slate-500'}
+          bg-slate-900 text-slate-200 min-h-[38px]
+        `}
+      >
+        {isOpen ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder={placeholder}
+            className="w-full bg-transparent outline-none text-sm text-slate-200 placeholder-slate-500"
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span className={`text-sm truncate ${selectedOption ? 'text-slate-200' : 'text-slate-500'}`}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        )}
+        
+        <div className="flex items-center gap-1 ml-2">
+          {selectedOption && !isOpen && (
+            <button 
+              onClick={handleClear}
+              className="text-slate-500 hover:text-slate-300 p-0.5 rounded"
+            >
+              ✕
+            </button>
+          )}
+          <svg 
+            className={`w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Dropdown con lista filtrata */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto">
+          {/* Opzione per deselezionare */}
+          <div
+            onClick={() => handleSelect('')}
+            className="px-3 py-2 text-sm text-slate-400 hover:bg-slate-800 cursor-pointer border-b border-slate-800"
+          >
+            -- Non mappare --
+          </div>
+          
+          {/* Lista filtrata */}
+          {filteredOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-slate-500">Nessun campo trovato</div>
+          ) : (
+            filteredOptions.map((option) => (
+              <div
+                key={option.value}
+                onClick={() => handleSelect(option.value)}
+                className={`
+                  px-3 py-2 text-sm cursor-pointer flex items-center justify-between
+                  ${option.value === value 
+                    ? 'bg-indigo-600 text-white' 
+                    : 'text-slate-200 hover:bg-slate-800'
+                  }
+                `}
+              >
+                <span>{option.label}</span>
+                {option.value === value && (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default function MappingStep({ jobId, headers, previewRows, targetEntity, fileFormat, onComplete, onBack, onCancel }: Props) {
@@ -112,17 +200,15 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
     }
   };
 
-  // ✅ Prepara le opzioni per react-select ordinate alfabeticamente
+  // ✅ Prepara le opzioni ordinate alfabeticamente
   const fieldOptions = useMemo(() => {
-    const options = [
+    return [
       { value: '', label: '-- Non mappare --' },
       ...targetFields.map(field => ({
         value: field.name,
         label: `${field.label}${field.required ? ' *' : ''}`,
-        category: field.category,
       }))
     ];
-    return options;
   }, [targetFields]);
 
   const autoMapColumns = () => {
@@ -415,7 +501,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
-      {/* Tabella Mapping - Barra di ricerca esterna RIMOSSA */}
+      {/* Tabella Mapping */}
       <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
           <div className="col-span-3">Colonna File</div>
@@ -432,7 +518,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
             const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
             if (selectedField && selectedField.category === 'customer') {
               const previewValue = previewRows[0] ? getPreviewValue(previewRows[0], header) : '-';
-              const selectedOption = fieldOptions.find(opt => opt.value === mapping[header]) || null;
               
               return (
                 <div key={header} className="px-6 py-4 hover:bg-gray-50 transition-colors">
@@ -441,16 +526,12 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       <span className="font-medium text-gray-900">{header}</span>
                     </div>
                     <div className="col-span-3">
-                      {/* ✅ React Select con ricerca integrata */}
-                      <Select
-                        value={selectedOption}
-                        onChange={(option) => handleMappingChange(header, option?.value || '')}
+                      {/* ✅ SearchableSelect custom (senza react-select) */}
+                      <SearchableSelect
                         options={fieldOptions}
-                        styles={selectStyles}
-                        isClearable
+                        value={mapping[header] || ''}
+                        onChange={(value) => handleMappingChange(header, value)}
                         placeholder="Cerca campo..."
-                        noOptionsMessage={() => "Nessun campo trovato"}
-                        className="text-sm"
                       />
                     </div>
                     <div className="col-span-2">
@@ -489,7 +570,6 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
             const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
             if (!selectedField || selectedField.category === 'practice') {
               const previewValue = previewRows[0] ? getPreviewValue(previewRows[0], header) : '-';
-              const selectedOption = fieldOptions.find(opt => opt.value === mapping[header]) || null;
               
               return (
                 <div key={header} className="px-6 py-4 hover:bg-gray-50 transition-colors">
@@ -498,16 +578,12 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       <span className="font-medium text-gray-900">{header}</span>
                     </div>
                     <div className="col-span-3">
-                      {/* ✅ React Select con ricerca integrata */}
-                      <Select
-                        value={selectedOption}
-                        onChange={(option) => handleMappingChange(header, option?.value || '')}
+                      {/* ✅ SearchableSelect custom (senza react-select) */}
+                      <SearchableSelect
                         options={fieldOptions}
-                        styles={selectStyles}
-                        isClearable
+                        value={mapping[header] || ''}
+                        onChange={(value) => handleMappingChange(header, value)}
                         placeholder="Cerca campo..."
-                        noOptionsMessage={() => "Nessun campo trovato"}
-                        className="text-sm"
                       />
                     </div>
                     <div className="col-span-2">

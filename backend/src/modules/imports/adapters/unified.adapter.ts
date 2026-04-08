@@ -320,13 +320,13 @@ export class UnifiedAdapter {
       currentStep: 1,
       completedSteps: [],
       sourceImportJobId: data.importJobId,
-      soldBy: data.soldBy,  // ✅ AGGIUNTO
-      enteredBy: data.enteredBy,  // ✅ AGGIUNTO
-      oldLineData: {  // ✅ AGGIUNTO
+      soldBy: data.soldBy,
+      enteredBy: data.enteredBy,
+      oldLineData: {
         ...(data.oldLineNumber && { phoneNumber: data.oldLineNumber }),
         ...(data.migrationCode && { migrationCode: data.migrationCode }),
       },
-      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,  // ✅ AGGIUNTO
+      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,
     });
 
     return await queryRunner.manager.save(practice);
@@ -373,19 +373,12 @@ export class UnifiedAdapter {
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
       case 'parse_date':
         // Converte DD/MM/YYYY o DD-MM-YYYY in YYYY-MM-DD per il DB
-        const dateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
-        if (dateMatch) {
-          const [, day, month, year] = dateMatch;
+        const parseDateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);  // ✅ Nome univoco
+        if (parseDateMatch) {
+          const [, day, month, year] = parseDateMatch;
           const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
           return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
-		case 'parse_date':
-      const dateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
-      if (dateMatch) {
-        const [, day, month, year] = dateMatch;
-        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
-        return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      }
         // Se già in formato ISO (YYYY-MM-DD), lascia così
         if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
         return str;
@@ -404,7 +397,7 @@ export class UnifiedAdapter {
                    'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
                    'offerScadenza', 'status', 'operationalStatus', 'lineType', 
                    'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
-                   'migrationCode', 'iban', 'oldLineNumber'];  // ✅ AGGIUNTI nuovi campi
+                   'migrationCode', 'iban', 'oldLineNumber'];
     return fields.includes(target);
   }
 
@@ -432,11 +425,11 @@ export class UnifiedAdapter {
       { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' },
       { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice', helpText: 'Data originale dal vecchio sistema. Formato: GG/MM/AAAA o AAAA-MM-DD' },
       { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' },
-      { name: 'soldBy', label: 'Venduto Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore/agente che ha venduto' },  // ✅ AGGIUNTO
-      { name: 'enteredBy', label: 'Inserito Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore che inserisce la pratica' },  // ✅ AGGIUNTO
-      { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice', helpText: 'Codice dal vecchio sistema' },  // ✅ AGGIUNTO
-      { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice', helpText: 'IBAN per addebito' },  // ✅ AGGIUNTO
-      { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice', helpText: 'Numero da migrare' },  // ✅ AGGIUNTO
+      { name: 'soldBy', label: 'Venduto Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore/agente che ha venduto' },
+      { name: 'enteredBy', label: 'Inserito Da (nome)', type: 'string', required: false, category: 'practice', helpText: 'Operatore che inserisce la pratica' },
+      { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice', helpText: 'Codice dal vecchio sistema' },
+      { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice', helpText: 'IBAN per addebito' },
+      { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice', helpText: 'Numero da migrare' },
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice',
         helpText: 'FTTH, FTTC, ADSL, etc.' },
       { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice',

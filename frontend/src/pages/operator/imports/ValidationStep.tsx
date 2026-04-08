@@ -29,7 +29,7 @@ export default function ValidationStep({ jobId, tenantId, mappingConfig, fileNam
       const response = await axios.post(`/imports/${jobId}/validate`, {
   mappingConfig: mappingConfig 
       }, {
-        params: { tenantId: effectiveTenantId }  // ✅ AGGIUNTO
+        params: { tenantId: tenantId }  // ✅ AGGIUNTO
       });
       setValidationResults(response.data.validationResults || response.data);
     } catch (err: any) {

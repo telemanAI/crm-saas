@@ -379,6 +379,13 @@ export class UnifiedAdapter {
           const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
           return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
+		case 'parse_date':
+      const dateMatch = str.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        const fullYear = year.length === 2 ? (parseInt(year) > 50 ? `19${year}` : `20${year}`) : year;
+        return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
         // Se già in formato ISO (YYYY-MM-DD), lascia così
         if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str;
         return str;

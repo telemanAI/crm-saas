@@ -19,7 +19,7 @@ export interface UnifiedRowResult {
 
 @Injectable()
 export class UnifiedAdapter {
-  // Cache semplificata: solo CF e Email ( Phone rimosso - non esiste nel DB)
+  // Cache semplificata: solo CF e Email
   private customerCache = new Map<string, Customer>();
   private readonly CACHE_LIMIT = 500;
 
@@ -81,34 +81,30 @@ export class UnifiedAdapter {
       }
     });
 
-    // 🎯 SMART DETECTION: Determina il tipo pratica
+    // SMART DETECTION: Determina il tipo pratica
     let practiceType = practiceData.type;
 
-    // Se non c'è type mappato, prova auto-detect dal nome offerta
     if (!practiceType && practiceData.offerName) {
       practiceType = this.detectTypeFromOfferName(practiceData.offerName);
     }
 
-    // Se c'è forceType nella config, sovrascrive tutto
     if (mapping.forceType) {
       practiceType = mapping.forceType;
     }
 
-    // Aggiorna practiceData con il tipo finale determinato
     if (practiceType) {
       practiceData.type = practiceType.toUpperCase();
     }
 
-    // 🔥 FIX: Validazione Cliente - Solo CF o Email (Phone rimosso, non esiste nel DB)
+    // Validazione Cliente - Solo CF o Email
     if (!customerData.firstName) errors.push('Nome obbligatorio');
     if (!customerData.lastName) errors.push('Cognome obbligatorio');
 
     const hasIdentifier = customerData.fiscalCode || customerData.email;
     if (!hasIdentifier) {
-      errors.push('Inserire almeno uno tra: Codice Fiscale o Email (Telefono non è un identificatore univoco)');
+      errors.push('Inserire almeno uno tra: Codice Fiscale o Email');
     }
 
-    // Validazioni specifiche
     if (customerData.fiscalCode) {
       const cfValidation = CommonValidators.fiscalCode(customerData.fiscalCode);
       if (!cfValidation.valid) warnings.push(`CF non valido: ${cfValidation.error}`);
@@ -166,7 +162,6 @@ export class UnifiedAdapter {
     await queryRunner.startTransaction();
 
     try {
-      // 🔥 FIX: Ricerca solo per CF o Email (no Phone)
       const customerResult = await this.findOrCreateCustomerSmart(
         customerData, 
         tenantId, 
@@ -203,7 +198,7 @@ export class UnifiedAdapter {
   }
 
   /**
-   * 🔥 FIX: Smart Match SOLO su CF e Email (Phone rimosso - campo non esiste)
+   * Smart Match SOLO su CF e Email
    */
   private async findOrCreateCustomerSmart(
     data: any,
@@ -218,7 +213,7 @@ export class UnifiedAdapter {
     let existing: Customer | undefined;
     let matchedBy = 'none';
 
-    // 1. Cache Lookup (solo CF e Email)
+    // 1. Cache Lookup
     if (normalizedCF && this.customerCache.has(`cf:${normalizedCF}`)) {
       existing = this.customerCache.get(`cf:${normalizedCF}`);
       matchedBy = 'fiscalCode (cache)';
@@ -227,9 +222,8 @@ export class UnifiedAdapter {
       matchedBy = 'email (cache)';
     }
 
-    // 2. DB Lookup se non in cache (solo CF e Email)
+    // 2. DB Lookup
     if (!existing) {
-      // Priorità: CF -> Email
       if (normalizedCF) {
         existing = await queryRunner.manager.findOne(Customer, {
           where: { fiscalCode: normalizedCF, tenantId },
@@ -253,14 +247,12 @@ export class UnifiedAdapter {
       }
 
       if (strategy === 'UPDATE') {
-        // Merge intelligente
+        // Aggiorna solo campi che esistono sicuramente
         if (data.firstName) existing.firstName = data.firstName;
         if (data.lastName) existing.lastName = data.lastName;
         if (data.email) existing.email = data.email;
         if (data.fiscalCode && !existing.fiscalCode) existing.fiscalCode = normalizedCF;
-        // 🔥 FIX: Usa mobile invece di phone
-        if (data.mobile) existing.mobile = data.mobile;
-        if (data.phone && !data.mobile) existing.mobile = data.phone; // Fallback se arriva phone ma il campo è mobile
+        // 🔥 RIMOSSO: telefono - campo non esiste o ha nome diverso
         
         existing = await queryRunner.manager.save(existing);
       }
@@ -269,15 +261,14 @@ export class UnifiedAdapter {
       return { customer: existing, isNew: false, matchedBy };
     }
 
-    // 🔥 FIX: Creazione nuovo cliente con campo mobile (non phone)
+    // Creazione nuovo cliente - solo campi sicuri
     const newCustomer = queryRunner.manager.create(Customer, {
       tenantId,
       firstName: data.firstName,
       lastName: data.lastName,
       fiscalCode: normalizedCF || null,
       email: data.email,
-      // Usa mobile come campo telefono, con fallback se il mapping usa 'phone'
-      mobile: data.mobile?.replace(/\D/g, '') || data.phone?.replace(/\D/g, '') || null,
+      // 🔥 RIMOSSO: campo telefono non esiste nell'entità
       address: data.address || {},
       status: 'active',
       sourceImportJobId: data.importJobId,
@@ -289,9 +280,6 @@ export class UnifiedAdapter {
     return { customer: saved, isNew: true, matchedBy: 'created' };
   }
 
-  /**
-   * Gestione Cache LRU
-   */
   private updateCache(customer: Customer, cf: string, email: string) {
     if (this.customerCache.size >= this.CACHE_LIMIT) {
       const firstKey = this.customerCache.keys().next().value;
@@ -378,7 +366,7 @@ export class UnifiedAdapter {
         const match = str.match(/(\d+[.,]?\d*)/);
         return match ? match[1].replace(',', '.') : str;
       case 'normalize_phone':
-        return str.replace(/\D/g, ''); // 🔥 FIX: Solo numeri, rimuove tutto il resto
+        return str.replace(/\D/g, '');
       case 'normalize_cf':
         return str.toUpperCase().replace(/[^A-Z0-9]/g, '');
       case 'parse_date':
@@ -395,9 +383,9 @@ export class UnifiedAdapter {
   }
 
   private isCustomerField(target: string): boolean {
-    // 🔥 FIX: Rimossi phonePrimary/phoneSecondary, aggiunto mobile
-    const fields = ['firstName', 'lastName', 'fiscalCode', 'email', 'mobile', 'phone', 
-                   'address', 'vatNumber', 'customerSegment', 'notes', 'city', 'postalCode', 'province'];
+    // 🔥 Solo campi che esistono sicuramente nell'entità
+    const fields = ['firstName', 'lastName', 'fiscalCode', 'email', 
+                   'address', 'vatNumber', 'notes', 'city', 'postalCode', 'province'];
     return fields.includes(target);
   }
 
@@ -412,23 +400,17 @@ export class UnifiedAdapter {
 
   getTargetFields(): Array<{ name: string; label: string; type: string; required: boolean; category: 'customer' | 'practice'; helpText?: string }> {
     return [
-      // CLIENTE
       { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' },
       { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' },
       { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer', 
         helpText: 'Identificatore principale per il matching' },
       { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer',
         helpText: 'Identificatore secondario. Deve essere univoca.' },
-      { name: 'mobile', label: 'Cellulare', type: 'string', required: false, category: 'customer',
-        helpText: 'Numero di telefono cellulare' },
-      { name: 'phone', label: 'Telefono (fallback)', type: 'string', required: false, category: 'customer',
-        helpText: 'Se mappato, verrà salvato nel campo Mobile' },
       { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' },
       { name: 'address', label: 'Indirizzo', type: 'string', required: false, category: 'customer' },
       { name: 'city', label: 'Città', type: 'string', required: false, category: 'customer' },
       { name: 'postalCode', label: 'CAP', type: 'string', required: false, category: 'customer' },
       
-      // PRATICA
       { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice',
         helpText: 'Auto-rilevato da Nome Offerta se non mappato' },
       { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice',

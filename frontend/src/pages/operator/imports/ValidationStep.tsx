@@ -4,6 +4,7 @@ import axios from '../../../lib/axios';
 
 interface Props {
   jobId: string;
+  tenantId: string;  // ✅ AGGIUNTO
   mappingConfig: any;
   fileName: string;
   totalRows: number;
@@ -12,7 +13,7 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function ValidationStep({ jobId, mappingConfig, fileName, totalRows, onComplete, onBack, onCancel }: Props) {
+export default function ValidationStep({ jobId, tenantId, mappingConfig, fileName, totalRows, onComplete, onBack, onCancel }: Props) {  // ✅ AGGIUNTO tenantId
   const [validating, setValidating] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [validationResults, setValidationResults] = useState<any>(null);
@@ -25,11 +26,12 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
 
   const validateImport = async () => {
     try {
-     const response = await axios.post(`/imports/${jobId}/validate`, {
-        jobId,
-        mappingConfig,
+      const response = await axios.post(`/imports/${jobId}/validate`, {
+        mappingConfig 
+      }, {
+        params: { tenantId }  // ✅ AGGIUNTO
       });
-      setValidationResults(response.data.validationResults || response.data); // ✅ Protezione per entrambi i formati
+      setValidationResults(response.data.validationResults || response.data);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore durante la validazione');
     } finally {
@@ -46,7 +48,11 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
     setError(null);
 
     try {
-      await axios.post('/api/imports/execute', { jobId });
+      await axios.post('/imports/execute', {  // ✅ Tolto /api se necessario, usa lo stesso pattern degli altri
+        jobId 
+      }, {
+        params: { tenantId }  // ✅ AGGIUNTO per supporto SuperAdmin
+      });
       onComplete();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore durante l\'importazione');
@@ -55,7 +61,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
   };
 
   const getFilteredPreview = () => {
-    if (!validationResults?.preview) return []; // ✅ Protezione optional chaining
+    if (!validationResults?.preview) return [];
     
     return validationResults.preview.filter((row: any) => {
       if (selectedTab === 'valid') return row.valid && row.warnings.length === 0;
@@ -99,7 +105,7 @@ export default function ValidationStep({ jobId, mappingConfig, fileName, totalRo
       </div>
 
       {/* Stats Preview */}
-      {validationResults?.summary && ( // ✅ Protezione optional chaining
+      {validationResults?.summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
             <div className="text-2xl font-bold text-slate-900">{validationResults.summary.totalCustomers || 0}</div>

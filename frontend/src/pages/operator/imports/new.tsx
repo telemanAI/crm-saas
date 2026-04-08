@@ -148,6 +148,7 @@ export default function NewImportPage() {
           {currentStep === 3 && (
             <ValidationStep
               jobId={importData.jobId as string}
+			   tenantId={effectiveTenantId as string}
               mappingConfig={importData.mappingConfig}
               fileName={importData.fileName as string}
               totalRows={importData.totalRows}

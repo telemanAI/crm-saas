@@ -4,7 +4,7 @@ import axios from '../../../lib/axios';
 
 interface Props {
   jobId: string;
-  tenantId: string;
+  tenantId: string;  // ✅ AGGIUNTO
   mappingConfig: any;
   fileName: string;
   totalRows: number;
@@ -13,365 +13,241 @@ interface Props {
   onCancel: () => void;
 }
 
-export default function ValidationStep({ jobId, tenantId, mappingConfig, fileName, totalRows, onComplete, onBack, onCancel }: Props) {
+export default function ValidationStep({ 
+  jobId, 
+  tenantId,  // ✅ AGGIUNTO
+  mappingConfig, 
+  fileName, 
+  totalRows,
+  onComplete, 
+  onBack, 
+  onCancel 
+}: Props) {
   const [validating, setValidating] = useState(true);
   const [executing, setExecuting] = useState(false);
   const [validationResults, setValidationResults] = useState<any>(null);
-  const [selectedTab, setSelectedTab] = useState<'valid' | 'warnings' | 'errors'>('valid');
   const [error, setError] = useState<string | null>(null);
+  const [selectedTab, setSelectedTab] = useState<'valid' | 'warnings' | 'errors'>('valid');
 
   useEffect(() => {
     validateImport();
   }, []);
 
-  const normalizeResults = (raw: any) => {
-    const results = raw.validationResults || raw;
-    
-    // 🛠️ FIX: Se il backend non manda summary, calcolalo dal preview
-    if (!results.summary && Array.isArray(results.preview)) {
-      const total = results.preview.length;
-      const valid = results.preview.filter((r: any) => r.valid && (!r.warnings || r.warnings.length === 0)).length;
-      const warnings = results.preview.filter((r: any) => r.valid && r.warnings && r.warnings.length > 0).length;
-      const errors = results.preview.filter((r: any) => !r.valid).length;
-      
-      results.summary = {
-        totalCustomers: total,
-        customersWithPractice: results.preview.filter((r: any) => r.data?.hasPractice).length,
-        onlyCustomers: results.preview.filter((r: any) => !r.data?.hasPractice).length,
-        valid,
-        warnings,
-        errors
-      };
-    }
-
-    // 🛠️ FIX: Assicurati che i conteggi siano sempre numeri
-    if (results.summary) {
-      results.summary.totalCustomers = results.summary.totalCustomers ?? 0;
-      results.summary.customersWithPractice = results.summary.customersWithPractice ?? 0;
-      results.summary.onlyCustomers = results.summary.onlyCustomers ?? 0;
-    }
-
-    return results;
-  };
-
   const validateImport = async () => {
     try {
       const response = await axios.post(`/imports/${jobId}/validate`, {
-        mappingConfig: mappingConfig 
+        mappingConfig 
       }, {
-        params: { tenantId: tenantId }
+        params: { tenantId }  // ✅ AGGIUNTO
       });
       
-      // 🛠️ FIX: Normalizza i risultati prima di salvarli
-      const normalized = normalizeResults(response.data);
-      setValidationResults(normalized);
+      // Fix per summary mancante
+      const results = response.data.validationResults || response.data;
+      if (!results.summary && results.preview) {
+        results.summary = {
+          totalCustomers: results.preview.length,
+          customersWithPractice: results.preview.filter((r: any) => r.data?.hasPractice).length,
+          onlyCustomers: results.preview.filter((r: any) => !r.data?.hasPractice).length,
+        };
+      }
+      
+      setValidationResults(results);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Errore durante la validazione');
+      setError(err.response?.data?.message || 'Errore validazione');
     } finally {
       setValidating(false);
     }
   };
 
-  const executeImport = async () => {
-    if (!confirm(`Sei sicuro di voler importare ${totalRows} righe?`)) {
-      return;
-    }
-
+  // ✅ FIX EXECUTE: Aggiunto params tenantId
+  const handleExecute = async () => {
     setExecuting(true);
     setError(null);
-
+    
     try {
       await axios.post('/imports/execute', {
-        jobId 
+        jobId,
       }, {
-        params: { tenantId }
+        params: { tenantId }  // ✅ AGGIUNTO
       });
+      
       onComplete();
     } catch (err: any) {
       setError(err.response?.data?.message || 'Errore durante l\'importazione');
+    } finally {
       setExecuting(false);
     }
-  };
-
-  const getFilteredPreview = () => {
-    if (!validationResults?.preview) return [];
-    
-    return validationResults.preview.filter((row: any) => {
-      if (selectedTab === 'valid') return row.valid && (!row.warnings || row.warnings.length === 0);
-      if (selectedTab === 'warnings') return row.valid && row.warnings && row.warnings.length > 0;
-      if (selectedTab === 'errors') return !row.valid;
-      return true;
-    });
   };
 
   if (validating) {
     return (
       <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Validazione in corso...</h3>
-        <p className="text-gray-600 mt-2">Stiamo verificando i dati prima dell'importazione</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Validazione in corso...</p>
       </div>
     );
   }
 
-  if (error && !validationResults) {
+  if (error) {
     return (
-      <div className="text-center py-12">
-        <svg className="mx-auto h-12 w-12 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <h3 className="mt-4 text-lg font-semibold text-gray-900">Errore di validazione</h3>
-        <p className="text-gray-600 mt-2">{error}</p>
-        <div className="mt-6 space-x-3">
-          <Button onClick={onBack}>← Torna al Mapping</Button>
-          <Button onClick={validateImport} variant="ghost">Riprova</Button>
-        </div>
+      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+        <p className="text-red-800">{error}</p>
+        <Button onClick={onBack} className="mt-4">Torna indietro</Button>
       </div>
     );
   }
+
+  const results = validationResults || {};
+  const hasErrors = (results.errors || 0) > 0;
+  const hasWarnings = (results.warnings || 0) > 0;
+
+  // Filtra le righe in base al tab selezionato
+  const filteredRows = results.preview?.filter((row: any) => {
+    if (selectedTab === 'valid') return row.valid && (row.warnings?.length === 0);
+    if (selectedTab === 'warnings') return row.valid && (row.warnings?.length > 0);
+    if (selectedTab === 'errors') return !row.valid;
+    return true;
+  }) || [];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">3. Verifica i dati</h2>
-        <p className="text-gray-600">Controlla i risultati della validazione prima di procedere</p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-green-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-green-700">{results.valid || 0}</div>
+          <div className="text-sm text-green-600">Valide</div>
+        </div>
+        <div className="bg-yellow-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-yellow-700">{results.warnings || 0}</div>
+          <div className="text-sm text-yellow-600">Warning</div>
+        </div>
+        <div className="bg-red-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-red-700">{results.errors || 0}</div>
+          <div className="text-sm text-red-600">Errori</div>
+        </div>
+        <div className="bg-blue-50 p-4 rounded-lg text-center">
+          <div className="text-2xl font-bold text-blue-700">
+            {results?.summary?.totalCustomers || results?.preview?.length || 0}
+          </div>
+          <div className="text-sm text-blue-600">Clienti Totali</div>
+        </div>
       </div>
 
-      {/* Stats Preview - 🛠️ FIX: Controlli null-safe */}
-      {validationResults?.summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm">
-            <div className="text-2xl font-bold text-slate-900">
-              {validationResults.summary.totalCustomers ?? 0}
-            </div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Clienti Totali</div>
-          </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-blue-700">
-              {validationResults.summary.customersWithPractice ?? 0}
-            </div>
-            <div className="text-xs text-blue-600 uppercase tracking-wide mt-1">Con Pratica</div>
-          </div>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-gray-700">
-              {validationResults.summary.onlyCustomers ?? 0}
-            </div>
-            <div className="text-xs text-gray-500 uppercase tracking-wide mt-1">Solo Anagrafica</div>
-          </div>
-          <div className={`rounded-xl p-4 text-center border ${
-            (validationResults.errors ?? 0) === 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-          }`}>
-            <div className={`text-2xl font-bold ${(validationResults.errors ?? 0) === 0 ? 'text-green-700' : 'text-red-700'}`}>
-              {(validationResults.errors ?? 0) === 0 ? '✓' : validationResults.errors}
-            </div>
-            <div className={`text-xs uppercase tracking-wide mt-1 ${(validationResults.errors ?? 0) === 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {(validationResults.errors ?? 0) === 0 ? 'Pronto' : 'Errori'}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Info Box */}
-      {(validationResults?.errors ?? 0) > 0 ? (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
-          <svg className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-red-800">Attenzione! Ci sono errori bloccanti</p>
-            <p className="text-sm text-red-700 mt-1">
-              {validationResults.errors} righe contengono errori che impediscono l'importazione. Correggi il file o torna al mapping per modificare le impostazioni.
-            </p>
-          </div>
-        </div>
-      ) : (validationResults?.warnings ?? 0) > 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-start space-x-3">
-          <svg className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+      {hasErrors && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start text-red-800 text-sm">
+          <svg className="h-5 w-5 mr-2 mt-0.5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-yellow-800">Ci sono alcuni warning</p>
-            <p className="text-sm text-yellow-700 mt-1">
-              {validationResults.warnings} righe hanno warning (es. campi opzionali mancanti). L'importazione può procedere, ma verifica i dati.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-start space-x-3">
-          <svg className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-green-800">Tutto pronto per l'importazione!</p>
-            <p className="text-sm text-green-700 mt-1">
-              Tutte le {validationResults?.valid ?? 0} righe sono valide e pronte per essere importate.
-            </p>
+          <div>
+            <p className="font-semibold">Ci sono {results.errors} errori da correggere</p>
+            <p className="mt-1">Vai alla tab "Errori" qui sotto per vedere i dettagli e correggere il mapping.</p>
           </div>
         </div>
       )}
 
-      {/* 🆕 Tabs per filtrare - AGGIUNTO */}
-      <div className="flex space-x-2 mb-4">
+      {/* ✅ TABS per filtrare */}
+      <div className="flex space-x-2 border-b border-gray-200">
         <button
           onClick={() => setSelectedTab('valid')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             selectedTab === 'valid' 
-              ? 'bg-green-100 text-green-800 border border-green-300' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+              ? 'border-green-500 text-green-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          ✅ Valide ({validationResults?.valid ?? 0})
+          ✅ Valide ({results.valid || 0})
         </button>
         <button
           onClick={() => setSelectedTab('warnings')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             selectedTab === 'warnings' 
-              ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+              ? 'border-yellow-500 text-yellow-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          ⚠️ Warning ({validationResults?.warnings ?? 0})
+          ⚠️ Warning ({results.warnings || 0})
         </button>
         <button
           onClick={() => setSelectedTab('errors')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`px-4 py-2 font-medium text-sm border-b-2 transition-colors ${
             selectedTab === 'errors' 
-              ? 'bg-red-100 text-red-800 border border-red-300' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent'
+              ? 'border-red-500 text-red-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          ❌ Errori ({validationResults?.errors ?? 0})
+          ❌ Errori ({results.errors || 0})
         </button>
       </div>
 
       {/* Preview Table */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden">
-        <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
-          {/* 🆕 Titolo dinamico in base al tab selezionato - MODIFICATO */}
+      <div className="bg-white rounded-lg border overflow-hidden">
+        <div className="px-4 py-3 border-b bg-gray-50 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-gray-900">
             {selectedTab === 'valid' ? 'Righe Valide' : selectedTab === 'warnings' ? 'Righe con Warning' : 'Righe con Errori'}
           </h3>
+          <span className="text-xs text-gray-500">Prime 100 righe</span>
         </div>
-        <div className="max-h-96 overflow-y-auto">
-          {getFilteredPreview().length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              Nessuna riga in questa categoria
-            </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Riga
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Stato
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dati
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Note
-                  </th>
+        
+        <div className="max-h-96 overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Riga</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Stato</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Dettagli</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Cliente</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredRows.map((row: any, idx: number) => (
+                <tr key={idx} className={!row.valid ? 'bg-red-50' : row.warnings?.length > 0 ? 'bg-yellow-50' : ''}>
+                  <td className="px-4 py-2 text-sm text-gray-900">{row.rowNumber}</td>
+                  <td className="px-4 py-2">
+                    {!row.valid ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                        Errore
+                      </span>
+                    ) : row.warnings?.length > 0 ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Warning
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        OK
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-600">
+                    {row.errors?.map((e: string, i: number) => (
+                      <div key={i} className="text-red-600 text-xs">❌ {e}</div>
+                    ))}
+                    {row.warnings?.map((w: string, i: number) => (
+                      <div key={i} className="text-yellow-600 text-xs">⚠️ {w}</div>
+                    ))}
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-900">
+                    {row.data?.firstName} {row.data?.lastName}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {getFilteredPreview().slice(0, 20).map((row: any) => (
-                  <tr key={row.rowNumber} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{row.rowNumber}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {row.valid && (!row.warnings || row.warnings.length === 0) && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          ✓ Valido
-                        </span>
-                      )}
-                      {row.warnings && row.warnings.length > 0 && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          ⚠ Warning
-                        </span>
-                      )}
-                      {!row.valid && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          ✗ Errore
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="space-y-1">
-                        {row.data?.customer?.firstName && <div><span className="font-medium">Nome:</span> {row.data.customer.firstName}</div>}
-                        {row.data?.customer?.lastName && <div><span className="font-medium">Cognome:</span> {row.data.customer.lastName}</div>}
-                        {row.data?.customer?.fiscalCode && <div><span className="font-medium">CF:</span> {row.data.customer.fiscalCode}</div>}
-                        {row.data?.practice?.offerName && <div><span className="font-medium">Offerta:</span> {row.data.practice.offerName}</div>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      {row.errors && row.errors.length > 0 && (
-                        <div className="space-y-1">
-                          {row.errors.map((err: string, idx: number) => (
-                            <div key={idx} className="text-red-600 text-xs">• {err}</div>
-                          ))}
-                        </div>
-                      )}
-                      {row.warnings && row.warnings.length > 0 && (
-                        <div className="space-y-1">
-                          {row.warnings.map((warn: string, idx: number) => (
-                            <div key={idx} className="text-yellow-600 text-xs">• {warn}</div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
-        {getFilteredPreview().length > 20 && (
-          <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 text-sm text-gray-600 text-center">
-            Mostrate prime 20 righe di {getFilteredPreview().length}
-          </div>
-        )}
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start space-x-3">
-          <svg className="h-5 w-5 text-red-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-          </svg>
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
-      {/* Actions */}
       <div className="flex justify-between pt-6 border-t">
-        <Button onClick={onBack} variant="ghost" disabled={executing}>
-          ← Indietro
-        </Button>
         <div className="flex space-x-3">
-          <Button onClick={onCancel} variant="ghost" disabled={executing}>
-            Annulla
-          </Button>
-          <Button
-            onClick={executeImport}
-            disabled={(validationResults?.errors ?? 0) > 0 || executing}
-            className="bg-green-600 hover:bg-green-700 text-white disabled:bg-gray-300"
-          >
-            {executing ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Importazione in corso...
-              </>
-            ) : (
-              <>✓ Conferma e Importa</>
-            )}
-          </Button>
+          <Button onClick={onCancel} variant="ghost">Annulla</Button>
+          <Button onClick={onBack} variant="outline">← Modifica mapping</Button>
         </div>
+        
+        <Button 
+          onClick={handleExecute} 
+          disabled={hasErrors || executing}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8"
+        >
+          {executing ? 'Importazione in corso...' : 'Conferma Importazione →'}
+        </Button>
       </div>
     </div>
   );

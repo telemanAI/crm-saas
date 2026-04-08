@@ -85,11 +85,24 @@ export class ImportsController {
     );
   }
 
+  // ✅ FIX EXECUTE: Aggiunta gestione tenantId per SuperAdmin
   @Post('execute')
-  async executeImport(@Body() dto: ExecuteImportDto, @Req() req) {
+  async executeImport(
+    @Body() dto: ExecuteImportDto,
+    @Query('tenantId') queryTenantId: string,
+    @Req() req,
+  ) {
+    const effectiveTenantId = (req.user?.role === 'SUPER_ADMIN' && queryTenantId) 
+      ? queryTenantId 
+      : req.user?.tenantId;
+
+    if (!effectiveTenantId) {
+      throw new BadRequestException('Tenant ID richiesto');
+    }
+
     const job = await this.importsService.executeImport(
       dto.jobId,
-      req.user.tenantId,
+      effectiveTenantId,  // ✅ Passa effectiveTenantId invece di req.user.tenantId
       req.user.userId,
     );
 

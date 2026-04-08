@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
 
@@ -27,7 +27,8 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   const [duplicateStrategy, setDuplicateStrategy] = useState<'SKIP' | 'UPDATE' | 'CREATE_NEW'>('UPDATE');
   const [autoMapped, setAutoMapped] = useState(false);
   const [transformers, setTransformers] = useState<any>({});
-  const [forceType, setForceType] = useState<string | null>(null);  // ✅ AGGIUNTO stato per tipo forzato
+  const [forceType, setForceType] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState(''); // ✅ Aggiunto stato ricerca
 
   useEffect(() => {
     loadTargetFields();
@@ -37,11 +38,26 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   const loadTargetFields = async () => {
     try {
       const response = await axios.get(`/imports/fields/UNIFIED_IMPORT`);
-      setTargetFields(response.data.fields as TargetField[]);
+      // ✅ Ordinamento alfabetico per label
+      const sortedFields = (response.data.fields as TargetField[]).sort((a, b) => 
+        a.label.localeCompare(b.label, 'it')
+      );
+      setTargetFields(sortedFields);
     } catch (error) {
       console.error('Errore caricamento campi:', error);
     }
   };
+
+  // ✅ Filtraggio campi per ricerca
+  const filteredTargetFields = useMemo(() => {
+    if (!searchQuery.trim()) return targetFields;
+    const query = searchQuery.toLowerCase();
+    return targetFields.filter(field => 
+      field.label.toLowerCase().includes(query) ||
+      field.name.toLowerCase().includes(query) ||
+      field.category.toLowerCase().includes(query)
+    );
+  }, [targetFields, searchQuery]);
 
   const autoMapColumns = () => {
     const newMapping: any = {};
@@ -137,7 +153,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
           transformer: transformers[source] || undefined,
         })),
       duplicateStrategy,
-      forceType, // ✅ AGGIUNTO: null = auto-detect, string = forzato
+      forceType,
     };
 
     onComplete({ mappingConfig });
@@ -191,7 +207,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
-      {/* ✅ NUOVA SEZIONE: Rilevamento Gestore */}
+      {/* Rilevamento Gestore */}
       <div className="bg-indigo-900/30 border border-indigo-500/30 rounded-lg p-4 mb-6">
         <h3 className="font-semibold text-indigo-300 mb-3">🎯 Rilevamento Gestore</h3>
         
@@ -239,7 +255,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
-      {/* Guida Trasformazioni - Tema Dark */}
+      {/* Guida Trasformazioni */}
       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 mb-6">
         <details className="group">
           <summary className="flex justify-between items-center cursor-pointer list-none">
@@ -333,6 +349,34 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         </div>
       </div>
 
+      {/* ✅ BARRA DI RICERCA AGGIUNTA */}
+      <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 sticky top-0 z-20 shadow-lg">
+        <div className="flex items-center space-x-3">
+          <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Cerca campi CRM (es: telefono, offerta, codice fiscale...)"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 bg-transparent border-none outline-none text-white placeholder-slate-400"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-slate-400 hover:text-white"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <div className="mt-2 text-xs text-slate-400">
+          {filteredTargetFields.length} campi disponibili 
+          {searchQuery && ` (filtrati da ${targetFields.length})`}
+        </div>
+      </div>
+
       <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
           <div className="col-span-3">Colonna File</div>
@@ -348,8 +392,9 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
           {headers.map((header) => {
             const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
             if (selectedField && selectedField.category === 'customer') {
+              const previewValue = previewRows[0] ? getPreviewValue(previewRows[0], header) : '-';
               return (
-                <div key={header} className="px-6 py-4 hover:bg-gray-50">
+                <div key={header} className="px-6 py-4 hover:bg-gray-50 transition-colors group">
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-3">
                       <span className="font-medium text-gray-900">{header}</span>
@@ -358,10 +403,10 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       <select
                         value={mapping[header] || ''}
                         onChange={(e) => handleMappingChange(header, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       >
                         <option value="">-- Non mappare --</option>
-                        {targetFields.map((field: any) => (
+                        {filteredTargetFields.map((field: any) => (
                           <option key={field.name} value={field.name}>
                             {field.label} {field.required && '*'}
                           </option>
@@ -380,8 +425,12 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       </select>
                     </div>
                     <div className="col-span-4">
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
-                        {previewRows[0] ? getPreviewValue(previewRows[0], header) : '-'}
+                      {/* ✅ FIX HOVER: aggiunto title e classi per hover */}
+                      <code 
+                        className="text-xs bg-gray-100 px-2 py-1 rounded block truncate cursor-help hover:bg-gray-200 hover:whitespace-normal hover:word-break-all transition-all"
+                        title={previewValue}
+                      >
+                        {previewValue}
                       </code>
                     </div>
                   </div>
@@ -400,8 +449,9 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
           {headers.map((header) => {
             const selectedField = targetFields.find((f: any) => f.name === mapping[header]);
             if (!selectedField || selectedField.category === 'practice') {
+              const previewValue = previewRows[0] ? getPreviewValue(previewRows[0], header) : '-';
               return (
-                <div key={header} className="px-6 py-4 hover:bg-gray-50">
+                <div key={header} className="px-6 py-4 hover:bg-gray-50 transition-colors group">
                   <div className="grid grid-cols-12 gap-4 items-center">
                     <div className="col-span-3">
                       <span className="font-medium text-gray-900">{header}</span>
@@ -410,10 +460,10 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       <select
                         value={mapping[header] || ''}
                         onChange={(e) => handleMappingChange(header, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                       >
                         <option value="">-- Non mappare --</option>
-                        {targetFields.map((field: any) => (
+                        {filteredTargetFields.map((field: any) => (
                           <option key={field.name} value={field.name}>
                             {field.label} {field.required && '*'}
                           </option>
@@ -432,8 +482,12 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
                       </select>
                     </div>
                     <div className="col-span-4">
-                      <code className="text-xs bg-gray-100 px-2 py-1 rounded block truncate">
-                        {previewRows[0] ? getPreviewValue(previewRows[0], header) : '-'}
+                      {/* ✅ FIX HOVER: aggiunto title e classi per hover */}
+                      <code 
+                        className="text-xs bg-gray-100 px-2 py-1 rounded block truncate cursor-help hover:bg-gray-200 hover:whitespace-normal hover:break-all transition-all"
+                        title={previewValue}
+                      >
+                        {previewValue}
                       </code>
                     </div>
                   </div>

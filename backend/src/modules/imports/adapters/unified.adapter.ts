@@ -49,10 +49,28 @@ export class UnifiedAdapter {
     return null;
   }
 
+  /**
+   * 🔥 FIX: Gestione flessibile del telefono con conversione esplicita a String
+   */
   private resolvePhonePrimary(data: any): { value: string | null; source: string } {
-    if (data.phonePrimary) return { value: data.phonePrimary.replace(/\D/g, ''), source: 'phonePrimary' };
-    if (data.mobile) return { value: data.mobile.replace(/\D/g, ''), source: 'mobile' };
-    if (data.phone) return { value: data.phone.replace(/\D/g, ''), source: 'phone' };
+    if (data.phonePrimary) {
+      return { 
+        value: String(data.phonePrimary).replace(/\D/g, ''), 
+        source: 'phonePrimary' 
+      };
+    }
+    if (data.mobile) {
+      return { 
+        value: String(data.mobile).replace(/\D/g, ''), 
+        source: 'mobile' 
+      };
+    }
+    if (data.phone) {
+      return { 
+        value: String(data.phone).replace(/\D/g, ''), 
+        source: 'phone' 
+      };
+    }
     return { value: null, source: 'none' };
   }
 
@@ -74,7 +92,7 @@ export class UnifiedAdapter {
         customerData[col.target] = value;
       } else if (this.isPracticeField(col.target)) {
         practiceData[col.target] = value;
-        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi'].includes(col.target)) {
+        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti'].includes(col.target)) {
           hasPractice = true;
         }
       }
@@ -223,7 +241,10 @@ export class UnifiedAdapter {
     
     const normalizedCF = data.fiscalCode?.toString().trim().toUpperCase() || '';
     const normalizedEmail = data.email?.toString().trim().toLowerCase() || '';
-    const normalizedPhone = data.phonePrimary?.toString().trim().replace(/\D/g, '') || '';
+    // 🔥 FIX: Conversione esplicita a String per phonePrimary
+    const normalizedPhone = data.phonePrimary 
+      ? String(data.phonePrimary).replace(/\D/g, '') 
+      : '';
 
     let existing: Customer | undefined;
     let matchedBy = 'none';
@@ -275,16 +296,21 @@ export class UnifiedAdapter {
         if (data.lastName) existing.lastName = data.lastName;
         if (data.email) existing.email = data.email;
         if (data.fiscalCode && !existing.fiscalCode) existing.fiscalCode = normalizedCF;
-        if (data.phonePrimary && data.phonePrimary !== '0000000000') existing.phonePrimary = data.phonePrimary;
-        if (data.phoneSecondary) existing.phoneSecondary = data.phoneSecondary.replace(/\D/g, '');
+        // 🔥 FIX: Conversione esplicita per phonePrimary e phoneSecondary
+        if (data.phonePrimary && data.phonePrimary !== '0000000000') {
+          existing.phonePrimary = String(data.phonePrimary).replace(/\D/g, '');
+        }
+        if (data.phoneSecondary) {
+          existing.phoneSecondary = String(data.phoneSecondary).replace(/\D/g, '');
+        }
         
-        // 🔥 FIX: Usa 'as any' per bypassare il type checking rigido
-        if (data.wash || data.pacchettiAggiuntivi) {
+        if (data.wash || data.pacchettiAggiuntivi || data.prodotti) {
           const currentMetadata = (existing.importMetadata || {}) as any;
           existing.importMetadata = {
             ...currentMetadata,
             wash: data.wash,
             pacchettiAggiuntivi: data.pacchettiAggiuntivi,
+            prodotti: data.prodotti,
             updatedAt: new Date().toISOString()
           };
         }
@@ -296,7 +322,7 @@ export class UnifiedAdapter {
       return { customer: existing, isNew: false, matchedBy };
     }
 
-    // 🔥 FIX: Usa 'as any' per importMetadata flessibile
+    // Creazione nuovo cliente
     const newCustomer = queryRunner.manager.create(Customer, {
       tenantId,
       firstName: data.firstName,
@@ -304,16 +330,18 @@ export class UnifiedAdapter {
       fiscalCode: normalizedCF || null,
       email: data.email || null,
       phonePrimary: data.phonePrimary,
-      phoneSecondary: data.phoneSecondary?.replace(/\D/g, '') || null,
+      phoneSecondary: data.phoneSecondary ? String(data.phoneSecondary).replace(/\D/g, '') : null,
       address: data.address || {},
       status: 'active',
       sourceImportJobId: data.importJobId,
       importMetadata: {
         wash: data.wash,
+        pacchettiAggiuntivi: data.pacchettiAggiuntivi,
+        prodotti: data.prodotti,
         phonePlaceholder: data.phonePrimary === '0000000000',
         rawDataSnapshot: data,
         importedAt: new Date().toISOString()
-      } as any // 🔥 Cast a any per permettere campi extra
+      } as any
     });
 
     const saved = await queryRunner.manager.save(newCustomer);
@@ -370,10 +398,15 @@ export class UnifiedAdapter {
       paymentMethod: data.iban ? { type: 'iban', value: data.iban } : undefined,
     };
 
-    if (data.pacchettiAggiuntivi) {
+    // Gestione campi extra nelle note
+    const extraFields: string[] = [];
+    if (data.pacchettiAggiuntivi) extraFields.push(`Pacchetti: ${data.pacchettiAggiuntivi}`);
+    if (data.prodotti) extraFields.push(`Prodotti: ${data.prodotti}`);
+    
+    if (extraFields.length > 0) {
       practiceData.offerNote = practiceData.offerNote 
-        ? `${practiceData.offerNote} | Pacchetti: ${data.pacchettiAggiuntivi}`
-        : `Pacchetti: ${data.pacchettiAggiuntivi}`;
+        ? `${practiceData.offerNote} | ${extraFields.join(' | ')}`
+        : extraFields.join(' | ');
     }
 
     const practice = queryRunner.manager.create(Practice, practiceData);
@@ -450,53 +483,61 @@ export class UnifiedAdapter {
       'offerVincolo', 'offerNote', 'offerDisattivazione', 'offerType', 
       'offerScadenza', 'status', 'operationalStatus', 'lineType', 
       'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
-      'migrationCode', 'iban', 'oldLineNumber', 'pacchettiAggiuntivi'
+      'migrationCode', 'iban', 'oldLineNumber', 
+      'pacchettiAggiuntivi', 'prodotti' // ✅ Aggiunto prodotti
     ];
     return fields.includes(target);
   }
 
+  /**
+   * 🔥 Campi ordinati ALFABETICAMENTE per label (con categorie separate)
+   */
   getTargetFields(): Array<{ name: string; label: string; type: string; required: boolean; category: 'customer' | 'practice'; helpText?: string }> {
+    const customerFields = [
+      { name: 'address', label: 'Indirizzo (JSON)', type: 'string', required: false, category: 'customer' as const },
+      { name: 'customerSegment', label: 'Segmento Cliente', type: 'string', required: false, category: 'customer' as const },
+      { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer' as const, helpText: 'Identificatore secondario' },
+      { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer' as const, helpText: 'Identificatore principale' },
+      { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' as const },
+      { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' as const },
+      { name: 'mobile', label: 'Cellulare (fallback)', type: 'string', required: false, category: 'customer' as const, helpText: 'Usato come phonePrimary se vuoto' },
+      { name: 'notes', label: 'Note Cliente', type: 'text', required: false, category: 'customer' as const },
+      { name: 'phone', label: 'Telefono (fallback)', type: 'string', required: false, category: 'customer' as const, helpText: 'Alias per phonePrimary' },
+      { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer' as const, helpText: 'Obbligatorio in DB, ma fallback disponibile' },
+      { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' as const },
+      { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' as const },
+      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer' as const, helpText: 'Campo wash salvato in importMetadata' },
+    ];
+
+    const practiceFields = [
+      { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice' as const, helpText: 'Formato: GG/MM/AAAA' },
+      { name: 'enteredBy', label: 'Inserito Da', type: 'string', required: false, category: 'practice' as const },
+      { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice' as const },
+      { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice' as const },
+      { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice' as const },
+      { name: 'notes', label: 'Note Pratica', type: 'text', required: false, category: 'practice' as const },
+      { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' as const },
+      { name: 'offerCanone', label: 'Canone €', type: 'string', required: false, category: 'practice' as const },
+      { name: 'offerCode', label: 'Codice Offerta', type: 'string', required: false, category: 'practice' as const },
+      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice' as const, helpText: 'Usato per auto-rilevare il gestore' },
+      { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' as const },
+      { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' as const },
+      { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'pacchettiAggiuntivi', label: 'Pacchetti Aggiuntivi', type: 'string', required: false, category: 'practice' as const, helpText: 'Servizi extra (Netflix, Sky Sport, etc.)' },
+      { name: 'prodotti', label: 'Prodotti', type: 'string', required: false, category: 'practice' as const, helpText: 'Prodotti associati alla pratica' }, // ✅ Aggiunto
+      { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice' as const },
+      { name: 'soldBy', label: 'Venduto Da', type: 'string', required: false, category: 'practice' as const },
+      { name: 'status', label: 'Stato Pratica', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice' as const },
+      { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice' as const, helpText: 'Auto-rilevato da Nome Offerta se non mappato' },
+    ];
+
+    // 🔥 Ordinamento alfabetico per label all'interno di ogni categoria
+    const sortByLabel = (a: any, b: any) => a.label.localeCompare(b.label, 'it');
+    
     return [
-      { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' },
-      { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' },
-      { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer', 
-        helpText: 'Identificatore principale' },
-      { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer',
-        helpText: 'Identificatore secondario' },
-      { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer',
-        helpText: 'Obbligatorio in DB, ma fallback su Mobile/Phone, o placeholder se hai CF/Email' },
-      { name: 'mobile', label: 'Cellulare (fallback)', type: 'string', required: false, category: 'customer',
-        helpText: 'Usato come phonePrimary se vuoto' },
-      { name: 'phone', label: 'Telefono (fallback)', type: 'string', required: false, category: 'customer',
-        helpText: 'Alias per phonePrimary' },
-      { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' },
-      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer',
-        helpText: 'Campo wash salvato in importMetadata' },
-      { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' },
-      { name: 'address', label: 'Indirizzo (JSON)', type: 'string', required: false, category: 'customer' },
-      { name: 'customerSegment', label: 'Segmento', type: 'string', required: false, category: 'customer' },
-      { name: 'notes', label: 'Note', type: 'text', required: false, category: 'customer' },
-      
-      { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice',
-        helpText: 'Auto-rilevato da Nome Offerta' },
-      { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice' },
-      { name: 'pacchettiAggiuntivi', label: 'Pacchetti Aggiuntivi', type: 'string', required: false, category: 'practice',
-        helpText: 'Salvati nelle note offerta' },
-      { name: 'offerCanone', label: 'Canone €', type: 'string', required: false, category: 'practice' },
-      { name: 'offerAttivazione', label: 'Costo Attivazione', type: 'string', required: false, category: 'practice' },
-      { name: 'offerVincolo', label: 'Vincolo (mesi)', type: 'string', required: false, category: 'practice' },
-      { name: 'offerNote', label: 'Note Offerta', type: 'string', required: false, category: 'practice' },
-      { name: 'createdAt', label: 'Data Inserimento', type: 'date', required: false, category: 'practice', 
-        helpText: 'GG/MM/AAAA' },
-      { name: 'operationalStatus', label: 'Stato Operativo', type: 'enum', required: false, category: 'practice' },
-      { name: 'soldBy', label: 'Venduto Da', type: 'string', required: false, category: 'practice' },
-      { name: 'enteredBy', label: 'Inserito Da', type: 'string', required: false, category: 'practice' },
-      { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice' },
-      { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice' },
-      { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice' },
-      { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice' },
-      { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice' },
-      { name: 'notes', label: 'Note Pratica', type: 'text', required: false, category: 'practice' },
+      ...customerFields.sort(sortByLabel),
+      ...practiceFields.sort(sortByLabel)
     ];
   }
 }

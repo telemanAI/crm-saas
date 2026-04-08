@@ -264,3 +264,86 @@ html:not(.dark) .bg-rose-100,
 html:not(.dark) .bg-indigo-100 {
   color: #111827 !important;
 }
+/* ============================================
+   FIX PER CARD IMPORTAZIONE (seconda immagine)
+   ============================================ */
+
+/* La card con le info (Clienti, Pratiche, Duplicati) */
+.import-info-card,
+[class*="bg-slate-800\\/50"] p,
+[class*="bg-slate-900\\/50"] p,
+[class*="bg-slate-800\\/50"] li,
+[class*="bg-slate-900\\/50"] li {
+  color: #cbd5e1 !important; /* slate-300 - garantisce leggibilità su sfondo scuro */
+}
+
+/* Nel tema chiaro, forza colore scuro ma leggibile */
+html:not(.dark) .import-info-card,
+html:not(.dark) [class*="bg-slate-800\\/50"] p,
+html:not(.dark) [class*="bg-slate-900\\/50"] p,
+html:not(.dark) [class*="bg-slate-800\\/50"] li,
+html:not(.dark) [class*="bg-slate-900\\/50"] li {
+  color: #374151 !important; /* gray-700 - buon contrasto su sfondo chiaro */
+}
+
+/* Fix specifico per la card nella seconda immagine (se ha classe diversa) */
+.bg-slate-800\/50 .text-slate-300,
+.bg-slate-900\/50 .text-slate-300,
+.bg-slate-800\/50 .text-slate-400,
+.bg-slate-900\/50 .text-slate-400 {
+  color: #e2e8f0 !important; /* slate-200 - più chiaro per leggibilità */
+}
+
+/* ============================================
+   FIX PER HOVER SULLE STRINGHE (prima immagine)
+   ============================================ */
+
+/* Quando passi il mouse sulla cella "Anteprima Dato" */
+.mapping-row code,
+[class*="truncate"] {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Al hover: mostra tutto il testo e porta in primo piano */
+.mapping-row:hover code,
+[class*="truncate"]:hover {
+  white-space: normal !important;
+  word-break: break-all !important;
+  overflow: visible !important;
+  z-index: 50 !important;
+  position: relative !important;
+  background-color: #e5e7eb !important; /* gray-200 - più scuro al hover */
+  color: #111827 !important; /* gray-900 - testo scuro garantito */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  padding: 0.5rem !important;
+  border-radius: 0.375rem !important;
+}
+
+/* Assicurati che il colore del testo non cambi in modo strano al hover */
+.mapping-row code:hover,
+[class*="bg-gray-100"]:hover {
+  color: #111827 !important; /* Mantiene colore scuro al hover */
+}
+
+/* Fix per tema scuro */
+.dark .mapping-row:hover code,
+.dark [class*="truncate"]:hover {
+  background-color: #334155 !important; /* slate-700 */
+  color: #f8fafc !important; /* slate-50 */
+}
+
+/* ============================================
+   FIX GENERALE VISIBILITÀ TESTO
+   ============================================ */
+
+/* Evita che il testo diventi invisibile su sfondi chiari */
+.text-gray-600 {
+  color: #4b5563 !important; /* gray-600 - sempre visibile */
+}
+
+/* Fix per elementi con truncate che potrebbero nascondere il testo al hover */
+.truncate:hover {
+  overflow: visible !important;
+  white-space: normal !important;
+}

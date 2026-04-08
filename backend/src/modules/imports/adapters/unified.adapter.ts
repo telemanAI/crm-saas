@@ -49,12 +49,7 @@ export class UnifiedAdapter {
     return null;
   }
 
-  /**
-   * Gestione flessibile del telefono: phonePrimary è obbligatorio in DB 
-   * ma l'import può usare phone/mobile come fallback
-   */
   private resolvePhonePrimary(data: any): { value: string | null; source: string } {
-    // Priorità: phonePrimary esplicito > mobile > phone > null
     if (data.phonePrimary) return { value: data.phonePrimary.replace(/\D/g, ''), source: 'phonePrimary' };
     if (data.mobile) return { value: data.mobile.replace(/\D/g, ''), source: 'mobile' };
     if (data.phone) return { value: data.phone.replace(/\D/g, ''), source: 'phone' };
@@ -85,7 +80,6 @@ export class UnifiedAdapter {
       }
     });
 
-    // 🔄 Risolvi telefono con fallback automatico
     const phoneResolved = this.resolvePhonePrimary(customerData);
     if (phoneResolved.value) {
       customerData.phonePrimary = phoneResolved.value;
@@ -108,10 +102,9 @@ export class UnifiedAdapter {
     if (!customerData.firstName) errors.push('Nome obbligatorio');
     if (!customerData.lastName) errors.push('Cognome obbligatorio');
 
-    // ⚠️ Telefono: warning se manca, ma non errore bloccante se c'è CF o Email
     if (!customerData.phonePrimary) {
       if (customerData.fiscalCode || customerData.email) {
-        warnings.push('Telefono primario mancante - verrà richiesto prima del salvataggio o generato un placeholder');
+        warnings.push('Telefono primario mancante - verrà generato un placeholder');
       } else {
         errors.push('Telefono richiesto: mappa "Telefono Primario", "Mobile" o "Phone" oppure aggiungi CF o Email');
       }
@@ -175,15 +168,9 @@ export class UnifiedAdapter {
 
     const { customer: customerData, practice: practiceData, hasPractice } = validation.data;
 
-    // 🔥 Se manca phonePrimary ma c'è CF o Email, genera un placeholder temporaneo 
-    // (o meglio ancora: chiedi all'utente di mapparlo, ma per sbloccare l'import...)
     if (!customerData.phonePrimary) {
-      if (customerData.fiscalCode) {
-        customerData.phonePrimary = '0000000000'; // Placeholder da aggiornare dopo
-        console.warn(`Cliente ${customerData.fiscalCode} creato senza telefono - aggiornare manualmente`);
-      } else if (customerData.email) {
+      if (customerData.fiscalCode || customerData.email) {
         customerData.phonePrimary = '0000000000';
-        console.warn(`Cliente ${customerData.email} creato senza telefono - aggiornare manualmente`);
       }
     }
 
@@ -291,12 +278,14 @@ export class UnifiedAdapter {
         if (data.phonePrimary && data.phonePrimary !== '0000000000') existing.phonePrimary = data.phonePrimary;
         if (data.phoneSecondary) existing.phoneSecondary = data.phoneSecondary.replace(/\D/g, '');
         
+        // 🔥 FIX: Usa 'as any' per bypassare il type checking rigido
         if (data.wash || data.pacchettiAggiuntivi) {
+          const currentMetadata = (existing.importMetadata || {}) as any;
           existing.importMetadata = {
-            ...existing.importMetadata,
+            ...currentMetadata,
             wash: data.wash,
             pacchettiAggiuntivi: data.pacchettiAggiuntivi,
-            updatedAt: new Date()
+            updatedAt: new Date().toISOString()
           };
         }
         
@@ -307,14 +296,14 @@ export class UnifiedAdapter {
       return { customer: existing, isNew: false, matchedBy };
     }
 
-    // Creazione nuovo cliente
+    // 🔥 FIX: Usa 'as any' per importMetadata flessibile
     const newCustomer = queryRunner.manager.create(Customer, {
       tenantId,
       firstName: data.firstName,
       lastName: data.lastName,
       fiscalCode: normalizedCF || null,
       email: data.email || null,
-      phonePrimary: data.phonePrimary, // Ora è garantito esista (anche se placeholder)
+      phonePrimary: data.phonePrimary,
       phoneSecondary: data.phoneSecondary?.replace(/\D/g, '') || null,
       address: data.address || {},
       status: 'active',
@@ -323,8 +312,8 @@ export class UnifiedAdapter {
         wash: data.wash,
         phonePlaceholder: data.phonePrimary === '0000000000',
         rawDataSnapshot: data,
-        importedAt: new Date()
-      }
+        importedAt: new Date().toISOString()
+      } as any // 🔥 Cast a any per permettere campi extra
     });
 
     const saved = await queryRunner.manager.save(newCustomer);
@@ -447,7 +436,7 @@ export class UnifiedAdapter {
     const fields = [
       'firstName', 'lastName', 'fiscalCode', 'email', 
       'phonePrimary', 'phoneSecondary',
-      'mobile', 'phone', // Mappati automaticamente a phonePrimary
+      'mobile', 'phone',
       'vatNumber', 'address', 'customerSegment', 
       'status', 'notes', 'assignedTo',
       'wash'
@@ -468,7 +457,6 @@ export class UnifiedAdapter {
 
   getTargetFields(): Array<{ name: string; label: string; type: string; required: boolean; category: 'customer' | 'practice'; helpText?: string }> {
     return [
-      // === CLIENTE ===
       { name: 'firstName', label: 'Nome', type: 'string', required: true, category: 'customer' },
       { name: 'lastName', label: 'Cognome', type: 'string', required: true, category: 'customer' },
       { name: 'fiscalCode', label: 'Codice Fiscale', type: 'string', required: false, category: 'customer', 
@@ -476,11 +464,11 @@ export class UnifiedAdapter {
       { name: 'email', label: 'Email', type: 'string', required: false, category: 'customer',
         helpText: 'Identificatore secondario' },
       { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer',
-        helpText: 'Obbligatorio in DB, ma se manca usa Mobile/Phone come fallback, o viene generato placeholder 0000000000 se hai CF/Email' },
+        helpText: 'Obbligatorio in DB, ma fallback su Mobile/Phone, o placeholder se hai CF/Email' },
       { name: 'mobile', label: 'Cellulare (fallback)', type: 'string', required: false, category: 'customer',
-        helpText: 'Se mappato e phonePrimary vuoto, verrà usato questo' },
+        helpText: 'Usato come phonePrimary se vuoto' },
       { name: 'phone', label: 'Telefono (fallback)', type: 'string', required: false, category: 'customer',
-        helpText: 'Alias per phonePrimary se usi nomi diversi' },
+        helpText: 'Alias per phonePrimary' },
       { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' },
       { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer',
         helpText: 'Campo wash salvato in importMetadata' },
@@ -489,7 +477,6 @@ export class UnifiedAdapter {
       { name: 'customerSegment', label: 'Segmento', type: 'string', required: false, category: 'customer' },
       { name: 'notes', label: 'Note', type: 'text', required: false, category: 'customer' },
       
-      // === PRATICA ===
       { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice',
         helpText: 'Auto-rilevato da Nome Offerta' },
       { name: 'offerName', label: 'Nome Offerta', type: 'string', required: false, category: 'practice' },

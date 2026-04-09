@@ -268,29 +268,51 @@ export class PracticesService {
         break;
       
       case 6:
-        practice.paymentMethod = dto.data?.paymentMethod || dto.data;
-        break;
-      
       case 7:
-        if (dto.data) {
+      case 8:
+      case 9:
+        // 🔥 FIX: Gestione flessibile per SKY e altri gestori con step dinamici
+        // Controlla il contenuto dei dati invece del numero step
+
+        if (dto.data?.paymentMethod || dto.data?.iban !== undefined) {
+          console.log(`[DEBUG] Step ${dto.stepNumber} - Salvataggio PaymentMethod`);
+          practice.paymentMethod = dto.data?.paymentMethod || { iban: dto.data?.iban, postePay: dto.data?.postePay, bollettino: dto.data?.bollettino };
+        }
+
+        if (dto.data?.data !== undefined || dto.data?.ora !== undefined) {
+          console.log(`[DEBUG] Step ${dto.stepNumber} - Salvataggio AppointmentData`);
+          practice.appointmentData = {
+            data: dto.data?.data,
+            ora: dto.data?.ora,
+            oraFine: dto.data?.oraFine,
+            accordi: dto.data?.accordi,
+            lavorazioniPost: dto.data?.lavorazioniPost
+          };
+        }
+
+        if (dto.data?.gdprConsent !== undefined || dto.data?.privacyData?.gdprConsent !== undefined) {
+          console.log(`[DEBUG] Step ${dto.stepNumber} - Salvataggio PrivacyData`);
           practice.privacyData = {
-            gdprConsent: dto.data.gdprConsent || dto.data.privacyData?.gdprConsent || false,
-            marketingConsent: dto.data.marketingConsent || dto.data.privacyData?.marketingConsent || false
+            gdprConsent: dto.data?.gdprConsent || dto.data?.privacyData?.gdprConsent || false,
+            marketingConsent: dto.data?.marketingConsent || dto.data?.privacyData?.marketingConsent || false
           };
         }
         break;
       
-      case 8:
-        console.log('[DEBUG] Step 8 - Appuntamento Installazione');
-        practice.appointmentData = {
-          data: dto.data?.data,
-          ora: dto.data?.ora,
-          oraFine: dto.data?.oraFine,
-          accordi: dto.data?.accordi,
-          lavorazioniPost: dto.data?.lavorazioniPost
-        };
+      case 10:
+        // Step 10: può essere appuntamento per SKY con configurazione complessa
+        if (dto.data?.data !== undefined || dto.data?.ora !== undefined) {
+          console.log('[DEBUG] Step 10 - Salvataggio AppointmentData');
+          practice.appointmentData = {
+            data: dto.data?.data,
+            ora: dto.data?.ora,
+            oraFine: dto.data?.oraFine,
+            accordi: dto.data?.accordi,
+            lavorazioniPost: dto.data?.lavorazioniPost
+          };
+        }
         break;
-      
+
       case 9:
         console.log('[DEBUG] Step 9 - Completamento Pratica');
         practice.status = 'completed';

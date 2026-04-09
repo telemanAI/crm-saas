@@ -81,19 +81,24 @@ export class UnifiedAdapter {
    */
   private parseWashConfig(washValue: any): { enabled: boolean; type: 'suspect' | 'none' } | null {
     if (!washValue) return null;
-    
+
     const value = String(washValue).toLowerCase().trim();
-    
-    // Se c'è "no" (compreso "no wash", "nowash", "no") → NON è wash
-    if (value.includes('no')) {
+
+    console.log('[WASH DEBUG] Parsing value:', value);
+
+    // Se c'è "no" o "nowash" → NON è wash (ha precedenza)
+    if (value.includes('no') || value.includes('nowash')) {
+      console.log('[WASH DEBUG] Riconosciuto NO WASH');
       return { enabled: false, type: 'none' };
     }
-    
-    // Se c'è "wash" o "si" → È wash suspect
-    if (value.includes('wash') || value === 'si' || value.includes('suspect')) {
+
+    // Se c'è "si", "wash", "suspect" → È wash suspect
+    if (value.includes('si') || value.includes('wash') || value.includes('suspect')) {
+      console.log('[WASH DEBUG] Riconosciuto WASH');
       return { enabled: true, type: 'suspect' };
     }
-    
+
+    console.log('[WASH DEBUG] Nessun match, ritorno null');
     return null;
   }
 

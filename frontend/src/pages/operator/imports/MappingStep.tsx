@@ -504,7 +504,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
       {/* Tabella Mapping */}
       <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         <div className="bg-gray-50 px-6 py-3 border-b border-gray-200 grid grid-cols-12 gap-4 text-sm font-semibold text-gray-700">
-          <div className="col-span-3">Colonna File</div>
+          <div className="col-span-3 text-cyan-600 font-semibold">Colonna File</div>
           <div className="col-span-3">Campo CRM</div>
           <div className="col-span-2">Trasformazione</div>
           <div className="col-span-4">Anteprima Dato</div>

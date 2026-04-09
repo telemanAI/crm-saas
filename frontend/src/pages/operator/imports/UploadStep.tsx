@@ -90,18 +90,26 @@ export default function UploadStep({ tenantId, onComplete, onCancel }: Props) { 
 
   return (
     <div className="space-y-8">
-  <div className="bg-gradient-to-br from-slate-50 to-gray-100 border border-gray-200 rounded-2xl p-6 shadow-sm">
-    <h2 className="text-xl font-semibold text-slate-900 mb-2">Importazione Intelligente</h2>
-    <p className="text-slate-700 leading-relaxed">
-      Carica il tuo file Excel. Il sistema riconosce automaticamente:
-      <span className="block mt-2 ml-4 text-sm text-slate-600 space-y-1">
-        <span className="flex items-center"><span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>Clienti (nome, cognome, CF/Email/Tel)</span>
-        <span className="flex items-center"><span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>Pratiche (se presenti colonna "Tipo" e "Offerta")</span>
-        <span className="flex items-center"><span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Duplicati (aggiorna cliente se già esistente)</span>
-      </span>
-    </p>
-  </div>
-</div>
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-sm">
+        <h2 className="text-xl font-semibold text-white mb-2">Importazione Intelligente</h2>
+        <p className="text-slate-300 leading-relaxed">
+          Carica il tuo file Excel. Il sistema riconosce automaticamente:
+        </p>
+        <div className="mt-3 ml-4 space-y-2">
+          <div className="flex items-center text-sm text-slate-400">
+            <span className="w-2 h-2 bg-blue-500 rounded-full mr-2 flex-shrink-0"></span>
+            <span>Clienti (nome, cognome, CF/Email/Tel)</span>
+          </div>
+          <div className="flex items-center text-sm text-slate-400">
+            <span className="w-2 h-2 bg-purple-500 rounded-full mr-2 flex-shrink-0"></span>
+            <span>Pratiche (se presenti colonna "Tipo" e "Offerta")</span>
+          </div>
+          <div className="flex items-center text-sm text-slate-400">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-2 flex-shrink-0"></span>
+            <span>Duplicati (aggiorna cliente se già esistente)</span>
+          </div>
+        </div>
+      </div>
 
       <div
         onDragOver={handleDragOver}

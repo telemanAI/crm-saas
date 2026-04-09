@@ -163,10 +163,17 @@ export class UnifiedAdapter {
 
     // 🔥 FIX: Validazione CF con pulizia spazi
     if (customerData.fiscalCode) {
-      const cleanedCF = String(customerData.fiscalCode).replace(/\s/g, '').toUpperCase();
+      const originalCF = String(customerData.fiscalCode);
+      const cleanedCF = originalCF.replace(/\s/g, '').toUpperCase();
+      console.log('[CF DEBUG] Originale:', originalCF, '- Pulito:', cleanedCF, '- Lunghezza:', cleanedCF.length);
       customerData.fiscalCode = cleanedCF; // Salva pulito
       const cfValidation = CommonValidators.fiscalCode(cleanedCF);
-      if (!cfValidation.valid) warnings.push(`CF non valido: ${cfValidation.error}`);
+      if (!cfValidation.valid) {
+        console.log('[CF DEBUG] CF non valido:', cleanedCF, '- Errore:', cfValidation.error);
+        warnings.push(`CF non valido: ${cfValidation.error}`);
+      }
+    } else {
+      console.log('[CF DEBUG] CF mancante per cliente:', customerData.firstName, customerData.lastName);
     }
 
     if (customerData.email) {
@@ -405,6 +412,7 @@ export class UnifiedAdapter {
       }
     }
 
+    console.log('[CREATE PRACTICE] importJobId ricevuto:', importJobId);
     const practiceData: any = {
       tenantId,
       customerId,
@@ -432,7 +440,7 @@ export class UnifiedAdapter {
         ...(data.oldLineNumber && { phoneNumber: data.oldLineNumber }),
         ...(data.migrationCode && { migrationCode: data.migrationCode }),
       },
-      paymentMethod: data.iban ? { type: 'iban', value: data.iban } : {},
+      paymentMethod: data.iban ? { iban: data.iban, postePay: null, bollettino: false } : {},
       // 🔥 FIX: WASH config
       washConfig: washConfig || undefined,
       // 🔥 FIX: Appointment data

@@ -274,9 +274,15 @@ export class PracticesService {
         // 🔥 FIX: Gestione flessibile per SKY e altri gestori con step dinamici
         // Controlla il contenuto dei dati invece del numero step
 
+        console.log(`[DEBUG] Step ${dto.stepNumber} - Dati ricevuti:`, JSON.stringify(dto.data));
+
         if (dto.data?.paymentMethod || dto.data?.iban !== undefined) {
           console.log(`[DEBUG] Step ${dto.stepNumber} - Salvataggio PaymentMethod`);
+          console.log(`[DEBUG] paymentMethod ricevuto:`, JSON.stringify(dto.data?.paymentMethod));
           practice.paymentMethod = dto.data?.paymentMethod || { iban: dto.data?.iban, postePay: dto.data?.postePay, bollettino: dto.data?.bollettino };
+          console.log(`[DEBUG] paymentMethod salvato:`, JSON.stringify(practice.paymentMethod));
+        } else {
+          console.log(`[DEBUG] Step ${dto.stepNumber} - Nessun paymentMethod trovato nei dati`);
         }
 
         if (dto.data?.data !== undefined || dto.data?.ora !== undefined) {

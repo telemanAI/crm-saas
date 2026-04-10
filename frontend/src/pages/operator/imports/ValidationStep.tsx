@@ -94,9 +94,15 @@ export default function ValidationStep({
   // 🔥 APRI MODAL MODIFICA
   const openEditModal = (row: any) => {
     const existingCorrection = rowCorrections[row.rowNumber];
+
+    // 🔥 FIX: Assicurati che i dati originali siano presenti
+    const originalData = row.data || {};
+    const correctedData = existingCorrection?.correctedData;
+
     setEditingRow({
       ...row,
-      editData: existingCorrection?.correctedData || { ...row.data }
+      originalData: { ...originalData },
+      editData: correctedData ? { ...correctedData } : { ...originalData }
     });
     setShowEditModal(true);
   };
@@ -176,9 +182,15 @@ export default function ValidationStep({
   }
 
   const results = validationResults || {};
-  const hasErrors = (results.errors || 0) > 0;
-  const hasWarnings = (results.warnings || 0) > 0;
   const skippedCount = Object.values(rowCorrections).filter(c => c.skipped).length;
+
+  // 🔥 FIX: Calcola errori reali contando le righe in preview che hanno errori e non sono saltate
+  const rowsWithErrors = results.preview?.filter((r: any) => 
+    !r.valid && !rowCorrections[r.rowNumber]?.skipped
+  ) || [];
+  const realErrorsCount = rowsWithErrors.length;
+  const hasErrors = realErrorsCount > 0;
+  const hasWarnings = (results.warnings || 0) > 0;
 
   // Filtra le righe (escludi quelle saltate)
   const filteredRows = results.preview?.filter((row: any) => {
@@ -239,7 +251,7 @@ export default function ValidationStep({
             <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
           </svg>
           <div>
-            <p className="font-semibold">Ci sono {results.errors} errori da correggere</p>
+            <p className="font-semibold">Ci sono {realErrorsCount} errori da correggere</p>
             <p className="mt-1">Clicca su "Modifica" per correggere la riga, o "Salta" per ignorarla.</p>
           </div>
         </div>
@@ -362,7 +374,7 @@ export default function ValidationStep({
       </div>
 
       {/* 🔥 MODAL MODIFICA */}
-      {showEditModal && editingRow && (
+      {showEditModal && editingRow && editingRow.editData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-auto">
             <div className="p-6 border-b">
@@ -372,6 +384,11 @@ export default function ValidationStep({
               <p className="text-sm text-gray-500 mt-1">
                 Correggi i dati e clicca "Salva" per applicare le modifiche.
               </p>
+              {editingRow.originalData?.firstName && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Cliente: {editingRow.originalData.firstName} {editingRow.originalData.lastName}
+                </p>
+              )}
             </div>
             
             <div className="p-6 space-y-4">
@@ -443,7 +460,7 @@ export default function ValidationStep({
         
         <Button 
           onClick={handleExecute} 
-          disabled={hasErrors || executing}
+          disabled={realErrorsCount > 0 || executing}
           className="bg-blue-600 hover:bg-blue-700 text-white px-8"
         >
           {executing ? 'Importazione in corso...' : `Conferma Importazione →`}

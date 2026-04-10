@@ -36,16 +36,57 @@ export class UnifiedAdapter {
 
   private detectTypeFromOfferName(offerName: string): string | null {
     if (!offerName) return null;
-    const nameLower = offerName.toLowerCase();
-    
-    if (nameLower.includes('sky')) return 'SKY';
-    if (nameLower.includes('vodafone')) return 'VODAFONE';
-    if (nameLower.includes('wind') || nameLower.includes('tre')) return 'WINDTRE';
-    if (nameLower.includes('iliad')) return 'ILIAD';
-    if (nameLower.includes('iren')) return 'IREN';
-    if (nameLower.includes('optima')) return 'OPTIMA';
-    if (nameLower.includes('tim')) return 'TIM_FIBRA';
-    
+
+    // Normalizza: lowercase, rimuovi spazi, trattini, underscore
+    const normalized = offerName.toLowerCase().replace(/[\s\-_]/g, '');
+
+    // 🔥 ORDINE IMPORTANTE: dai più specifici ai più generici
+
+    // SKY (sky tv, sky wifi, sky fibra)
+    if (normalized.includes('sky')) return 'SKY';
+
+    // FASTWEB (fastweb, fast web)
+    if (normalized.includes('fastweb')) return 'FASTWEB';
+
+    // TISCALI (tiscali, tiscali fibra)
+    if (normalized.includes('tiscali')) return 'TISCALI';
+
+    // LINKEM (linkem, linkem fibra)
+    if (normalized.includes('linkem')) return 'LINKEM';
+
+    // PLENITUDE/ENI (plenitude, eni, eni fibra)
+    if (normalized.includes('plenitude') || normalized.includes('eni')) return 'PLENITUDE';
+
+    // ENEL (enel, enel energia, enel fibra)
+    if (normalized.includes('enel')) return 'ENEL';
+
+    // POSTEMOBILE (postemobile, poste mobile)
+    if (normalized.includes('postemobile') || normalized.includes('poste')) return 'POSTEMOBILE';
+
+    // COOPVOCE (coopvoce, coop voce)
+    if (normalized.includes('coopvoce') || normalized.includes('coop')) return 'COOPVOCE';
+
+    // VODAFONE (vodafone, vodafone fibra, voda)
+    if (normalized.includes('vodafone') || normalized.includes('voda')) return 'VODAFONE';
+
+    // WINDTRE (windtre, wind tre, wind3, wind e tre, wind, tre)
+    // NOTA: Wind e Tre sono SEMPRE insieme come WINDTRE, mai separati
+    if (normalized.includes('wind') || normalized.includes('tre') || 
+        normalized.includes('windtre') || normalized.includes('wind3') ||
+        normalized.includes('3italia')) return 'WINDTRE';
+
+    // ILIAD (iliad, iliad fibra)
+    if (normalized.includes('iliad')) return 'ILIAD';
+
+    // IREN (iren, iren luce gas, iren fibra)
+    if (normalized.includes('iren')) return 'IREN';
+
+    // OPTIMA (optima, optima mobile, optima fibra)
+    if (normalized.includes('optima')) return 'OPTIMA';
+
+    // TIM (tim, tim fibra, timfibo, tim casa)
+    if (normalized.includes('tim')) return 'TIM_FIBRA';
+
     return null;
   }
 
@@ -161,16 +202,34 @@ export class UnifiedAdapter {
       errors.push('Inserire almeno uno tra: Codice Fiscale, Email o Telefono');
     }
 
-    // 🔥 FIX: Validazione CF con pulizia spazi
+    // 🔥 FIX: Validazione CF con pulizia aggressiva
+    console.log('[CF DEBUG] CF dal mapping:', JSON.stringify(customerData.fiscalCode));
+
     if (customerData.fiscalCode) {
       const originalCF = String(customerData.fiscalCode);
-      const cleanedCF = originalCF.replace(/\s/g, '').toUpperCase();
-      console.log('[CF DEBUG] Originale:', originalCF, '- Pulito:', cleanedCF, '- Lunghezza:', cleanedCF.length);
-      customerData.fiscalCode = cleanedCF; // Salva pulito
-      const cfValidation = CommonValidators.fiscalCode(cleanedCF);
-      if (!cfValidation.valid) {
-        console.log('[CF DEBUG] CF non valido:', cleanedCF, '- Errore:', cfValidation.error);
-        warnings.push(`CF non valido: ${cfValidation.error}`);
+      // Pulizia aggressiva: rimuovi TUTTO tranne lettere e numeri
+      const cleanedCF = originalCF
+        .replace(/[^a-zA-Z0-9]/g, '')  // Rimuovi TUTTO tranne lettere e numeri
+        .toUpperCase()
+        .trim();
+
+      console.log('[CF DEBUG] Originale:', JSON.stringify(originalCF), '- Pulito:', cleanedCF, '- Lunghezza:', cleanedCF.length);
+
+      // Se dopo la pulizia è vuoto o ha meno di 16 caratteri, non è valido
+      if (cleanedCF.length === 0) {
+        console.log('[CF DEBUG] CF vuoto dopo pulizia, rimuovo');
+        delete customerData.fiscalCode;
+      } else if (cleanedCF.length !== 16) {
+        console.log('[CF DEBUG] CF lunghezza errata:', cleanedCF.length, 'caratteri');
+        warnings.push(`CF lunghezza errata (${cleanedCF.length} caratteri): ${cleanedCF}`);
+        customerData.fiscalCode = cleanedCF; // Salva comunque per debug
+      } else {
+        customerData.fiscalCode = cleanedCF; // Salva pulito
+        const cfValidation = CommonValidators.fiscalCode(cleanedCF);
+        if (!cfValidation.valid) {
+          console.log('[CF DEBUG] CF non valido:', cleanedCF, '- Errore:', cfValidation.error);
+          warnings.push(`CF non valido: ${cfValidation.error}`);
+        }
       }
     } else {
       console.log('[CF DEBUG] CF mancante per cliente:', customerData.firstName, customerData.lastName);
@@ -527,8 +586,8 @@ export class UnifiedAdapter {
       'phonePrimary', 'phoneSecondary',
       'mobile', 'phone',
       'vatNumber', 'address', 'customerSegment', 
-      'status', 'notes', 'assignedTo',
-      'wash'
+      'status', 'notes', 'assignedTo'
+      // NOTA: 'wash' è un campo pratica, non cliente!
     ];
     return fields.includes(target);
   }
@@ -559,7 +618,7 @@ export class UnifiedAdapter {
       { name: 'phonePrimary', label: 'Telefono Primario', type: 'string', required: false, category: 'customer' as const, helpText: 'Obbligatorio in DB, ma fallback disponibile' },
       { name: 'phoneSecondary', label: 'Telefono Secondario', type: 'string', required: false, category: 'customer' as const },
       { name: 'vatNumber', label: 'Partita IVA', type: 'string', required: false, category: 'customer' as const },
-      { name: 'wash', label: 'Wash (metadata)', type: 'string', required: false, category: 'customer' as const, helpText: 'Valori: SI, WASH, NO WASH, NO' },
+      { name: 'wash', label: 'Wash Config', type: 'string', required: false, category: 'practice' as const, helpText: 'Valori: SI, WASH, NO WASH, NO' },
     ];
 
     const practiceFields = [

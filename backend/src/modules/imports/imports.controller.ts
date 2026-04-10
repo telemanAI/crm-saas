@@ -66,7 +66,7 @@ export class ImportsController {
   @Post(':jobId/validate')
   async validateImport(
     @Param('jobId') jobId: string,
-    @Body() body: { mappingConfig: any },
+    @Body() body: { mappingConfig: any; rowCorrections?: any[] },
     @Query('tenantId') queryTenantId: string,
     @Req() req,
   ) {
@@ -78,17 +78,19 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
     
+    // 🔥 PASSA rowCorrections al service
     return this.importsService.validateImport(
       jobId, 
       body.mappingConfig, 
-      effectiveTenantId
+      effectiveTenantId,
+      body.rowCorrections // 🔥 Aggiunto
     );
   }
 
   // ✅ FIX EXECUTE: Aggiunta gestione tenantId per SuperAdmin
   @Post('execute')
   async executeImport(
-    @Body() dto: ExecuteImportDto,
+    @Body() dto: ExecuteImportDto & { rowCorrections?: any[] },
     @Query('tenantId') queryTenantId: string,
     @Req() req,
   ) {
@@ -100,10 +102,12 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
 
+    // 🔥 PASSA rowCorrections al service
     const job = await this.importsService.executeImport(
       dto.jobId,
-      effectiveTenantId,  // ✅ Passa effectiveTenantId invece di req.user.tenantId
+      effectiveTenantId,
       req.user.userId,
+      dto.rowCorrections // 🔥 Aggiunto
     );
 
     return {

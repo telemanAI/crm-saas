@@ -96,7 +96,7 @@ export class ImportsService {
     };
   }
 
-  async validateImport(jobId: string, mappingConfig: any, tenantId: string): Promise<any> {
+  async validateImport(jobId: string, mappingConfig: any, tenantId: string, rowCorrections?: any[]): Promise<any> {
     const job = await this.importJobRepository.findOne({
       where: { id: jobId, tenantId },
     });
@@ -121,9 +121,27 @@ export class ImportsService {
       }
     };
 
+    // 🔥 Converti rowCorrections in mappa per accesso rapido
+    const correctionsMap = new Map();
+    if (rowCorrections) {
+      for (const corr of rowCorrections) {
+        correctionsMap.set(corr.rowNumber, corr);
+      }
+    }
+
     const rowsToValidate = parsedData.rows.slice(0, 100);
-    
+
     for (const row of rowsToValidate) {
+      // 🔥 Applica correzioni se presenti
+      const correction = correctionsMap.get(row._rowNumber);
+      if (correction?.skipped) {
+        // Riga saltata, non validare
+        continue;
+      }
+      if (correction?.correctedData) {
+        // Applica dati corretti
+        Object.assign(row, correction.correctedData);
+      }
       let result;
       
       if (job.targetEntity === 'UNIFIED_IMPORT') {
@@ -162,7 +180,7 @@ export class ImportsService {
     return validationResults;
   }
 
-  async executeImport(jobId: string, tenantId: string, userId: string): Promise<ImportJob> {
+  async executeImport(jobId: string, tenantId: string, userId: string, rowCorrections?: any[]): Promise<ImportJob> {
     const job = await this.importJobRepository.findOne({
       where: { id: jobId, tenantId },
     });
@@ -182,6 +200,15 @@ export class ImportsService {
 
       let successfulRows = 0;
       let failedRows = 0;
+      let skippedRows = 0;
+
+      // 🔥 Converti rowCorrections in mappa per accesso rapido
+      const correctionsMap = new Map();
+      if (rowCorrections) {
+        for (const corr of rowCorrections) {
+          correctionsMap.set(corr.rowNumber, corr);
+        }
+      }
       let createdCustomers = 0;
       let updatedCustomers = 0;
       let createdPractices = 0;
@@ -195,6 +222,16 @@ export class ImportsService {
         const batch = parsedData.rows.slice(i, i + BATCH_SIZE);
         
         for (const row of batch) {
+          // 🔥 Applica correzioni se presenti
+          const correction = correctionsMap.get(row._rowNumber);
+          if (correction?.skipped) {
+            skippedRows++;
+            continue;
+          }
+          if (correction?.correctedData) {
+            Object.assign(row, correction.correctedData);
+          }
+
           try {
             if (job.targetEntity === 'UNIFIED_IMPORT') {
               const strategy = job.mappingConfig.duplicateStrategy || 'UPDATE';
@@ -253,7 +290,7 @@ export class ImportsService {
         processedRows: totalRows,
         successfulRows,
         failedRows,
-        skippedRows: 0,
+        skippedRows,
         createdCustomers,
         updatedCustomers,
         createdPractices,

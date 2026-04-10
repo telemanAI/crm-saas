@@ -16,7 +16,7 @@ import Link from 'next/link';
 
 interface Practice {
   id: string;
-  type: 'TIM_FIBRA' | 'SKY';
+  type: string; // 🔥 Cambiato da enum fisso a string per supportare tutti i gestori
   offerName: string;
   customerName: string;
   status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
@@ -24,13 +24,59 @@ interface Practice {
   createdAt: string;
 }
 
+// 🔥 FUNZIONE: Mappa tipo pratica a nome visualizzato
+const getTypeLabel = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'TIM_FIBRA': 'TIM',
+    'VODAFONE': 'VODAFONE',
+    'WINDTRE': 'WINDTRE',
+    'WIND': 'WIND',
+    'TRE': 'TRE',
+    'ILIAD': 'ILIAD',
+    'IREN': 'IREN',
+    'OPTIMA': 'OPTIMA',
+    'SKY': 'SKY',
+    'FASTWEB': 'FASTWEB',
+    'TISCALI': 'TISCALI',
+    'LINKEM': 'LINKEM',
+    'PLENITUDE': 'PLENITUDE',
+    'ENEL': 'ENEL',
+    'POSTEMOBILE': 'POSTE',
+    'COOPVOCE': 'COOP',
+  };
+  return typeMap[type] || type; // Fallback al tipo originale se non mappato
+};
+
+// 🔥 FUNZIONE: Mappa tipo pratica a colore
+const getTypeColor = (type: string): { bg: string; text: string } => {
+  const colorMap: Record<string, { bg: string; text: string }> = {
+    'TIM_FIBRA': { bg: 'bg-blue-600/20', text: 'text-blue-400' },
+    'VODAFONE': { bg: 'bg-red-600/20', text: 'text-red-400' },
+    'WINDTRE': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
+    'WIND': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
+    'TRE': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
+    'ILIAD': { bg: 'bg-pink-600/20', text: 'text-pink-400' },
+    'IREN': { bg: 'bg-green-600/20', text: 'text-green-400' },
+    'OPTIMA': { bg: 'bg-teal-600/20', text: 'text-teal-400' },
+    'SKY': { bg: 'bg-cyan-600/20', text: 'text-cyan-400' },
+    'FASTWEB': { bg: 'bg-yellow-600/20', text: 'text-yellow-400' },
+    'TISCALI': { bg: 'bg-indigo-600/20', text: 'text-indigo-400' },
+    'LINKEM': { bg: 'bg-purple-600/20', text: 'text-purple-400' },
+    'PLENITUDE': { bg: 'bg-lime-600/20', text: 'text-lime-400' },
+    'ENEL': { bg: 'bg-emerald-600/20', text: 'text-emerald-400' },
+    'POSTEMOBILE': { bg: 'bg-amber-600/20', text: 'text-amber-400' },
+    'COOPVOCE': { bg: 'bg-rose-600/20', text: 'text-rose-400' },
+  };
+  return colorMap[type] || { bg: 'bg-slate-600/20', text: 'text-slate-400' };
+};
+
 export default function PracticesList() {
   const router = useRouter();
   const { token, isAuthenticated } = useAuthStore();
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'ALL' | 'TIM_FIBRA' | 'SKY'>('ALL');
+  const [filter, setFilter] = useState<string>('ALL'); // 🔥 Cambiato a string per supportare tutti i filtri
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -56,6 +102,9 @@ export default function PracticesList() {
     const matchesFilter = filter === 'ALL' || p.type === filter;
     return matchesSearch && matchesFilter;
   });
+
+  // 🔥 Estrai tipi unici per il filtro
+  const uniqueTypes = Array.from(new Set(practices.map(p => p.type)));
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -89,7 +138,7 @@ export default function PracticesList() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Pratiche</h1>
-          <p className="text-slate-400">Gestisci le pratiche TIM e SKY</p>
+          <p className="text-slate-400">Gestisci tutte le pratiche</p>
         </div>
         <Link href="/operator/practices/new">
           <motion.button
@@ -119,12 +168,13 @@ export default function PracticesList() {
           <Funnel className="w-5 h-5 text-slate-500" />
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as any)}
+            onChange={(e) => setFilter(e.target.value)}
             className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           >
             <option value="ALL">Tutte</option>
-            <option value="TIM_FIBRA">TIM Fibra</option>
-            <option value="SKY">SKY</option>
+            {uniqueTypes.map(type => (
+              <option key={type} value={type}>{getTypeLabel(type)}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -140,46 +190,49 @@ export default function PracticesList() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredPractices.map((practice, index) => (
-            <motion.div
-              key={practice.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => router.push(`/operator/practices/${practice.id}`)}
-              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer hover:border-slate-700 transition-all group"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                    practice.type === 'TIM_FIBRA' ? 'bg-blue-600/20 text-blue-400' : 'bg-cyan-600/20 text-cyan-400'
-                  }`}>
-                    <span className="font-bold">{practice.type === 'TIM_FIBRA' ? 'TIM' : 'SKY'}</span>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                      {practice.offerName}
-                    </h3>
-                    <p className="text-sm text-slate-400">{practice.customerName}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
-                      {getStatusIcon(practice.status)}
-                      <span>{getStatusLabel(practice.status)}</span>
+          {filteredPractices.map((practice, index) => {
+            const typeColor = getTypeColor(practice.type);
+            const typeLabel = getTypeLabel(practice.type);
+            
+            return (
+              <motion.div
+                key={practice.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => router.push(`/operator/practices/${practice.id}`)}
+                className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer hover:border-slate-700 transition-all group"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${typeColor.bg} ${typeColor.text}`}>
+                      <span className="font-bold text-sm">{typeLabel}</span>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Step {practice.currentStep}/8
+                    <div>
+                      <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                        {practice.offerName}
+                      </h3>
+                      <p className="text-sm text-slate-400">{practice.customerName}</p>
                     </div>
                   </div>
-                  <div className="text-right text-sm text-slate-500">
-                    {new Date(practice.createdAt).toLocaleDateString('it-IT')}
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+                        {getStatusIcon(practice.status)}
+                        <span>{getStatusLabel(practice.status)}</span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Step {practice.currentStep}/8
+                      </div>
+                    </div>
+                    <div className="text-right text-sm text-slate-500">
+                      {new Date(practice.createdAt).toLocaleDateString('it-IT')}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </div>

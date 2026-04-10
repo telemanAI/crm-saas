@@ -93,11 +93,17 @@ export default function ValidationStep({
 
   // 🔥 APRI MODAL MODIFICA
   const openEditModal = (row: any) => {
+    console.log('[EDIT MODAL] Row:', row);
+    console.log('[EDIT MODAL] Row.data:', row?.data);
+
     const existingCorrection = rowCorrections[row.rowNumber];
 
     // 🔥 FIX: Assicurati che i dati originali siano presenti
-    const originalData = row.data || {};
+    const originalData = row?.data || {};
     const correctedData = existingCorrection?.correctedData;
+
+    console.log('[EDIT MODAL] originalData:', originalData);
+    console.log('[EDIT MODAL] correctedData:', correctedData);
 
     setEditingRow({
       ...row,
@@ -418,7 +424,7 @@ export default function ValidationStep({
                       </label>
                       <input
                         type="text"
-                        value={editingRow.editData?.[field.key] || ''}
+                        value={editingRow?.editData?.[field.key] ?? editingRow?.originalData?.[field.key] ?? ''}
                         onChange={(e) => updateEditField(field.key, e.target.value)}
                         className={`w-full px-3 py-2 border rounded-lg text-sm ${
                           hasError 

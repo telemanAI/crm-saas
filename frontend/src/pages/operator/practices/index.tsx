@@ -15,6 +15,26 @@ import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 
+const getTypeLabel = (type: string): string => {
+  const typeMap: Record<string, string> = {
+    'TIM_FIBRA': 'TIM',
+    'VODAFONE': 'VODAFONE',
+    'WINDTRE': 'WINDTRE',
+    'ILIAD': 'ILIAD',
+    'IREN': 'IREN',
+    'OPTIMA': 'OPTIMA',
+    'SKY': 'SKY',
+    'FASTWEB': 'FASTWEB',
+    'TISCALI': 'TISCALI',
+    'LINKEM': 'LINKEM',
+    'PLENITUDE': 'PLENITUDE',
+    'ENEL': 'ENEL',
+    'POSTEMOBILE': 'POSTE',
+    'COOPVOCE': 'COOP',
+  };
+  return typeMap[type] || type;
+};
+
 type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
 type FilterType = 'ALL' | PracticeType;
 type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
@@ -223,7 +243,7 @@ export default function PracticesList() {
                        practice.type === 'SKY' ? 'SKY' : (practice.type as string)?.substring(0,3)}
                     </span>
                   </div>
-                  <span className="font-bold">{practice.type === 'TIM_FIBRA' ? 'TIM' : 'SKY'}</span>
+                  <span className="font-bold">{getTypeLabel(practice.type)}</span>
                 </div>
                 <div>
                   <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">

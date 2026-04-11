@@ -76,15 +76,21 @@ export class CommonValidators {
         'pending': 'PENDING',
         'in attesa': 'PENDING',
         'da fare': 'PENDING',
+        'da inserire': 'PENDING',        // ← NUOVO: "DA INSERIRE" → PENDING
+        
         'in lavorazione': 'IN_PROGRESS',
         'in corso': 'IN_PROGRESS',
         'processing': 'IN_PROGRESS',
+        'in delivery': 'IN_PROGRESS',     // ← NUOVO: "IN DELIVERY" → IN_PROGRESS
+        
         'attivata': 'ACTIVATED',
         'attiva': 'ACTIVATED',
         'completed': 'ACTIVATED',
+        
         'rifiutata': 'REJECTED',
         'rejected': 'REJECTED',
         'ko': 'REJECTED',
+        'annullata': 'REJECTED',          // ← NUOVO: "ANNULLATA" → REJECTED (front mostrerà "ko")
       };
       return operationalMap[normalized] || 'PENDING';
     }

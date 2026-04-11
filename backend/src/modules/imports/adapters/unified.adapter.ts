@@ -202,38 +202,64 @@ export class UnifiedAdapter {
       errors.push('Inserire almeno uno tra: Codice Fiscale, Email o Telefono');
     }
 
-    // 🔥 FIX: Validazione CF con pulizia aggressiva
-    console.log('[CF DEBUG] CF dal mapping:', JSON.stringify(customerData.fiscalCode));
+    // 🔥 FIX: Validazione CF con pulizia aggressiva E LOGGING COMPLETO
+    console.log('[CF DEBUG] ==========================================');
+    console.log('[CF DEBUG] Cliente:', customerData.firstName, customerData.lastName);
+    console.log('[CF DEBUG] CF dal mapping (raw):', JSON.stringify(customerData.fiscalCode));
+    console.log('[CF DEBUG] Tipo CF:', typeof customerData.fiscalCode);
 
     if (customerData.fiscalCode) {
-      const originalCF = String(customerData.fiscalCode);
+      // 🔥 FIX: Se Excel ha convertito in numero (notazione scientifica), recupera formato corretto
+      let originalCF = customerData.fiscalCode;
+      
+      if (typeof originalCF === 'number') {
+        // Per i numeri, usa BigInt per evitare notazione scientifica
+        try {
+          originalCF = BigInt(originalCF).toString().padStart(16, '0');
+          console.log('[CF DEBUG] CF era numero, convertito a:', originalCF);
+        } catch (e) {
+          originalCF = String(originalCF);
+          console.log('[CF DEBUG] CF numero fallback a stringa:', originalCF);
+        }
+      } else {
+        originalCF = String(originalCF);
+      }
+      
       // Pulizia aggressiva: rimuovi TUTTO tranne lettere e numeri
       const cleanedCF = originalCF
         .replace(/[^a-zA-Z0-9]/g, '')  // Rimuovi TUTTO tranne lettere e numeri
         .toUpperCase()
         .trim();
 
-      console.log('[CF DEBUG] Originale:', JSON.stringify(originalCF), '- Pulito:', cleanedCF, '- Lunghezza:', cleanedCF.length);
+      console.log('[CF DEBUG] Originale:', JSON.stringify(originalCF));
+      console.log('[CF DEBUG] Pulito:', cleanedCF, '- Lunghezza:', cleanedCF.length);
 
-      // Se dopo la pulizia è vuoto o ha meno di 16 caratteri, non è valido
+      // Se dopo la pulizia è vuoto o ha meno di 16 caratteri
       if (cleanedCF.length === 0) {
-        console.log('[CF DEBUG] CF vuoto dopo pulizia, rimuovo');
-        delete customerData.fiscalCode;
+        console.log('[CF DEBUG] ⚠️ CF VUOTO dopo pulizia - Contenuto originale:', JSON.stringify(customerData.fiscalCode));
+        warnings.push(`CF presente ma illeggibile (caratteri speciali/spazi): "${customerData.fiscalCode}". Verificare cella Excel.`);
+        // 🔥 Salviamo il CF raw nei metadati per poterlo recuperare/debuggare
+        customerData.fiscalCodeRaw = customerData.fiscalCode;
+        delete customerData.fiscalCode; // Rimuoviamo il CF pulito (vuoto)
       } else if (cleanedCF.length !== 16) {
-        console.log('[CF DEBUG] CF lunghezza errata:', cleanedCF.length, 'caratteri');
-        warnings.push(`CF lunghezza errata (${cleanedCF.length} caratteri): ${cleanedCF}`);
+        console.log('[CF DEBUG] ⚠️ CF lunghezza errata:', cleanedCF.length, 'caratteri');
+        warnings.push(`CF lunghezza errata (${cleanedCF.length} caratteri invece di 16): ${cleanedCF}`);
         customerData.fiscalCode = cleanedCF; // Salva comunque per debug
       } else {
-        customerData.fiscalCode = cleanedCF; // Salva pulito
+        // CF formalmente valido (16 caratteri), controlla pattern
+        customerData.fiscalCode = cleanedCF;
         const cfValidation = CommonValidators.fiscalCode(cleanedCF);
         if (!cfValidation.valid) {
-          console.log('[CF DEBUG] CF non valido:', cleanedCF, '- Errore:', cfValidation.error);
-          warnings.push(`CF non valido: ${cfValidation.error}`);
+          console.log('[CF DEBUG] ⚠️ CF pattern non valido:', cleanedCF, '- Errore:', cfValidation.error);
+          warnings.push(`CF non valido: ${cfValidation.error} - Valore: ${cleanedCF}`);
+        } else {
+          console.log('[CF DEBUG] ✅ CF valido:', cleanedCF);
         }
       }
     } else {
-      console.log('[CF DEBUG] CF mancante per cliente:', customerData.firstName, customerData.lastName);
+      console.log('[CF DEBUG] ❌ CF mancante per cliente:', customerData.firstName, customerData.lastName);
     }
+    console.log('[CF DEBUG] ==========================================');
 
     if (customerData.email) {
       const emailValidation = CommonValidators.email(customerData.email);
@@ -249,7 +275,7 @@ export class UnifiedAdapter {
       if (!practiceType) {
         errors.push('Impossibile rilevare il tipo pratica. Mappa il campo "Tipo" o usa "Forza tipo" nelle impostazioni');
       } else {
-        const validTypes = ['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY'];
+        const validTypes = ['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY', 'FASTWEB', 'TISCALI', 'LINKEM', 'PLENITUDE', 'ENEL', 'POSTEMOBILE', 'COOPVOCE'];
         if (!validTypes.includes(practiceType.toUpperCase())) {
           errors.push(`Tipo pratica non valido: ${practiceType}. Validi: ${validTypes.join(', ')}`);
         }

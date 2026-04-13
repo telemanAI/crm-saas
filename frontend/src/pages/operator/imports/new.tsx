@@ -1729,7 +1729,7 @@ export default function NewPractice() {
                                     </div>
                                   )}
 
-                                  {/* Input per Chiusa */}
+                                  {/* Input per Chiusa - CORRETTO: nessuno spread operator */}
                                   {data.convergenza?.tipo === 'chiusa' && (
                                     <div>
                                       <label className="block text-sm font-medium text-slate-300 mb-2">

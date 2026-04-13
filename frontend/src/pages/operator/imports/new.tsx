@@ -1738,10 +1738,14 @@ export default function NewPractice() {
                                       <input 
                                         type="text"
                                         value={data.convergenza?.numero || ''}
-                                        onChange={(e) => {
-                                          const { setConvergenza } = usePracticeWizardStore.getState();
-                                          setConvergenza({ ...data.convergenza, numero: e.target.value });
-                                        }}
+                                       onChange={(e) => {
+										const { setConvergenza } = usePracticeWizardStore.getState();
+											setConvergenza({ 
+																...data.convergenza!, 
+																		numero: e.target.value,
+																			attiva: true // Assicura che non sia undefined
+																																});
+																																	}}
                                         placeholder="Es. 3201234567 o codice cliente"
                                         className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
                                           !data.convergenza?.numero ? 'border-rose-600' : 'border-slate-700'

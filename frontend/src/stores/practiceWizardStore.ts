@@ -20,8 +20,8 @@ export interface WashConfig {
 
 // 🔥 NUOVO: Interfaccia Convergenza
 export interface ConvergenzaConfig {
-  attiva: boolean;
-  tipo: 'daChiudere' | 'chiusa' | null;
+  attiva?: boolean;
+  tipo?: 'daChiudere' | 'chiusa' | null;
   numero?: string;
 }
 

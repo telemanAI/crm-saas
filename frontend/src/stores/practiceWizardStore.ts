@@ -18,6 +18,13 @@ export interface WashConfig {
   timestamp?: Date;
 }
 
+// 🔥 NUOVO: Interfaccia Convergenza
+export interface ConvergenzaConfig {
+  attiva: boolean;
+  tipo: 'daChiudere' | 'chiusa' | null;
+  numero?: string;
+}
+
 export interface PracticeData {
   type?: 'TIM_FIBRA' | 'SKY';
   offerCode?: string;
@@ -80,6 +87,11 @@ export interface PracticeData {
   };
   washConfig?: WashConfig | null;
   washConfigSnapshot?: WashConfig | null;
+  
+  // 🔥 NUOVI CAMPI
+  convergenza?: ConvergenzaConfig;
+  lavorazioniPostAttivazione?: string;
+  statoGlobale?: 'completo' | 'non_completo' | null;
 }
 
 export type StepId = 
@@ -112,7 +124,12 @@ export const WIZARD_STEPS: WizardStep[] = [
     icon: 'Package', 
     isVisible: (data) => data.offerName?.includes('SKY TV') ?? false 
   },
-  { id: 'lines', title: 'Nuova Linea', icon: 'MapPin', isVisible: () => true },
+  { 
+    id: 'lines', 
+    title: 'Configurazione Nuova Linea',  // 🔥 RINOMINATO
+    icon: 'MapPin', 
+    isVisible: () => true 
+  },
   { 
     id: 'wash', 
     title: 'WASH', 
@@ -185,6 +202,11 @@ interface PracticeWizardState {
   getTotalPackagesPrice: () => number;
   
   setWashConfig: (config: WashConfig | null) => void;
+  
+  // 🔥 NUOVE FUNZIONI
+  setConvergenza: (config: ConvergenzaConfig) => void;
+  setLavorazioniPostAttivazione: (value: string | null) => void;
+  calculateStatoGlobale: () => void;
 }
 
 const initialState = {
@@ -195,7 +217,10 @@ const initialState = {
     storeConfig: {
       enableWashStep: false,
       enableAdditionalPackages: true
-    }
+    },
+    convergenza: { attiva: false, tipo: null }, // 🔥 INIZIALIZZATO
+    statoGlobale: null,
+    lavorazioniPostAttivazione: undefined
   } as PracticeData,
   currentStepId: 'offer' as StepId,
   currentStep: 1,
@@ -247,16 +272,16 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
         return { currentStepId: newStepId, currentStep: newStepNumber };
       }),
 
-   setStoreConfig: (config) => set((state) => ({
-  data: {
-    ...state.data,
-    storeConfig: { 
-      enableWashStep: state.data.storeConfig?.enableWashStep ?? false,
-      enableAdditionalPackages: state.data.storeConfig?.enableAdditionalPackages ?? true,
-      ...config 
-    }
-  }
-})),
+      setStoreConfig: (config) => set((state) => ({
+        data: {
+          ...state.data,
+          storeConfig: { 
+            enableWashStep: state.data.storeConfig?.enableWashStep ?? false,
+            enableAdditionalPackages: state.data.storeConfig?.enableAdditionalPackages ?? true,
+            ...config 
+          }
+        }
+      })),
 
       setOffer: (offer) => set((state) => {
         const newData = { 
@@ -402,6 +427,55 @@ export const usePracticeWizardStore = create<PracticeWizardState>()(
           washConfigSnapshot: config
         }
       })),
+
+      // 🔥 NUOVE IMPLEMENTAZIONI
+      setConvergenza: (config) => set((state) => {
+        const newConvergenza = { ...state.data.convergenza, ...config };
+        let statoGlobale = state.data.statoGlobale;
+        
+        // Calcolo automatico stato globale
+        if (newConvergenza.attiva) {
+          if (newConvergenza.tipo === 'chiusa' && newConvergenza.numero && newConvergenza.numero.length > 0) {
+            statoGlobale = 'completo';
+          } else if (newConvergenza.tipo === 'daChiudere') {
+            statoGlobale = 'non_completo';
+          } else if (newConvergenza.tipo === 'chiusa' && !newConvergenza.numero) {
+            statoGlobale = 'non_completo';
+          }
+        } else {
+          statoGlobale = null;
+        }
+
+        return {
+          data: {
+            ...state.data,
+            convergenza: newConvergenza,
+            statoGlobale
+          }
+        };
+      }),
+
+      setLavorazioniPostAttivazione: (value) => set((state) => ({
+        data: {
+          ...state.data,
+          lavorazioniPostAttivazione: value || undefined
+        }
+      })),
+
+      calculateStatoGlobale: () => set((state) => {
+        const { convergenza } = state.data;
+        let statoGlobale: 'completo' | 'non_completo' | null = null;
+        
+        if (convergenza?.attiva) {
+          if (convergenza.tipo === 'chiusa' && convergenza.numero && convergenza.numero.length > 0) {
+            statoGlobale = 'completo';
+          } else {
+            statoGlobale = 'non_completo';
+          }
+        }
+        
+        return { data: { ...state.data, statoGlobale } };
+      })
     }),
     {
       name: 'practice-wizard-storage',

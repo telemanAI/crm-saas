@@ -23,7 +23,8 @@ import {
   Calendar,
   Tag,
   Package,
-  TelevisionSimple
+  TelevisionSimple,
+  Warning
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -87,6 +88,13 @@ interface PracticeDetail {
     };
     timestamp?: Date;
   };
+  convergenza?: {
+    attiva: boolean;
+    tipo: 'daChiudere' | 'chiusa';
+    numero?: string;
+  };
+  statoGlobale?: 'completo' | 'non_completo' | null;
+  lavorazioniPostAttivazione?: string;
 }
 
 export default function PracticeDetail() {
@@ -104,6 +112,9 @@ export default function PracticeDetail() {
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   
   const [operationalStatus, setOperationalStatus] = useState<string>('PENDING');
+  
+  const [convergenzaNumero, setConvergenzaNumero] = useState('');
+  const [savingConvergenza, setSavingConvergenza] = useState(false);
 
   useEffect(() => {
     if (id && token) fetchPractice();
@@ -293,6 +304,18 @@ export default function PracticeDetail() {
               <span className={`px-3 py-1 rounded-full text-xs font-medium ${getOperationalStatusColor(operationalStatus)}`}>
                 {getOperationalStatusLabel(operationalStatus)}
               </span>
+              
+              {/* 🔥 BADGE STATO GLOBALE */}
+              {practice.statoGlobale && (
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                  practice.statoGlobale === 'completo' 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                    : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                }`}>
+                  {practice.statoGlobale === 'completo' ? 'Completa' : 'Da Completare'}
+                </span>
+              )}
+              
               <span className="text-slate-500 text-sm">Step {practice.currentStep}/8</span>
             </div>
             <h1 className="text-3xl font-bold text-white">{practice.offerName}</h1>
@@ -992,6 +1015,82 @@ export default function PracticeDetail() {
                 <div>
                   <label className="text-sm text-slate-500 block mb-1">Inserito Da</label>
                   <p className="text-white">{practice.enteredBy}</p>
+                </div>
+              )}
+
+              {/* 🔥 SEZIONE CONVERGENZA */}
+              {practice.convergenza?.attiva && (
+                <div className="border-t border-slate-700 pt-4 mt-4">
+                  <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                    Convergenza {practice.statoGlobale === 'completo' ? 'Completata' : 'Da Chiudere'}
+                  </h4>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Tipo:</span>
+                      <span className="text-white">{practice.convergenza.tipo === 'daChiudere' ? 'Da Chiudere' : 'Chiusa'}</span>
+                    </div>
+                    
+                    {practice.convergenza.tipo === 'chiusa' && practice.convergenza.numero && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Numero:</span>
+                        <span className="text-white font-mono">{practice.convergenza.numero}</span>
+                      </div>
+                    )}
+                    
+                    {/* Input inline per Da Chiudere */}
+                    {practice.convergenza.tipo === 'daChiudere' && (
+                      <div className="space-y-2">
+                        <label className="text-xs text-amber-400 block">
+                          Inserisci numero da convergere per completare:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={convergenzaNumero}
+                            onChange={(e) => setConvergenzaNumero(e.target.value)}
+                            placeholder="Numero o codice"
+                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
+                          />
+                          <button
+                            onClick={async () => {
+                              if (!convergenzaNumero.trim()) return;
+                              setSavingConvergenza(true);
+                              try {
+                                await api.patch(`/practices/${id}/convergence`, {
+                                  numero: convergenzaNumero
+                                }, {
+                                  headers: { Authorization: `Bearer ${token}` }
+                                });
+                                fetchPractice(); // Ricarica i dati
+                                setConvergenzaNumero('');
+                                alert('Numero convergenza aggiornato! Pratica completata.');
+                              } catch (err) {
+                                alert('Errore salvataggio numero convergenza');
+                              } finally {
+                                setSavingConvergenza(false);
+                              }
+                            }}
+                            disabled={savingConvergenza || !convergenzaNumero.trim()}
+                            className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                          >
+                            {savingConvergenza ? '...' : '✓'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (se presenti) */}
+              {practice.lavorazioniPostAttivazione && (
+                <div className="border-t border-slate-700 pt-4 mt-4">
+                  <h4 className="text-sm font-semibold text-slate-300 mb-2">Lavorazioni Post Attivazione</h4>
+                  <p className="text-sm text-slate-400 bg-slate-950/50 p-3 rounded-lg border border-slate-800">
+                    {practice.lavorazioniPostAttivazione}
+                  </p>
                 </div>
               )}
 

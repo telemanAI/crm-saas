@@ -471,6 +471,8 @@ export default function NewPractice() {
         pec: practice.customerSnapshot?.pec,
         additionalPackages: practice.additionalPackages,
         washConfig: practice.washConfig,
+        convergenza: practice.convergenza,
+        lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione,
       });
       
       if (practice.offerType === 'business') {
@@ -700,7 +702,14 @@ export default function NewPractice() {
       case 'wash':
         return { washConfig: data.washConfig };
       case 'line-new': 
-        return { lineType: data.lineType, installationAddress: data.installationAddress, technology: data.technology, notes: data.newLineNotes };
+        return { 
+          lineType: data.lineType, 
+          installationAddress: data.installationAddress, 
+          technology: data.technology, 
+          notes: data.newLineNotes,
+          convergenza: data.convergenza,
+          lavorazioniPostAttivazione: data.lavorazioniPostAttivazione,
+        };
       case 'line-old': 
         return { 
           oldLineData: data.lineType === 'MIGRAZIONE' ? { 
@@ -714,7 +723,13 @@ export default function NewPractice() {
       case 'privacy': 
         return { gdprConsent: data.gdprConsent, marketingConsent: data.privacyMarketing };
       case 'appointment': 
-        return { data: data.appointmentData, ora: data.appointmentOra, oraFine: data.appointmentOraFine, accordi: data.appointmentAccordi, lavorazioniPost: data.appointmentLavorazioni };
+        return { 
+          data: data.appointmentData, 
+          ora: data.appointmentOra, 
+          oraFine: data.appointmentOraFine, 
+          accordi: data.appointmentAccordi, 
+          lavorazioniPost: data.lavorazioniPostAttivazione,
+        };
       case 'summary': 
         return { completed: true };
       default: 
@@ -804,8 +819,21 @@ export default function NewPractice() {
           return data.washConfig.suspectData?.clientCode && data.washConfig.suspectData.clientCode.length >= 5;
         }
         return true;
-      case 'line-new': 
-        return data.lineType && data.installationAddress?.street && data.technology;
+      case 'line-new': {
+        const hasLineType = data.lineType && data.installationAddress?.street && data.technology;
+        if (!hasLineType) return false;
+        
+        // 🔥 Validazione convergenza
+        if (data.convergenza?.attiva) {
+          if (data.convergenza.tipo === 'chiusa' && !data.convergenza.numero) {
+            return false; // Blocca se "chiusa" senza numero
+          }
+          if (!data.convergenza.tipo) {
+            return false; // Blocca se attiva ma nessun tipo selezionato
+          }
+        }
+        return true;
+      }
       case 'line-old': 
         return data.lineType === 'NUOVA' || (data.oldPhoneNumber && data.migrationCode && (data.gestore || data.gestoreAltro));
       case 'payment': 
@@ -1600,7 +1628,8 @@ export default function NewPractice() {
                         )}
 
                         {step.stepId === 'line-new' && (
-                          <div className="space-y-4">
+                          <div className="space-y-6">
+                            {/* Tipo Linea */}
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Tipo Linea</label>
                               <div className="flex gap-4">
@@ -1612,6 +1641,8 @@ export default function NewPractice() {
                                 </button>
                               </div>
                             </div>
+
+                            {/* Indirizzo e Tecnologia */}
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Indirizzo Installazione</label>
                               <input type="text" value={data.installationAddress?.street || ''} onChange={(e) => setData({ installationAddress: { ...data.installationAddress, street: e.target.value } })} placeholder="Via Roma 123, Milano" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
@@ -1624,6 +1655,144 @@ export default function NewPractice() {
                                 ))}
                               </div>
                             </div>
+
+                            {/* 🔥 SEZIONE CONVERGENZA */}
+                            <div className="border-t border-slate-700 pt-6">
+                              <div className="flex items-center gap-3 mb-4">
+                                <input 
+                                  type="checkbox" 
+                                  id="convergenza"
+                                  checked={data.convergenza?.attiva || false}
+                                  onChange={(e) => {
+                                    const isActive = e.target.checked;
+                                    if (!isActive) {
+                                      setData({ convergenza: { attiva: false, tipo: null, numero: undefined } });
+                                    } else {
+                                      setData({ convergenza: { attiva: true, tipo: null, numero: undefined } });
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                                />
+                                <label htmlFor="convergenza" className="text-white font-medium cursor-pointer">
+                                  Convergenza
+                                </label>
+                              </div>
+
+                              {data.convergenza?.attiva && (
+                                <motion.div 
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  className="space-y-4 pl-8 border-l-2 border-indigo-500/30"
+                                >
+                                  <div className="flex gap-4">
+                                    <button
+                                      onClick={() => {
+                                        const { setConvergenza } = usePracticeWizardStore.getState();
+                                        setConvergenza({ attiva: true, tipo: 'daChiudere', numero: undefined });
+                                      }}
+                                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                        data.convergenza?.tipo === 'daChiudere' 
+                                          ? 'border-amber-500 bg-amber-600/10 text-amber-400' 
+                                          : 'border-slate-700 text-slate-400'
+                                      }`}
+                                    >
+                                      <div className="font-bold mb-1">Da Chiudere</div>
+                                      <div className="text-xs opacity-70">Inserirai il numero in seguito</div>
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        const { setConvergenza } = usePracticeWizardStore.getState();
+                                        setConvergenza({ attiva: true, tipo: 'chiusa', numero: '' });
+                                      }}
+                                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
+                                        data.convergenza?.tipo === 'chiusa' 
+                                          ? 'border-emerald-500 bg-emerald-600/10 text-emerald-400' 
+                                          : 'border-slate-700 text-slate-400'
+                                      }`}
+                                    >
+                                      <div className="font-bold mb-1">Chiusa</div>
+                                      <div className="text-xs opacity-70">Inserisci il numero ora</div>
+                                    </button>
+                                  </div>
+
+                                  {/* Alert per Da Chiudere */}
+                                  {data.convergenza?.tipo === 'daChiudere' && (
+                                    <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                                      <Warning className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                      <div>
+                                        <p className="text-amber-300 font-medium text-sm">Attenzione</p>
+                                        <p className="text-amber-300/80 text-sm">
+                                          Ricordati che per rendere la pratica in stato globale completa devi inserire il numero da convergere in seguito
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Input per Chiusa */}
+                                  {data.convergenza?.tipo === 'chiusa' && (
+                                    <div>
+                                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                                        Aggiungi numero con cui chiudere la convergenza <span className="text-rose-500">*</span>
+                                      </label>
+                                      <input 
+                                        type="text"
+                                        value={data.convergenza?.numero || ''}
+                                        onChange={(e) => {
+                                          const { setConvergenza } = usePracticeWizardStore.getState();
+                                          setConvergenza({ ...data.convergenza, numero: e.target.value });
+                                        }}
+                                        placeholder="Es. 3201234567 o codice cliente"
+                                        className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
+                                          !data.convergenza?.numero ? 'border-rose-600' : 'border-slate-700'
+                                        }`}
+                                      />
+                                      {!data.convergenza?.numero && (
+                                        <p className="text-rose-400 text-sm mt-2">⚠️ Inserisci il numero di convergenza per procedere</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              )}
+                            </div>
+
+                            {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
+                            <div className="border-t border-slate-700 pt-6">
+                              <div className="flex items-center gap-3 mb-4">
+                                <input 
+                                  type="checkbox" 
+                                  id="lavorazioniPost"
+                                  checked={!!data.lavorazioniPostAttivazione}
+                                  onChange={(e) => {
+                                    if (!e.target.checked) {
+                                      setData({ lavorazioniPostAttivazione: undefined });
+                                    } else {
+                                      setData({ lavorazioniPostAttivazione: '' });
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                                />
+                                <label htmlFor="lavorazioniPost" className="text-white font-medium cursor-pointer">
+                                  Lavorazioni post attivazione
+                                </label>
+                              </div>
+
+                              {!!data.lavorazioniPostAttivazione && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                >
+                                  <textarea
+                                    value={data.lavorazioniPostAttivazione}
+                                    onChange={(e) => setData({ lavorazioniPostAttivazione: e.target.value })}
+                                    rows={3}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                    placeholder="Descrivi le lavorazioni da effettuare post attivazione..."
+                                  />
+                                </motion.div>
+                              )}
+                            </div>
+
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Note Nuova Linea</label>
                               <textarea
@@ -1883,16 +2052,7 @@ export default function NewPractice() {
                               />
                             </div>
 
-                            <div>
-                              <label className="block text-sm font-medium text-slate-300 mb-2">Lavorazioni Post Attivazione</label>
-                              <textarea
-                                value={data.appointmentLavorazioni || ''}
-                                onChange={(e) => setData({ appointmentLavorazioni: e.target.value })}
-                                rows={3}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                                placeholder="Lavorazioni da effettuare dopo l'attivazione..."
-                              />
-                            </div>
+                            {/* RIMOSSO: Lavorazioni Post Attivazione - spostato a step 4 */}
                           </div>
                         )}
 

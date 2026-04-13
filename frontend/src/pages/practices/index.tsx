@@ -13,25 +13,13 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import Link from 'next/link';
+import OperatorLayout from '@/components/layout/OperatorLayout';
 
-interface Practice {
-  id: string;
-  type: string; // 🔥 Cambiato da enum fisso a string per supportare tutti i gestori
-  offerName: string;
-  customerName: string;
-  status: 'DRAFT' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-  currentStep: number;
-  createdAt: string;
-}
-
-// 🔥 FUNZIONE: Mappa tipo pratica a nome visualizzato
 const getTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
     'TIM_FIBRA': 'TIM',
     'VODAFONE': 'VODAFONE',
     'WINDTRE': 'WINDTRE',
-    'WIND': 'WIND',
-    'TRE': 'TRE',
     'ILIAD': 'ILIAD',
     'IREN': 'IREN',
     'OPTIMA': 'OPTIMA',
@@ -44,31 +32,33 @@ const getTypeLabel = (type: string): string => {
     'POSTEMOBILE': 'POSTE',
     'COOPVOCE': 'COOP',
   };
-  return typeMap[type] || type; // Fallback al tipo originale se non mappato
+  return typeMap[type] || type;
 };
 
-// 🔥 FUNZIONE: Mappa tipo pratica a colore
-const getTypeColor = (type: string): { bg: string; text: string } => {
-  const colorMap: Record<string, { bg: string; text: string }> = {
-    'TIM_FIBRA': { bg: 'bg-blue-600/20', text: 'text-blue-400' },
-    'VODAFONE': { bg: 'bg-red-600/20', text: 'text-red-400' },
-    'WINDTRE': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
-    'WIND': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
-    'TRE': { bg: 'bg-orange-600/20', text: 'text-orange-400' },
-    'ILIAD': { bg: 'bg-pink-600/20', text: 'text-pink-400' },
-    'IREN': { bg: 'bg-green-600/20', text: 'text-green-400' },
-    'OPTIMA': { bg: 'bg-teal-600/20', text: 'text-teal-400' },
-    'SKY': { bg: 'bg-cyan-600/20', text: 'text-cyan-400' },
-    'FASTWEB': { bg: 'bg-yellow-600/20', text: 'text-yellow-400' },
-    'TISCALI': { bg: 'bg-indigo-600/20', text: 'text-indigo-400' },
-    'LINKEM': { bg: 'bg-purple-600/20', text: 'text-purple-400' },
-    'PLENITUDE': { bg: 'bg-lime-600/20', text: 'text-lime-400' },
-    'ENEL': { bg: 'bg-emerald-600/20', text: 'text-emerald-400' },
-    'POSTEMOBILE': { bg: 'bg-amber-600/20', text: 'text-amber-400' },
-    'COOPVOCE': { bg: 'bg-rose-600/20', text: 'text-rose-400' },
+type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
+type FilterType = 'ALL' | PracticeType;
+type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
+
+interface Practice {
+  id: string;
+  type: PracticeType;
+  offerName: string;
+  customer: {
+    firstName: string;
+    lastName: string;
+    fiscalCode?: string;
   };
-  return colorMap[type] || { bg: 'bg-slate-600/20', text: 'text-slate-400' };
-};
+  status: PracticeStatus;
+  currentStep: number;
+  completedSteps?: number[];
+  operationalStatus?: string;
+  createdAt: string;
+  statoGlobale?: 'completo' | 'non_completo' | null;
+  convergenza?: {
+    attiva: boolean;
+    tipo: 'daChiudere' | 'chiusa';
+  };
+}
 
 export default function PracticesList() {
   const router = useRouter();
@@ -76,7 +66,9 @@ export default function PracticesList() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<string>('ALL'); // 🔥 Cambiato a string per supportare tutti i filtri
+  const [filter, setFilter] = useState<FilterType>('ALL');
+  const [operationalStatusFilter, setOperationalStatusFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED'>('ALL');
+  const [statoGlobaleFilter, setStatoGlobaleFilter] = useState<'ALL' | 'completo' | 'non_completo' | 'daChiudere'>('ALL');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -88,7 +80,18 @@ export default function PracticesList() {
       const response = await api.get('/practices', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setPractices(response.data);
+      
+      const practicesData = response.data.map((p: any) => {
+        let steps = p.completedSteps;
+        if (typeof steps === 'string') {
+          steps = steps.split(',').map(Number).filter((n: number) => !isNaN(n));
+        } else if (!Array.isArray(steps)) {
+          steps = [];
+        }
+        return { ...p, completedSteps: steps };
+      });
+      
+      setPractices(practicesData);
     } catch (err) {
       console.error('Errore caricamento pratiche:', err);
     } finally {
@@ -97,48 +100,67 @@ export default function PracticesList() {
   };
 
   const filteredPractices = practices.filter(p => {
-    const matchesSearch = p.customerName?.toLowerCase().includes(search.toLowerCase()) ||
-                         p.offerName?.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (p.customer?.firstName + ' ' + p.customer?.lastName)?.toLowerCase().includes(search.toLowerCase()) ||
+                     p.customer?.fiscalCode?.toLowerCase().includes(search.toLowerCase()) ||
+                     p.offerName?.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'ALL' || p.type === filter;
-    return matchesSearch && matchesFilter;
+    const matchesOperationalStatus = operationalStatusFilter === 'ALL' || p.operationalStatus === operationalStatusFilter;
+    
+    // FILTRO STATO GLOBALE
+    let matchesStatoGlobale = true;
+    if (statoGlobaleFilter !== 'ALL') {
+      if (statoGlobaleFilter === 'daChiudere') {
+        matchesStatoGlobale = p.convergenza?.attiva === true && p.convergenza?.tipo === 'daChiudere';
+      } else {
+        matchesStatoGlobale = p.statoGlobale === statoGlobaleFilter;
+      }
+    }
+    
+    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesStatoGlobale;
   });
 
-  // 🔥 Estrai tipi unici per il filtro
-  const uniqueTypes = Array.from(new Set(practices.map(p => p.type)));
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'COMPLETED': return <CheckCircle className="w-5 h-5 text-emerald-400" />;
-      case 'IN_PROGRESS': return <Clock className="w-5 h-5 text-amber-400" />;
-      case 'CANCELLED': return <XCircle className="w-5 h-5 text-rose-400" />;
-      default: return <FileText className="w-5 h-5 text-slate-400" />;
-    }
+  const getStatusIcon = (status: PracticeStatus | string) => {
+    const s = status?.toLowerCase();
+    if (s === 'completed') return <CheckCircle className="w-5 h-5 text-emerald-400" />;
+    if (s === 'in_progress') return <Clock className="w-5 h-5 text-amber-400" />;
+    if (s === 'cancelled') return <XCircle className="w-5 h-5 text-rose-400" />;
+    return <FileText className="w-5 h-5 text-slate-400" />;
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: PracticeStatus | string) => {
+    const s = status?.toLowerCase();
+    if (s === 'completed') return 'Inserita';
+    if (s === 'in_progress') return 'In corso';
+    if (s === 'cancelled') return 'Annullata';
+    return 'Bozza';
+  };
+
+  const getBorderColorByOperationalStatus = (status?: string) => {
     switch (status) {
-      case 'COMPLETED': return 'Completata';
-      case 'IN_PROGRESS': return 'In corso';
-      case 'CANCELLED': return 'Annullata';
-      default: return 'Bozza';
+      case 'ACTIVATED': return 'border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/30 bg-emerald-950/20';
+      case 'REJECTED': return 'border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30 bg-rose-950/20';
+      case 'IN_PROGRESS': return 'border-cyan-400 ring-2 ring-cyan-400/50 shadow-lg shadow-cyan-500/30 bg-cyan-950/20';
+      case 'PENDING': return 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30 bg-amber-950/20';
+      default: return 'border-slate-800';
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 ml-64 p-8 flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full" />
-      </div>
+      <OperatorLayout title="Pratiche">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full" />
+        </div>
+      </OperatorLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 ml-64 p-8">
-      {/* Header */}
+    <OperatorLayout title="Pratiche">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Pratiche</h1>
-          <p className="text-slate-400">Gestisci tutte le pratiche</p>
+          <p className="text-slate-400">Gestisci le pratiche TIM e SKY</p>
         </div>
         <Link href="/operator/practices/new">
           <motion.button
@@ -152,7 +174,6 @@ export default function PracticesList() {
         </Link>
       </div>
 
-      {/* Filtri */}
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
           <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -164,22 +185,55 @@ export default function PracticesList() {
             className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           />
         </div>
+        
         <div className="flex items-center gap-2">
           <Funnel className="w-5 h-5 text-slate-500" />
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e) => setFilter(e.target.value as FilterType)}
             className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           >
             <option value="ALL">Tutte</option>
-            {uniqueTypes.map(type => (
-              <option key={type} value={type}>{getTypeLabel(type)}</option>
-            ))}
+            <option value="TIM_FIBRA">TIM</option>
+            <option value="VODAFONE">Vodafone</option>
+            <option value="WINDTRE">WindTre</option>
+            <option value="ILIAD">Iliad</option>
+            <option value="OPTIMA">Optima</option>
+            <option value="IREN">Iren</option>
+            <option value="SKY">SKY</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 ml-4">
+          <Funnel className="w-5 h-5 text-slate-500" />
+          <select
+            value={operationalStatusFilter}
+            onChange={(e) => setOperationalStatusFilter(e.target.value as any)}
+            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          >
+            <option value="ALL">Tutti gli stati</option>
+            <option value="PENDING">In Attesa</option>
+            <option value="IN_PROGRESS">In Lavorazione</option>
+            <option value="ACTIVATED">Attivata</option>
+            <option value="REJECTED">KO</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 ml-4">
+          <Funnel className="w-5 h-5 text-slate-500" />
+          <select
+            value={statoGlobaleFilter}
+            onChange={(e) => setStatoGlobaleFilter(e.target.value as any)}
+            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          >
+            <option value="ALL">Tutti gli stati globali</option>
+            <option value="completo">Complete</option>
+            <option value="non_completo">Non Complete</option>
+            <option value="daChiudere">Convergenze da Chiudere</option>
           </select>
         </div>
       </div>
 
-      {/* Lista */}
       {filteredPractices.length === 0 ? (
         <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
           <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
@@ -190,51 +244,95 @@ export default function PracticesList() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredPractices.map((practice, index) => {
-            const typeColor = getTypeColor(practice.type);
-            const typeLabel = getTypeLabel(practice.type);
-            
-            return (
-              <motion.div
-                key={practice.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => router.push(`/operator/practices/${practice.id}`)}
-                className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer hover:border-slate-700 transition-all group"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${typeColor.bg} ${typeColor.text}`}>
-                      <span className="font-bold text-sm">{typeLabel}</span>
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                        {practice.offerName}
-                      </h3>
-                      <p className="text-sm text-slate-400">{practice.customerName}</p>
-                    </div>
+          {filteredPractices.map((practice, index) => (
+            <motion.div
+              key={practice.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.05 }}
+              onClick={() => router.push(`/operator/practices/${practice.id}`)}
+              className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-6 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
+                    <span className={`font-bold text-sm ${
+                      practice.type === 'TIM_FIBRA' ? 'text-blue-400' : 
+                      practice.type === 'VODAFONE' ? 'text-rose-400' :
+                      practice.type === 'WINDTRE' ? 'text-orange-400' :
+                      practice.type === 'ILIAD' ? 'text-red-400' :
+                      practice.type === 'OPTIMA' ? 'text-emerald-400' :
+                      practice.type === 'IREN' ? 'text-amber-400' :
+                      practice.type === 'SKY' ? 'text-cyan-400' : 'text-slate-400'
+                    }`}>
+                      {practice.type === 'TIM_FIBRA' ? 'TIM' : 
+                       practice.type === 'VODAFONE' ? 'Voda' :
+                       practice.type === 'WINDTRE' ? 'W3' :
+                       practice.type === 'ILIAD' ? 'Iliad' :
+                       practice.type === 'OPTIMA' ? 'Opt' :
+                       practice.type === 'IREN' ? 'Iren' :
+                       practice.type === 'SKY' ? 'SKY' : (practice.type as string)?.substring(0,3)}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
-                        {getStatusIcon(practice.status)}
-                        <span>{getStatusLabel(practice.status)}</span>
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        Step {practice.currentStep}/8
-                      </div>
+                  <span className="font-bold">{getTypeLabel(practice.type)}</span>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                    {practice.offerName}
+                  </h3>
+                  
+                  {/* BADGE CONVERGENZA */}
+                  {practice.convergenza?.attiva && (
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+                        practice.statoGlobale === 'completo' 
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                        {practice.statoGlobale === 'completo' 
+                          ? 'Convergenza Completata' 
+                          : 'Convergenza da Chiudere'}
+                      </span>
                     </div>
-                    <div className="text-right text-sm text-slate-500">
-                      {new Date(practice.createdAt).toLocaleDateString('it-IT')}
-                    </div>
+                  )}
+                  
+                  <div className="text-sm text-slate-400 mt-1">
+                    <p>{practice.customer?.firstName} {practice.customer?.lastName}</p>
+                    {practice.customer?.fiscalCode && (
+                      <p className="text-xs text-slate-500 font-mono mt-1">CF: {practice.customer.fiscalCode}</p>
+                    )}
                   </div>
                 </div>
-              </motion.div>
-            );
-          })}
+                <div className="flex items-center gap-6">
+                  {practice.status?.toLowerCase() === 'draft' && (
+                    <Link href={`/operator/practices/new?edit=${practice.id}`}>
+                      <button 
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors mr-4"
+                      >
+                        Continua
+                      </button>
+                    </Link>
+                  )}
+                  <div className="text-right">
+                    <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+                      {getStatusIcon(practice.status)}
+                      <span>{getStatusLabel(practice.status)}</span>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Step {practice.currentStep}/8
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-slate-500">
+                    {new Date(practice.createdAt).toLocaleDateString('it-IT')}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       )}
-    </div>
+    </OperatorLayout>
   );
 }

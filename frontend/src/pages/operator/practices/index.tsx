@@ -53,6 +53,11 @@ interface Practice {
   completedSteps?: number[];
   operationalStatus?: string;
   createdAt: string;
+  statoGlobale?: 'completo' | 'non_completo' | null;
+  convergenza?: {
+    attiva: boolean;
+    tipo: 'daChiudere' | 'chiusa';
+  };
 }
 
 export default function PracticesList() {
@@ -63,6 +68,7 @@ export default function PracticesList() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
   const [operationalStatusFilter, setOperationalStatusFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED'>('ALL');
+  const [statoGlobaleFilter, setStatoGlobaleFilter] = useState<'ALL' | 'completo' | 'non_completo' | 'daChiudere'>('ALL');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -99,7 +105,18 @@ export default function PracticesList() {
                      p.offerName?.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'ALL' || p.type === filter;
     const matchesOperationalStatus = operationalStatusFilter === 'ALL' || p.operationalStatus === operationalStatusFilter;
-    return matchesSearch && matchesFilter && matchesOperationalStatus;
+    
+    // FILTRO STATO GLOBALE
+    let matchesStatoGlobale = true;
+    if (statoGlobaleFilter !== 'ALL') {
+      if (statoGlobaleFilter === 'daChiudere') {
+        matchesStatoGlobale = p.convergenza?.attiva === true && p.convergenza?.tipo === 'daChiudere';
+      } else {
+        matchesStatoGlobale = p.statoGlobale === statoGlobaleFilter;
+      }
+    }
+    
+    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesStatoGlobale;
   });
 
   const getStatusIcon = (status: PracticeStatus | string) => {
@@ -112,7 +129,7 @@ export default function PracticesList() {
 
   const getStatusLabel = (status: PracticeStatus | string) => {
     const s = status?.toLowerCase();
-    if (s === 'completed') return 'Completata';
+    if (s === 'completed') return 'Inserita';
     if (s === 'in_progress') return 'In corso';
     if (s === 'cancelled') return 'Annullata';
     return 'Bozza';
@@ -201,6 +218,20 @@ export default function PracticesList() {
             <option value="REJECTED">KO</option>
           </select>
         </div>
+
+        <div className="flex items-center gap-2 ml-4">
+          <Funnel className="w-5 h-5 text-slate-500" />
+          <select
+            value={statoGlobaleFilter}
+            onChange={(e) => setStatoGlobaleFilter(e.target.value as any)}
+            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          >
+            <option value="ALL">Tutti gli stati globali</option>
+            <option value="completo">Complete</option>
+            <option value="non_completo">Non Complete</option>
+            <option value="daChiudere">Convergenze da Chiudere</option>
+          </select>
+        </div>
       </div>
 
       {filteredPractices.length === 0 ? (
@@ -249,7 +280,24 @@ export default function PracticesList() {
                   <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
                     {practice.offerName}
                   </h3>
-                  <div className="text-sm text-slate-400">
+                  
+                  {/* BADGE CONVERGENZA */}
+                  {practice.convergenza?.attiva && (
+                    <div className="mt-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
+                        practice.statoGlobale === 'completo' 
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                        {practice.statoGlobale === 'completo' 
+                          ? 'Convergenza Completata' 
+                          : 'Convergenza da Chiudere'}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-slate-400 mt-1">
                     <p>{practice.customer?.firstName} {practice.customer?.lastName}</p>
                     {practice.customer?.fiscalCode && (
                       <p className="text-xs text-slate-500 font-mono mt-1">CF: {practice.customer.fiscalCode}</p>

@@ -2292,4 +2292,4 @@ export default function NewPractice() {
       </div>
     </OperatorLayout>
   );
-}
+}Add-Content -Path "frontend/src/pages/operator/practices/new.tsx" -Value "`n// fix $(Get-Date)"

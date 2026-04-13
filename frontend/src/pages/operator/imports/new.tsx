@@ -2292,3 +2292,4 @@ export default function NewPractice() {
       </div>
     </OperatorLayout>
   );
+}

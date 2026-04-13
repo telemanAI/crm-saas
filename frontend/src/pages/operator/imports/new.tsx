@@ -1740,7 +1740,6 @@ export default function NewPractice() {
                                         value={data.convergenza?.numero || ''}
                                         onChange={(e) => {
                                           const { setConvergenza } = usePracticeWizardStore.getState();
-                                          // ✅ CORRETTO: Nessuno spread, tutti i campi espliciti
                                           setConvergenza({ 
                                             attiva: true, 
                                             tipo: 'chiusa', 

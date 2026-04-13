@@ -1740,8 +1740,8 @@ export default function NewPractice() {
                                         value={data.convergenza?.numero || ''}
                                       onChange={(e) => {
   const { setConvergenza } = usePracticeWizardStore.getState();
-  setConvergenza({ 
-    ...(data.convergenza as { attiva: true; tipo: 'chiusa' }), 
+ // Riga 1743 - Aggiungi attiva: true per soddisfare il tipo
+setConvergenza({ ...data.convergenza, numero: e.target.value, attiva: true });
     numero: e.target.value 
   });
 }}

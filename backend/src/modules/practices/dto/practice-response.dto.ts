@@ -5,6 +5,7 @@ export class PracticeResponseDto {
   type: string;
   status: string;
   operationalStatus?: string;
+  statoGlobale?: 'completo' | 'non_completo' | null; // 🔥 NUOVO
   currentStep: number;
   completedSteps: number[];
   customer: {
@@ -38,6 +39,14 @@ export class PracticeResponseDto {
     };
     timestamp?: Date;
   };
+  // 🔥 NUOVI CAMPI
+  convergenza?: {
+    attiva: boolean;
+    tipo: 'daChiudere' | 'chiusa' | null;
+    numero?: string;
+  } | null;
+  lavorazioniPostAttivazione?: string | null;
+  
   lineType?: string;
   installationAddress?: any;
   technology?: string;
@@ -63,6 +72,7 @@ export class PracticeResponseDto {
     this.type = practice.type;
     this.status = practice.status;
     this.operationalStatus = practice.operationalStatus || 'PENDING';
+    this.statoGlobale = practice.statoGlobale || null; // 🔥 NUOVO
     this.currentStep = practice.currentStep;
     
     const steps = practice.completedSteps as any;
@@ -115,6 +125,11 @@ export class PracticeResponseDto {
     this.offerScadenza = typeof practice.offerScadenza === 'string' ? practice.offerScadenza : undefined;
     this.additionalPackages = practice.additionalPackages;
     this.washConfig = practice.washConfig;
+    
+    // 🔥 NUOVI CAMPI
+    this.convergenza = practice.convergenza;
+    this.lavorazioniPostAttivazione = practice.lavorazioniPostAttivazione;
+    
     this.lineType = practice.lineType;
     this.installationAddress = practice.installationAddress || {};
     this.technology = typeof practice.technology === 'string' ? practice.technology : undefined;

@@ -75,6 +75,20 @@ class OldLineDataDto {
   notes?: string;
 }
 
+// 🔥 NUOVO: DTO per Convergenza
+class ConvergenzaDto {
+  @IsBoolean()
+  attiva: boolean;
+
+  @IsOptional()
+  @IsEnum(['daChiudere', 'chiusa'])
+  tipo?: 'daChiudere' | 'chiusa' | null;
+
+  @IsOptional()
+  @IsString()
+  numero?: string;
+}
+
 export class CreatePracticeDto {
   @IsEnum(['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY'])
   type: 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
@@ -177,4 +191,18 @@ export class CreatePracticeDto {
     };
     timestamp?: Date;
   };
+
+  // 🔥 NUOVI CAMPI
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ConvergenzaDto)
+  convergenza?: ConvergenzaDto;
+
+  @IsOptional()
+  @IsString()
+  lavorazioniPostAttivazione?: string;
+
+  @IsOptional()
+  @IsEnum(['completo', 'non_completo'])
+  statoGlobale?: 'completo' | 'non_completo' | null;
 }

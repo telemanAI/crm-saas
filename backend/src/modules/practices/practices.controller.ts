@@ -4,6 +4,7 @@ import {
   Get,
   Post,
   Put,
+  Patch, // 🔥 NUOVO
   Delete,
   Body,
   Param,
@@ -71,6 +72,17 @@ export class PracticesController {
   ) {
     const user = req.user;
     return this.practicesService.updateOperationalStatus(user.tenantId, id, status);
+  }
+
+  // 🔥 NUOVO: Endpoint per aggiornare solo il numero convergenza (inline edit dal dettaglio)
+  @Patch(':id/convergence')
+  async updateConvergence(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('numero') numero: string,
+  ) {
+    const user = req.user;
+    return this.practicesService.updateConvergence(user.tenantId, id, numero);
   }
 
   @Post(':id/force-complete')

@@ -29,6 +29,19 @@ export class PracticesService {
     private customersService: CustomersService,
   ) {}
 
+  // 🔥 NUOVO: Helper per calcolare stato globale
+  private calculateStatoGlobale(convergenza: Practice['convergenza']): 'completo' | 'non_completo' | null {
+    if (!convergenza?.attiva) {
+      return null;
+    }
+
+    if (convergenza.tipo === 'chiusa' && convergenza.numero && convergenza.numero.length > 0) {
+      return 'completo';
+    }
+    
+    return 'non_completo';
+  }
+
   async create(tenantId: string, userId: string, dto: CreatePracticeDto): Promise<PracticeResponseDto> {
     let customer = null;
     if (dto.customerData?.fiscalCode && dto.customerData.fiscalCode.length === 16) {
@@ -47,6 +60,9 @@ export class PracticesService {
 
     // Cast esplicito per risolvere il problema di tipo
     const oldLineDataTyped = dto.oldLineData as OldLineDataDto;
+
+    // 🔥 NUOVO: Calcolo stato globale iniziale
+    const statoGlobale = this.calculateStatoGlobale(dto.convergenza || null);
 
     const practice = this.practiceRepo.create({
       tenantId,
@@ -91,6 +107,11 @@ export class PracticesService {
         postePay: dto.paymentData?.postePay || null,
         bollettino: dto.paymentData?.bollettino || false,
       },
+      // 🔥 NUOVI CAMPI
+      convergenza: dto.convergenza || null,
+      lavorazioniPostAttivazione: dto.lavorazioniPostAttivazione || null,
+      statoGlobale: statoGlobale,
+      
       currentStep: 1,
       completedSteps: [1],
       status: 'in_progress',
@@ -243,7 +264,7 @@ export class PracticesService {
         break;
       
       case 4:
-        // Step 4: gestisce sia pacchetti SKY che dati linea standard
+        // 🔥 MODIFICATO: Step 4 gestisce sia pacchetti SKY che dati linea standard + Convergenza + Lavorazioni Post
         if (dto.data?.additionalPackages) {
           // Flusso SKY TV - Pacchetti aggiuntivi
           practice.additionalPackages = dto.data.additionalPackages;
@@ -253,6 +274,21 @@ export class PracticesService {
           practice.installationAddress = dto.data?.installationAddress;
           practice.technology = dto.data?.technology;
           practice.newLineNotes = dto.data?.notes;
+        }
+
+        // 🔥 NUOVO: Gestione Convergenza (solo se presente nei dati)
+        if (dto.data?.convergenza !== undefined) {
+          console.log('[DEBUG] Step 4 - Salvataggio Convergenza:', JSON.stringify(dto.data.convergenza));
+          practice.convergenza = dto.data.convergenza;
+          // Ricalcola stato globale
+          practice.statoGlobale = this.calculateStatoGlobale(practice.convergenza);
+          console.log('[DEBUG] Step 4 - Stato Globale calcolato:', practice.statoGlobale);
+        }
+
+        // 🔥 NUOVO: Gestione Lavorazioni Post Attivazione (spostate da step 8)
+        if (dto.data?.lavorazioniPostAttivazione !== undefined) {
+          console.log('[DEBUG] Step 4 - Salvataggio Lavorazioni Post Attivazione');
+          practice.lavorazioniPostAttivazione = dto.data.lavorazioniPostAttivazione;
         }
         break;
       
@@ -292,7 +328,7 @@ export class PracticesService {
             ora: dto.data?.ora,
             oraFine: dto.data?.oraFine,
             accordi: dto.data?.accordi,
-            lavorazioniPost: dto.data?.lavorazioniPost
+            // 🔥 RIMOSSO: lavorazioniPost non è più qui, ma in lavorazioniPostAttivazione
           };
         }
 
@@ -314,7 +350,7 @@ export class PracticesService {
             ora: dto.data?.ora,
             oraFine: dto.data?.oraFine,
             accordi: dto.data?.accordi,
-            lavorazioniPost: dto.data?.lavorazioniPost
+            // 🔥 RIMOSSO: lavorazioniPost non è più qui
           };
         }
         break;
@@ -373,6 +409,35 @@ export class PracticesService {
     console.log(`[DEBUG] Pratica salvata. Status: ${practice.status}, CustomerId: ${practice.customerId}`);
     
     return new PracticeResponseDto(updated);
+  }
+
+  // 🔥 NUOVO: Metodo per aggiornare solo il numero convergenza (inline edit)
+  async updateConvergence(
+    tenantId: string, 
+    practiceId: string, 
+    numero: string
+  ): Promise<PracticeResponseDto> {
+    const practice = await this.findById(tenantId, practiceId);
+    
+    if (!practice.convergenza?.attiva) {
+      throw new Error('Convergenza non attiva per questa pratica');
+    }
+
+    if (practice.convergenza.tipo !== 'daChiudere') {
+      throw new Error('La pratica non è in stato "Da Chiudere"');
+    }
+
+    // Aggiorna numero e ricalcola stato globale
+    practice.convergenza = {
+      ...practice.convergenza,
+      tipo: 'chiusa',
+      numero: numero
+    };
+    
+    practice.statoGlobale = this.calculateStatoGlobale(practice.convergenza);
+    
+    await this.practiceRepo.save(practice);
+    return new PracticeResponseDto(practice);
   }
 
   async updateOperationalStatus(

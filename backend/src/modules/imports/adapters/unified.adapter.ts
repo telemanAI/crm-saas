@@ -143,6 +143,54 @@ export class UnifiedAdapter {
     return null;
   }
 
+  /**
+   * 🔥 NUOVO: Parsing convergenza da stringa/JSON
+   */
+  private parseConvergenza(convValue: any): { attiva: boolean; tipo: 'daChiudere' | 'chiusa' | null; numero?: string } | null {
+    if (!convValue) return null;
+
+    // Se è già un oggetto
+    if (typeof convValue === 'object' && convValue !== null) {
+      return {
+        attiva: convValue.attiva || false,
+        tipo: convValue.tipo || null,
+        numero: convValue.numero || undefined
+      };
+    }
+
+    // Se è stringa, prova a parsarla come JSON
+    const str = String(convValue).trim();
+    if (str.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(str);
+        return {
+          attiva: parsed.attiva || false,
+          tipo: parsed.tipo || null,
+          numero: parsed.numero || undefined
+        };
+      } catch (e) {
+        // Non è JSON valido, continua con parsing semplice
+      }
+    }
+
+    // Parsing semplice da stringa
+    const lower = str.toLowerCase();
+    if (lower.includes('dachiudere') || lower.includes('da chiudere')) {
+      return { attiva: true, tipo: 'daChiudere' };
+    }
+    if (lower.includes('chiusa') || lower.includes('completa')) {
+      // Estrai numero se presente (es. "Chiusa 3201234567")
+      const numeroMatch = str.match(/\d+/);
+      return { 
+        attiva: true, 
+        tipo: 'chiusa', 
+        numero: numeroMatch ? numeroMatch[0] : undefined 
+      };
+    }
+
+    return null;
+  }
+
   async validateRow(row: any, mapping: any, tenantId: string): Promise<UnifiedRowResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -161,7 +209,7 @@ export class UnifiedAdapter {
         customerData[col.target] = value;
       } else if (this.isPracticeField(col.target)) {
         practiceData[col.target] = value;
-        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData', 'iban'].includes(col.target)) {
+        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData', 'iban', 'convergenza', 'lavorazioniPostAttivazione'].includes(col.target)) {
           hasPractice = true;
         }
       }
@@ -486,6 +534,19 @@ export class UnifiedAdapter {
     // 🔥 FIX: Gestione WASH intelligente
     const washConfig = this.parseWashConfig(data.wash);
     
+    // 🔥 NUOVO: Gestione Convergenza
+    const convergenza = this.parseConvergenza(data.convergenza);
+    
+    // Calcolo stato globale
+    let statoGlobale: 'completo' | 'non_completo' | null = null;
+    if (convergenza?.attiva) {
+      if (convergenza.tipo === 'chiusa' && convergenza.numero) {
+        statoGlobale = 'completo';
+      } else {
+        statoGlobale = 'non_completo';
+      }
+    }
+
     // 🔥 FIX: Gestione appuntamento (senza controlli rigidi)
     let appointmentData = null;
     if (data.appointmentData) {
@@ -506,6 +567,10 @@ export class UnifiedAdapter {
       type: data.type?.toUpperCase() as PracticeType,
       status: importJobId ? 'completed' : (data.status || 'draft'),
       operationalStatus: CommonValidators.normalizeStatus(data.operationalStatus, 'OPERATIONAL'),
+      // 🔥 NUOVI CAMPI
+      convergenza: convergenza,
+      statoGlobale: statoGlobale,
+      lavorazioniPostAttivazione: data.lavorazioniPostAttivazione || null,
       offerCode: data.offerCode,
       offerName: data.offerName,
       offerCanone: data.offerCanone,
@@ -542,6 +607,7 @@ export class UnifiedAdapter {
     if (data.pacchettiAggiuntivi) extraFields.push(`Pacchetti: ${data.pacchettiAggiuntivi}`);
     if (data.prodotti) extraFields.push(`Prodotti: ${data.prodotti}`);
     if (data.wash && !washConfig?.enabled) extraFields.push(`Wash: ${data.wash}`);
+    if (data.lavorazioniPostAttivazione) extraFields.push(`Lavorazioni: ${data.lavorazioniPostAttivazione}`);
     
     if (extraFields.length > 0) {
       practiceData.offerNote = practiceData.offerNote 
@@ -625,7 +691,9 @@ export class UnifiedAdapter {
       'offerScadenza', 'status', 'operationalStatus', 'lineType', 
       'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
       'migrationCode', 'iban', 'oldLineNumber', 
-      'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData'
+      'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData',
+      // 🔥 NUOVI CAMPI
+      'convergenza', 'lavorazioniPostAttivazione', 'statoGlobale'
     ];
     return fields.includes(target);
   }
@@ -649,9 +717,11 @@ export class UnifiedAdapter {
 
     const practiceFields = [
       { name: 'appointmentData', label: 'Dati Appuntamento', type: 'json', required: false, category: 'practice' as const, helpText: 'Data, ora e note installazione' },
+      { name: 'convergenza', label: 'Convergenza', type: 'json', required: false, category: 'practice' as const, helpText: 'Formato: {"attiva": true, "tipo": "daChiudere"|"chiusa", "numero": "123"}' },
       { name: 'createdAt', label: 'Data Inserimento Pratica', type: 'date', required: false, category: 'practice' as const, helpText: 'Formato: GG/MM/AAAA' },
       { name: 'enteredBy', label: 'Inserito Da', type: 'string', required: false, category: 'practice' as const },
       { name: 'iban', label: 'IBAN', type: 'string', required: false, category: 'practice' as const },
+      { name: 'lavorazioniPostAttivazione', label: 'Lavorazioni Post Attivazione', type: 'text', required: false, category: 'practice' as const },
       { name: 'lineType', label: 'Tipo Linea', type: 'string', required: false, category: 'practice' as const },
       { name: 'migrationCode', label: 'Codice Migrazione', type: 'string', required: false, category: 'practice' as const },
       { name: 'notes', label: 'Note Pratica', type: 'text', required: false, category: 'practice' as const },
@@ -666,6 +736,7 @@ export class UnifiedAdapter {
       { name: 'prodotti', label: 'Prodotti', type: 'string', required: false, category: 'practice' as const, helpText: 'Prodotti associati alla pratica' },
       { name: 'oldLineNumber', label: 'Numero Vecchia Linea', type: 'string', required: false, category: 'practice' as const },
       { name: 'soldBy', label: 'Venduto Da', type: 'string', required: false, category: 'practice' as const },
+      { name: 'statoGlobale', label: 'Stato Globale', type: 'enum', required: false, category: 'practice' as const, helpText: 'completo o non_completo' },
       { name: 'status', label: 'Stato Pratica', type: 'enum', required: false, category: 'practice' as const },
       { name: 'technology', label: 'Tecnologia', type: 'string', required: false, category: 'practice' as const },
       { name: 'type', label: 'Tipo Pratica', type: 'enum', required: false, category: 'practice' as const, helpText: 'Auto-rilevato da Nome Offerta se non mappato' },

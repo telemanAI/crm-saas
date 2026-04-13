@@ -7,6 +7,9 @@ export type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPT
 export type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
 export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED';
 
+// 🔥 NUOVO: Tipo per Stato Globale
+export type StatoGlobale = 'completo' | 'non_completo' | null;
+
 @Entity('practices')
 @Index(['tenantId', 'createdAt'])
 @Index(['customerId'])
@@ -50,6 +53,35 @@ export class Practice {
 
   @Column({ type: 'enum', enum: ['PENDING', 'IN_PROGRESS', 'ACTIVATED', 'REJECTED'], default: 'PENDING', name: 'operational_status' })
   operationalStatus: OperationalStatus;
+
+  // 🔥 NUOVO: Stato Globale (completo/non_completo basato su convergenza)
+  @Column({ 
+    type: 'enum', 
+    enum: ['completo', 'non_completo'], 
+    nullable: true, 
+    name: 'stato_globale' 
+  })
+  statoGlobale: StatoGlobale;
+
+  // 🔥 NUOVO: Configurazione Convergenza
+  @Column({ 
+    name: 'convergenza', 
+    type: 'jsonb', 
+    nullable: true 
+  })
+  convergenza: {
+    attiva: boolean;
+    tipo: 'daChiudere' | 'chiusa' | null;
+    numero?: string;
+  } | null;
+
+  // 🔥 NUOVO: Lavorazioni Post Attivazione (spostate da appointmentData)
+  @Column({ 
+    name: 'lavorazioni_post_attivazione', 
+    type: 'text', 
+    nullable: true 
+  })
+  lavorazioniPostAttivazione: string | null;
 
   @Column({ name: 'offer_code', nullable: true })
   offerCode: string;
@@ -131,7 +163,7 @@ export class Practice {
     ora?: string; 
     oraFine?: string;
     accordi?: string; 
-    lavorazioniPost?: string; 
+    // 🔥 RIMOSSO: lavorazioniPost spostato in campo dedicato
   };
 
   @Column({ name: 'additional_packages', type: 'jsonb', nullable: true })

@@ -1729,7 +1729,7 @@ export default function NewPractice() {
                                     </div>
                                   )}
 
-                                  {/* Input per Chiusa - CORRETTO: nessuno spread operator */}
+                                  {/* Input per Chiusa */}
                                   {data.convergenza?.tipo === 'chiusa' && (
                                     <div>
                                       <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -1740,10 +1740,11 @@ export default function NewPractice() {
                                         value={data.convergenza?.numero || ''}
                                         onChange={(e) => {
                                           const { setConvergenza } = usePracticeWizardStore.getState();
+                                          // FIX: Aggiunto 'attiva' esplicitamente per soddisfare il tipo ConvergenzaConfig
                                           setConvergenza({ 
-                                            attiva: true, 
-                                            tipo: 'chiusa', 
-                                            numero: e.target.value 
+                                            ...data.convergenza, 
+                                            numero: e.target.value,
+                                            attiva: data.convergenza?.attiva ?? true
                                           });
                                         }}
                                         placeholder="Es. 3201234567 o codice cliente"

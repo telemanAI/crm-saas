@@ -29,19 +29,23 @@ export class PracticesService {
     private customersService: CustomersService,
   ) {}
 
-  // 🔥 NUOVO: Helper per calcolare stato globale
-  private calculateStatoGlobale(convergenza: Practice['convergenza']): 'completo' | 'non_completo' | null {
-    if (!convergenza?.attiva) {
-      return null;
-    }
+ // 🔥 NUOVO: Helper per calcolare stato globale
+private calculateStatoGlobale(convergenza: { attiva: boolean; tipo?: 'daChiudere' | 'chiusa' | null; numero?: string } | null): 'completo' | 'non_completo' | null {
+  if (!convergenza?.attiva) {
+    return null;
+  }
 
-    if (convergenza.tipo === 'chiusa' && convergenza.numero && convergenza.numero.length > 0) {
-      return 'completo';
-    }
-    
+  // Se non è stato ancora selezionato il tipo, è non_completo
+  if (!convergenza.tipo) {
     return 'non_completo';
   }
 
+  if (convergenza.tipo === 'chiusa' && convergenza.numero && convergenza.numero.length > 0) {
+    return 'completo';
+  }
+  
+  return 'non_completo';
+}
   async create(tenantId: string, userId: string, dto: CreatePracticeDto): Promise<PracticeResponseDto> {
     let customer = null;
     if (dto.customerData?.fiscalCode && dto.customerData.fiscalCode.length === 16) {

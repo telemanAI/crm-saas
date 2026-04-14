@@ -208,7 +208,8 @@ const getSteps = (offerName: string | undefined, enableWashStep: boolean, enable
   
   // Step Linee (solo se c'è WIFI - Caso 0, 2, 3. NON Caso 1)
   if (!isSkyTvOnly) {
-    dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Configurazione linea', icon: MapPin });
+    // TITOLO CAMBIATO: da 'Nuova Linea' a 'Configurazione Linea'
+    dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Configurazione Linea', icon: MapPin });
     dynamicSteps.push({ id: currentId++, stepId: 'line-old', title: 'Dati Vecchia Linea', icon: Phone });
   }
   
@@ -703,12 +704,12 @@ export default function NewPractice() {
         return { washConfig: data.washConfig };
       case 'line-new': 
         return { 
-          lineType: data.lineType, 
-          installationAddress: data.installationAddress, 
-          technology: data.technology, 
-          notes: data.newLineNotes,
-          convergenza: data.convergenza,
-          lavorazioniPostAttivazione: data.lavorazioniPostAttivazione,
+          lineType: data.lineType || null, 
+          installationAddress: data.installationAddress || null, 
+          technology: data.technology || null, 
+          notes: data.newLineNotes || null,
+          convergenza: data.convergenza || null,
+          lavorazioniPostAttivazione: data.lavorazioniPostAttivazione || null,
         };
       case 'line-old': 
         return { 
@@ -751,6 +752,28 @@ export default function NewPractice() {
       }
     } catch (err) {
       console.error('Blocco avanzamento');
+    }
+  };
+
+  // 🔥 NUOVA FUNZIONE: Gestione skip step
+  const handleSkipStep = async (stepId: number) => {
+    try {
+      // Salva i dati parziali (anche se non completi/invalidi)
+      await saveStep(stepId);
+      
+      // Marca come completato per sbloccare lo step successivo
+      if (!completedSteps.includes(stepId)) {
+        setCompletedSteps([...completedSteps, stepId]);
+      }
+      
+      // Avanza al prossimo
+      if (!isLastStep(stepId)) {
+        setExpandedStep(stepId + 1);
+        setStep(stepId + 1);
+      }
+    } catch (err) {
+      console.error('Errore salvataggio:', err);
+      alert('Errore durante il salvataggio dello step');
     }
   };
 
@@ -1740,12 +1763,7 @@ export default function NewPractice() {
                                         value={data.convergenza?.numero || ''}
                                         onChange={(e) => {
                                           const { setConvergenza } = usePracticeWizardStore.getState();
-                                          // FIX: Aggiunto 'attiva' esplicitamente per soddisfare il tipo ConvergenzaConfig
-                                          setConvergenza({ 
-                                            ...data.convergenza, 
-                                            numero: e.target.value,
-                                            attiva: data.convergenza?.attiva ?? true
-                                          });
+                                          setConvergenza({ ...data.convergenza, numero: e.target.value });
                                         }}
                                         placeholder="Es. 3201234567 o codice cliente"
                                         className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
@@ -1761,43 +1779,43 @@ export default function NewPractice() {
                               )}
                             </div>
 
-                        {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
-<div className="border-t border-slate-700 pt-6">
-  <div className="flex items-center gap-3 mb-4">
-    <input 
-      type="checkbox" 
-      id="lavorazioniPost"
-      checked={data.lavorazioniPostAttivazione !== undefined}
-      onChange={(e) => {
-        if (!e.target.checked) {
-          setData({ lavorazioniPostAttivazione: undefined });
-        } else {
-          setData({ lavorazioniPostAttivazione: '' });
-        }
-      }}
-      className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
-    />
-    <label htmlFor="lavorazioniPost" className="text-white font-medium cursor-pointer">
-      Lavorazioni post attivazione
-    </label>
-  </div>
+                            {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) - FIX CHECKBOX */}
+                            <div className="border-t border-slate-700 pt-6">
+                              <div className="flex items-center gap-3 mb-4">
+                                <input 
+                                  type="checkbox" 
+                                  id="lavorazioniPost"
+                                  checked={data.lavorazioniPostAttivazione !== undefined}
+                                  onChange={(e) => {
+                                    if (!e.target.checked) {
+                                      setData({ lavorazioniPostAttivazione: undefined });
+                                    } else {
+                                      setData({ lavorazioniPostAttivazione: '' });
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+                                />
+                                <label htmlFor="lavorazioniPost" className="text-white font-medium cursor-pointer">
+                                  Lavorazioni post attivazione
+                                </label>
+                              </div>
 
-  {data.lavorazioniPostAttivazione !== undefined && (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-    >
-      <textarea
-        value={data.lavorazioniPostAttivazione}
-        onChange={(e) => setData({ lavorazioniPostAttivazione: e.target.value })}
-        rows={3}
-        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-        placeholder="Descrivi le lavorazioni da effettuare post attivazione..."
-      />
-    </motion.div>
-  )}
-</div>
+                              {data.lavorazioniPostAttivazione !== undefined && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                >
+                                  <textarea
+                                    value={data.lavorazioniPostAttivazione}
+                                    onChange={(e) => setData({ lavorazioniPostAttivazione: e.target.value })}
+                                    rows={3}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                    placeholder="Descrivi le lavorazioni da effettuare post attivazione..."
+                                  />
+                                </motion.div>
+                              )}
+                            </div>
 
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Note Nuova Linea</label>
@@ -2273,14 +2291,27 @@ export default function NewPractice() {
                               <ArrowLeft className="w-5 h-5" />
                               Indietro
                             </button>
-                            <button
-                              onClick={() => isValid && handleStepComplete(step.id)}
-                              disabled={!isValid}
-                              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white px-6 py-2 rounded-xl"
-                            >
-                              Avanti
-                              <ArrowRight className="w-5 h-5" />
-                            </button>
+                            
+                            <div className="flex items-center gap-3">
+                              {/* 🔥 TASTO SALTA - visibile dallo step 3 in poi */}
+                              {step.id >= 3 && (
+                                <button
+                                  onClick={() => handleSkipStep(step.id)}
+                                  className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white border border-slate-600 hover:border-slate-500 rounded-xl transition-all"
+                                >
+                                  Salta step
+                                </button>
+                              )}
+                              
+                              <button
+                                onClick={() => isValid && handleStepComplete(step.id)}
+                                disabled={!isValid}
+                                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white px-6 py-2 rounded-xl"
+                              >
+                                Avanti
+                                <ArrowRight className="w-5 h-5" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>

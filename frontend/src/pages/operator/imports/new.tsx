@@ -208,7 +208,7 @@ const getSteps = (offerName: string | undefined, enableWashStep: boolean, enable
   
   // Step Linee (solo se c'è WIFI - Caso 0, 2, 3. NON Caso 1)
   if (!isSkyTvOnly) {
-    dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Nuova Linea', icon: MapPin });
+    dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Configurazione linea', icon: MapPin });
     dynamicSteps.push({ id: currentId++, stepId: 'line-old', title: 'Dati Vecchia Linea', icon: Phone });
   }
   

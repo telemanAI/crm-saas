@@ -135,30 +135,28 @@ export class PracticesService {
     const practice = await this.findById(tenantId, practiceId);
 
     switch (dto.stepNumber) {
-    case 1:
-  console.log('[DEBUG] Step 1 - Offerta');
-  practice.type = dto.data?.type ?? practice.type;
-  
-  // 🔥 FIX: Se c'è offerCode nei dati, assumiamo cambio offerta completo
-  // e resettiamo TUTTI i campi offerta ai nuovi valori (o null se mancanti)
-  if (dto.data?.offerCode !== undefined) {
-    practice.offerCode = dto.data.offerCode ?? null;
-    practice.offerName = dto.data?.offerName ?? null;
-    practice.offerCanone = dto.data?.offerCanone ?? null;
-    practice.offerAttivazione = dto.data?.offerAttivazione ?? null;
-    practice.offerVincolo = dto.data?.offerVincolo ?? null;
-    practice.offerNote = dto.data?.offerNote ?? null;
-    practice.offerDisattivazione = dto.data?.offerDisattivazione ?? null;
-    practice.offerType = dto.data?.offerType ?? null;
-    practice.offerScadenza = dto.data?.offerScadenza ?? null;
-  }
-  break;
+      case 1:
+        console.log('[DEBUG] Step 1 - Offerta');
+        // FIX: Permetti di modificare/cancellare campi offerta usando !== undefined
+        practice.type = dto.data?.type !== undefined ? dto.data.type : practice.type;
+        practice.offerCode = dto.data?.offerCode !== undefined ? dto.data.offerCode : practice.offerCode;
+        practice.offerName = dto.data?.offerName !== undefined ? dto.data.offerName : practice.offerName;
+        practice.offerCanone = dto.data?.offerCanone !== undefined ? dto.data.offerCanone : practice.offerCanone;
+        practice.offerAttivazione = dto.data?.offerAttivazione !== undefined ? dto.data.offerAttivazione : practice.offerAttivazione;
+        practice.offerVincolo = dto.data?.offerVincolo !== undefined ? dto.data.offerVincolo : practice.offerVincolo;
+        practice.offerNote = dto.data?.offerNote !== undefined ? dto.data.offerNote : practice.offerNote;
+        practice.offerDisattivazione = dto.data?.offerDisattivazione !== undefined ? dto.data.offerDisattivazione : practice.offerDisattivazione;
+        practice.offerType = dto.data?.offerType !== undefined ? dto.data.offerType : practice.offerType;
+        practice.offerScadenza = dto.data?.offerScadenza !== undefined ? dto.data.offerScadenza : practice.offerScadenza;
+        break;
 
       case 2:
-        practice.soldBy = dto.data?.soldBy ?? null;
-        practice.enteredBy = dto.data?.enteredBy ?? null;
-        practice.soldById = dto.data?.soldById ?? null;
-        practice.enteredById = dto.data?.enteredById ?? null;
+        console.log('[DEBUG] Step 2 - Venditori');
+        // FIX: Permetti di modificare/cancellare venditori
+        practice.soldBy = dto.data?.soldBy !== undefined ? dto.data.soldBy : practice.soldBy;
+        practice.enteredBy = dto.data?.enteredBy !== undefined ? dto.data.enteredBy : practice.enteredBy;
+        practice.soldById = dto.data?.soldById !== undefined ? dto.data.soldById : practice.soldById;
+        practice.enteredById = dto.data?.enteredById !== undefined ? dto.data.enteredById : practice.enteredById;
         break;
 
       case 3:
@@ -167,34 +165,42 @@ export class PracticesService {
           const cd = dto.data.customerData;
           const newCf = cd.fiscalCode?.toUpperCase().trim();
           
+          // FIX: Aggiornamento cliente con sovrascrittura esplicita
           if (newCf?.length === 16) {
             let customer = await this.customersService.findByFiscalCode(tenantId, newCf);
             if (!customer) {
               customer = await this.customersService.create(tenantId, {
-                firstName: cd.firstName, lastName: cd.lastName, fiscalCode: newCf,
-                phonePrimary: cd.phone, email: cd.email,
+                firstName: cd.firstName || 'Temp', 
+                lastName: cd.lastName || 'Temp', 
+                fiscalCode: newCf,
+                phonePrimary: cd.phone, 
+                email: cd.email,
               }, userId);
             } else {
+              // FIX: Aggiorna sempre i dati cliente esistente
               await this.customersService.update(tenantId, customer.id, {
-                firstName: cd.firstName, lastName: cd.lastName,
-                phonePrimary: cd.phone, email: cd.email,
+                firstName: cd.firstName, 
+                lastName: cd.lastName,
+                phonePrimary: cd.phone, 
+                email: cd.email,
               }, userId);
             }
             if (customer) practice.customerId = customer.id;
           }
           
+          // FIX: Sovrascrivi sempre lo snapshot con i nuovi dati (anche vuoti)
           practice.customerSnapshot = {
-            firstName: cd.firstName ?? practice.customerSnapshot?.firstName,
-            lastName: cd.lastName ?? practice.customerSnapshot?.lastName,
-            fiscalCode: newCf ?? practice.customerSnapshot?.fiscalCode,
-            phonePrimary: cd.phone ?? practice.customerSnapshot?.phonePrimary,
-            email: cd.email ?? practice.customerSnapshot?.email,
-            ragioneSociale: cd.ragioneSociale ?? practice.customerSnapshot?.ragioneSociale,
-            partitaIva: cd.partitaIva ?? practice.customerSnapshot?.partitaIva,
-            formaGiuridica: cd.formaGiuridica ?? practice.customerSnapshot?.formaGiuridica,
-            sedeLegale: cd.sedeLegale ?? practice.customerSnapshot?.sedeLegale,
-            codiceRea: cd.codiceRea ?? practice.customerSnapshot?.codiceRea,
-            pec: cd.pec ?? practice.customerSnapshot?.pec,
+            firstName: cd.firstName !== undefined ? cd.firstName : practice.customerSnapshot?.firstName,
+            lastName: cd.lastName !== undefined ? cd.lastName : practice.customerSnapshot?.lastName,
+            fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
+            phonePrimary: cd.phone !== undefined ? cd.phone : practice.customerSnapshot?.phonePrimary,
+            email: cd.email !== undefined ? cd.email : practice.customerSnapshot?.email,
+            ragioneSociale: cd.ragioneSociale !== undefined ? cd.ragioneSociale : practice.customerSnapshot?.ragioneSociale,
+            partitaIva: cd.partitaIva !== undefined ? cd.partitaIva : practice.customerSnapshot?.partitaIva,
+            formaGiuridica: cd.formaGiuridica !== undefined ? cd.formaGiuridica : practice.customerSnapshot?.formaGiuridica,
+            sedeLegale: cd.sedeLegale !== undefined ? cd.sedeLegale : practice.customerSnapshot?.sedeLegale,
+            codiceRea: cd.codiceRea !== undefined ? cd.codiceRea : practice.customerSnapshot?.codiceRea,
+            pec: cd.pec !== undefined ? cd.pec : practice.customerSnapshot?.pec,
           };
         }
         
@@ -202,8 +208,10 @@ export class PracticesService {
           const currentUser = await this.userRepo.findOne({ where: { id: userId } });
           const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Operatore';
           const newNote = {
-            text: dto.data.notes.trim(), createdAt: new Date(),
-            createdBy: userName, createdById: userId
+            text: dto.data.notes.trim(), 
+            createdAt: new Date(),
+            createdBy: userName, 
+            createdById: userId
           };
           if (!practice.notesHistory) practice.notesHistory = [];
           practice.notesHistory.push(newNote);
@@ -294,7 +302,7 @@ export class PracticesService {
         break;
     }
 
-    // 🔥 CRITICAL: Gestione completamento (preserva logica originale ma più sicura)
+    // CRITICAL: Gestione completamento (preserva logica originale ma più sicura)
     // Se riceviamo flag completed=true, finalizza la pratica (usato da handleSubmit nel frontend)
     if (dto.data?.completed === true) {
       console.log('[DEBUG] Completamento esplicito richiesto dallo step', dto.stepNumber);

@@ -208,7 +208,6 @@ const getSteps = (offerName: string | undefined, enableWashStep: boolean, enable
   
   // Step Linee (solo se c'è WIFI - Caso 0, 2, 3. NON Caso 1)
   if (!isSkyTvOnly) {
-    // TITOLO CAMBIATO: da 'Nuova Linea' a 'Configurazione Linea'
     dynamicSteps.push({ id: currentId++, stepId: 'line-new', title: 'Configurazione Linea', icon: MapPin });
     dynamicSteps.push({ id: currentId++, stepId: 'line-old', title: 'Dati Vecchia Linea', icon: Phone });
   }
@@ -755,18 +754,17 @@ export default function NewPractice() {
     }
   };
 
-  // 🔥 NUOVA FUNZIONE: Gestione skip step
   const handleSkipStep = async (stepId: number) => {
     try {
-      // Salva i dati parziali (anche se non completi/invalidi)
+      // Salva i dati parziali
       await saveStep(stepId);
       
-      // Marca come completato per sbloccare lo step successivo
+      // Marca come completato per sbloccare il prossimo
       if (!completedSteps.includes(stepId)) {
         setCompletedSteps([...completedSteps, stepId]);
       }
       
-      // Avanza al prossimo
+      // Avanza
       if (!isLastStep(stepId)) {
         setExpandedStep(stepId + 1);
         setStep(stepId + 1);
@@ -1779,7 +1777,7 @@ export default function NewPractice() {
                               )}
                             </div>
 
-                            {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) - FIX CHECKBOX */}
+                            {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
                             <div className="border-t border-slate-700 pt-6">
                               <div className="flex items-center gap-3 mb-4">
                                 <input 
@@ -1804,7 +1802,6 @@ export default function NewPractice() {
                                 <motion.div
                                   initial={{ opacity: 0, height: 0 }}
                                   animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
                                 >
                                   <textarea
                                     value={data.lavorazioniPostAttivazione}

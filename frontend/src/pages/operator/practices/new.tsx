@@ -685,6 +685,19 @@ export default function NewPractice() {
     const stepId = step?.stepId;
     
     switch (stepId) {
+		case 'offer':
+      return {
+        type: data.type,
+        offerCode: data.offerCode,
+        offerName: data.offerName,
+        offerCanone: data.offerCanone,
+        offerAttivazione: data.offerAttivazione,
+        offerVincolo: data.offerVincolo,
+        offerNote: data.offerNote,
+        offerDisattivazione: data.offerDisattivazione,
+        offerType: data.offerType,
+        offerScadenza: data.offerScadenza,
+      };
       case 'sellers': 
         return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
       case 'customer': 

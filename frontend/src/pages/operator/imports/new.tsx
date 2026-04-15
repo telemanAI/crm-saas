@@ -755,25 +755,25 @@ export default function NewPractice() {
   };
 
   const handleSkipStep = async (stepId: number) => {
-    try {
-      // Salva i dati parziali
-      await saveStep(stepId);
-      
-      // Marca come completato per sbloccare il prossimo
-      if (!completedSteps.includes(stepId)) {
-        setCompletedSteps([...completedSteps, stepId]);
-      }
-      
-      // Avanza
-      if (!isLastStep(stepId)) {
-        setExpandedStep(stepId + 1);
-        setStep(stepId + 1);
-      }
-    } catch (err) {
-      console.error('Errore salvataggio:', err);
-      alert('Errore durante il salvataggio dello step');
+  try {
+    // Salva i dati parziali (anche se non completi/invalidi)
+    await saveStep(stepId);
+    
+    // Marca come completato per sbloccare il prossimo
+    if (!completedSteps.includes(stepId)) {
+      setCompletedSteps([...completedSteps, stepId]);
     }
-  };
+    
+    // Avanza al prossimo
+    if (!isLastStep(stepId)) {
+      setExpandedStep(stepId + 1);
+      setStep(stepId + 1);
+    }
+  } catch (err) {
+    console.error('Errore salvataggio:', err);
+    alert('Errore durante il salvataggio dello step');
+  }
+};
 
   const handleStepClick = (stepId: number) => {
     const maxCompleted = Math.max(...completedSteps, 0);
@@ -1778,41 +1778,43 @@ export default function NewPractice() {
                             </div>
 
                             {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
-                            <div className="border-t border-slate-700 pt-6">
-                              <div className="flex items-center gap-3 mb-4">
-                                <input 
-                                  type="checkbox" 
-                                  id="lavorazioniPost"
-                                  checked={data.lavorazioniPostAttivazione !== undefined}
-                                  onChange={(e) => {
-                                    if (!e.target.checked) {
-                                      setData({ lavorazioniPostAttivazione: undefined });
-                                    } else {
-                                      setData({ lavorazioniPostAttivazione: '' });
-                                    }
-                                  }}
-                                  className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
-                                />
-                                <label htmlFor="lavorazioniPost" className="text-white font-medium cursor-pointer">
-                                  Lavorazioni post attivazione
-                                </label>
-                              </div>
+                          {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
+<div className="border-t border-slate-700 pt-6">
+  <div className="flex items-center gap-3 mb-4">
+    <input 
+      type="checkbox" 
+      id="lavorazioniPost"
+      checked={data.lavorazioniPostAttivazione !== undefined}
+      onChange={(e) => {
+        if (!e.target.checked) {
+          setData({ lavorazioniPostAttivazione: undefined });
+        } else {
+          setData({ lavorazioniPostAttivazione: '' });
+        }
+      }}
+      className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600"
+    />
+    <label htmlFor="lavorazioniPost" className="text-white font-medium cursor-pointer">
+      Lavorazioni post attivazione
+    </label>
+  </div>
 
-                              {data.lavorazioniPostAttivazione !== undefined && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                >
-                                  <textarea
-                                    value={data.lavorazioniPostAttivazione}
-                                    onChange={(e) => setData({ lavorazioniPostAttivazione: e.target.value })}
-                                    rows={3}
-                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                                    placeholder="Descrivi le lavorazioni da effettuare post attivazione..."
-                                  />
-                                </motion.div>
-                              )}
-                            </div>
+  {data.lavorazioniPostAttivazione !== undefined && (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+    >
+      <textarea
+        value={data.lavorazioniPostAttivazione}
+        onChange={(e) => setData({ lavorazioniPostAttivazione: e.target.value })}
+        rows={3}
+        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+        placeholder="Descrivi le lavorazioni da effettuare post attivazione..."
+      />
+    </motion.div>
+  )}
+</div>
 
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Note Nuova Linea</label>

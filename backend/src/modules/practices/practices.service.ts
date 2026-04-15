@@ -135,20 +135,20 @@ export class PracticesService {
     const practice = await this.findById(tenantId, practiceId);
 
     switch (dto.stepNumber) {
-  case 1:
-  console.log('[DEBUG] Step 1 - Aggiornamento offerta completo');
-  // 🔥 CRITICAL FIX: Resetta a null i campi non inviati (es. cambio da Wind->Iliad)
-  practice.type = dto.data?.type ?? practice.type;
-  practice.offerCode = dto.data?.offerCode !== undefined ? dto.data.offerCode : null;
-  practice.offerName = dto.data?.offerName !== undefined ? dto.data.offerName : null;
-  practice.offerCanone = dto.data?.offerCanone !== undefined ? dto.data.offerCanone : null;
-  practice.offerAttivazione = dto.data?.offerAttivazione !== undefined ? dto.data.offerAttivazione : null;
-  practice.offerVincolo = dto.data?.offerVincolo !== undefined ? dto.data.offerVincolo : null;
-  practice.offerNote = dto.data?.offerNote !== undefined ? dto.data.offerNote : null;
-  practice.offerDisattivazione = dto.data?.offerDisattivazione !== undefined ? dto.data.offerDisattivazione : null;
-  practice.offerType = dto.data?.offerType !== undefined ? dto.data.offerType : null;
-  practice.offerScadenza = dto.data?.offerScadenza !== undefined ? dto.data.offerScadenza : null;
-  break;
+      case 1:
+        console.log('[DEBUG] Step 1 - Offerta');
+        practice.type = dto.data?.type ?? practice.type;
+        practice.offerCode = dto.data?.offerCode ?? null;
+        practice.offerName = dto.data?.offerName ?? null;
+        practice.offerCanone = dto.data?.offerCanone ?? null;
+        practice.offerAttivazione = dto.data?.offerAttivazione ?? null;
+        practice.offerVincolo = dto.data?.offerVincolo ?? null;
+        practice.offerNote = dto.data?.offerNote ?? null;
+        practice.offerDisattivazione = dto.data?.offerDisattivazione ?? null;
+        practice.offerType = dto.data?.offerType ?? null;
+        practice.offerScadenza = dto.data?.offerScadenza ?? null;
+        break;
+
       case 2:
         practice.soldBy = dto.data?.soldBy ?? null;
         practice.enteredBy = dto.data?.enteredBy ?? null;

@@ -136,27 +136,27 @@ export class PracticesService {
 
     switch (dto.stepNumber) {
       case 1:
-        console.log('[DEBUG] Step 1 - Offerta');
-        // FIX: Permetti di modificare/cancellare campi offerta usando !== undefined
-        practice.type = dto.data?.type !== undefined ? dto.data.type : practice.type;
-        practice.offerCode = dto.data?.offerCode !== undefined ? dto.data.offerCode : practice.offerCode;
-        practice.offerName = dto.data?.offerName !== undefined ? dto.data.offerName : practice.offerName;
-        practice.offerCanone = dto.data?.offerCanone !== undefined ? dto.data.offerCanone : practice.offerCanone;
-        practice.offerAttivazione = dto.data?.offerAttivazione !== undefined ? dto.data.offerAttivazione : practice.offerAttivazione;
-        practice.offerVincolo = dto.data?.offerVincolo !== undefined ? dto.data.offerVincolo : practice.offerVincolo;
-        practice.offerNote = dto.data?.offerNote !== undefined ? dto.data.offerNote : practice.offerNote;
-        practice.offerDisattivazione = dto.data?.offerDisattivazione !== undefined ? dto.data.offerDisattivazione : practice.offerDisattivazione;
-        practice.offerType = dto.data?.offerType !== undefined ? dto.data.offerType : practice.offerType;
-        practice.offerScadenza = dto.data?.offerScadenza !== undefined ? dto.data.offerScadenza : practice.offerScadenza;
+        console.log('[DEBUG] Step 1 - Aggiornamento offerta');
+        // FIX: Aggiorna solo i campi effettivamente inviati dal frontend
+        if (dto.data?.type !== undefined) practice.type = dto.data.type;
+        if (dto.data?.offerCode !== undefined) practice.offerCode = dto.data.offerCode;
+        if (dto.data?.offerName !== undefined) practice.offerName = dto.data.offerName;
+        if (dto.data?.offerCanone !== undefined) practice.offerCanone = dto.data.offerCanone;
+        if (dto.data?.offerAttivazione !== undefined) practice.offerAttivazione = dto.data.offerAttivazione;
+        if (dto.data?.offerVincolo !== undefined) practice.offerVincolo = dto.data.offerVincolo;
+        if (dto.data?.offerNote !== undefined) practice.offerNote = dto.data.offerNote;
+        if (dto.data?.offerDisattivazione !== undefined) practice.offerDisattivazione = dto.data.offerDisattivazione;
+        if (dto.data?.offerType !== undefined) practice.offerType = dto.data.offerType;
+        if (dto.data?.offerScadenza !== undefined) practice.offerScadenza = dto.data.offerScadenza;
         break;
 
       case 2:
         console.log('[DEBUG] Step 2 - Venditori');
-        // FIX: Permetti di modificare/cancellare venditori
-        practice.soldBy = dto.data?.soldBy !== undefined ? dto.data.soldBy : practice.soldBy;
-        practice.enteredBy = dto.data?.enteredBy !== undefined ? dto.data.enteredBy : practice.enteredBy;
-        practice.soldById = dto.data?.soldById !== undefined ? dto.data.soldById : practice.soldById;
-        practice.enteredById = dto.data?.enteredById !== undefined ? dto.data.enteredById : practice.enteredById;
+        // FIX: Aggiorna solo se esplicitamente inviato
+        if (dto.data?.soldBy !== undefined) practice.soldBy = dto.data.soldBy;
+        if (dto.data?.enteredBy !== undefined) practice.enteredBy = dto.data.enteredBy;
+        if (dto.data?.soldById !== undefined) practice.soldById = dto.data.soldById;
+        if (dto.data?.enteredById !== undefined) practice.enteredById = dto.data.enteredById;
         break;
 
       case 3:
@@ -165,7 +165,7 @@ export class PracticesService {
           const cd = dto.data.customerData;
           const newCf = cd.fiscalCode?.toUpperCase().trim();
           
-          // FIX: Aggiornamento cliente con sovrascrittura esplicita
+          // FIX: Aggiorna cliente solo se ha un CF valido
           if (newCf?.length === 16) {
             let customer = await this.customersService.findByFiscalCode(tenantId, newCf);
             if (!customer) {
@@ -177,7 +177,7 @@ export class PracticesService {
                 email: cd.email,
               }, userId);
             } else {
-              // FIX: Aggiorna sempre i dati cliente esistente
+              // FIX: Aggiorna sempre i dati esistenti
               await this.customersService.update(tenantId, customer.id, {
                 firstName: cd.firstName, 
                 lastName: cd.lastName,
@@ -188,8 +188,9 @@ export class PracticesService {
             if (customer) practice.customerId = customer.id;
           }
           
-          // FIX: Sovrascrivi sempre lo snapshot con i nuovi dati (anche vuoti)
+          // FIX: Aggiorna lo snapshot solo per i campi inviati
           practice.customerSnapshot = {
+            ...practice.customerSnapshot, // preserva i campi esistenti
             firstName: cd.firstName !== undefined ? cd.firstName : practice.customerSnapshot?.firstName,
             lastName: cd.lastName !== undefined ? cd.lastName : practice.customerSnapshot?.lastName,
             fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
@@ -204,6 +205,7 @@ export class PracticesService {
           };
         }
         
+        // Note (logica invariata)
         if (dto.data?.notes?.trim()) {
           const currentUser = await this.userRepo.findOne({ where: { id: userId } });
           const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Operatore';

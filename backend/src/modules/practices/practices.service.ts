@@ -135,19 +135,24 @@ export class PracticesService {
     const practice = await this.findById(tenantId, practiceId);
 
     switch (dto.stepNumber) {
-      case 1:
-        console.log('[DEBUG] Step 1 - Offerta');
-        practice.type = dto.data?.type ?? practice.type;
-        practice.offerCode = dto.data?.offerCode ?? null;
-        practice.offerName = dto.data?.offerName ?? null;
-        practice.offerCanone = dto.data?.offerCanone ?? null;
-        practice.offerAttivazione = dto.data?.offerAttivazione ?? null;
-        practice.offerVincolo = dto.data?.offerVincolo ?? null;
-        practice.offerNote = dto.data?.offerNote ?? null;
-        practice.offerDisattivazione = dto.data?.offerDisattivazione ?? null;
-        practice.offerType = dto.data?.offerType ?? null;
-        practice.offerScadenza = dto.data?.offerScadenza ?? null;
-        break;
+    case 1:
+  console.log('[DEBUG] Step 1 - Offerta');
+  practice.type = dto.data?.type ?? practice.type;
+  
+  // 🔥 FIX: Se c'è offerCode nei dati, assumiamo cambio offerta completo
+  // e resettiamo TUTTI i campi offerta ai nuovi valori (o null se mancanti)
+  if (dto.data?.offerCode !== undefined) {
+    practice.offerCode = dto.data.offerCode ?? null;
+    practice.offerName = dto.data?.offerName ?? null;
+    practice.offerCanone = dto.data?.offerCanone ?? null;
+    practice.offerAttivazione = dto.data?.offerAttivazione ?? null;
+    practice.offerVincolo = dto.data?.offerVincolo ?? null;
+    practice.offerNote = dto.data?.offerNote ?? null;
+    practice.offerDisattivazione = dto.data?.offerDisattivazione ?? null;
+    practice.offerType = dto.data?.offerType ?? null;
+    practice.offerScadenza = dto.data?.offerScadenza ?? null;
+  }
+  break;
 
       case 2:
         practice.soldBy = dto.data?.soldBy ?? null;

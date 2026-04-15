@@ -48,6 +48,11 @@ interface Practice {
     lastName: string;
     fiscalCode?: string;
   };
+  customerSnapshot?: {
+    firstName?: string;
+    lastName?: string;
+    fiscalCode?: string;
+  };
   status: PracticeStatus;
   currentStep: number;
   completedSteps?: number[];
@@ -298,9 +303,14 @@ export default function PracticesList() {
                   )}
                   
                   <div className="text-sm text-slate-400 mt-1">
-                    <p>{practice.customer?.firstName} {practice.customer?.lastName}</p>
-                    {practice.customer?.fiscalCode && (
-                      <p className="text-xs text-slate-500 font-mono mt-1">CF: {practice.customer.fiscalCode}</p>
+                    <p>
+                      {practice.customerSnapshot?.firstName || practice.customer?.firstName} {' '}
+                      {practice.customerSnapshot?.lastName || practice.customer?.lastName}
+                    </p>
+                    {(practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode) && (
+                      <p className="text-xs text-slate-500 font-mono mt-1">
+                        CF: {practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode}
+                      </p>
                     )}
                   </div>
                 </div>

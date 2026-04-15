@@ -49,9 +49,26 @@ interface PracticeDetail {
     phonePrimary?: string;
     email?: string;
   };
-  customerSnapshot?: any;
+  customerSnapshot?: {
+    firstName?: string;
+    lastName?: string;
+    fiscalCode?: string;
+    phonePrimary?: string;
+    email?: string;
+    ragioneSociale?: string;
+    partitaIva?: string;
+    formaGiuridica?: string;
+    sedeLegale?: string;
+    codiceRea?: string;
+    pec?: string;
+  };
   lineType?: string;
-  installationAddress?: any;
+  installationAddress?: {
+    street?: string;
+    comune?: string;
+    citta?: string;
+    cap?: string;
+  };
   technology?: string;
   oldLineData?: any;
   paymentMethod?: any;
@@ -305,7 +322,7 @@ export default function PracticeDetail() {
                 {getOperationalStatusLabel(operationalStatus)}
               </span>
               
-              {/* 🔥 BADGE STATO GLOBALE */}
+              {/* BADGE STATO GLOBALE */}
               {practice.statoGlobale && (
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                   practice.statoGlobale === 'completo' 
@@ -670,6 +687,26 @@ export default function PracticeDetail() {
                   </p>
                 </div>
               )}
+              
+              {/* NUOVI CAMPI: Comune, Città, CAP */}
+              {practice.installationAddress?.comune && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Comune</label>
+                  <p className="text-white font-medium">{practice.installationAddress.comune}</p>
+                </div>
+              )}
+              {practice.installationAddress?.citta && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Città</label>
+                  <p className="text-white font-medium">{practice.installationAddress.citta}</p>
+                </div>
+              )}
+              {practice.installationAddress?.cap && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">CAP</label>
+                  <p className="text-white font-medium">{practice.installationAddress.cap}</p>
+                </div>
+              )}
             </div>
 
             {practice.oldLineData && (
@@ -856,6 +893,75 @@ export default function PracticeDetail() {
         {/* Sidebar */}
         <div className="space-y-6">
           
+          {/* Dati Cliente - SEZIONE AGGIUNTA */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                <User className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Dati Cliente</h2>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              {/* Nome - usa customerSnapshot come fallback */}
+              <div className="flex justify-between">
+                <span className="text-slate-400">Nome:</span>
+                <span className="text-white">
+                  {practice.customerSnapshot?.firstName || practice.customer?.firstName} {' '}
+                  {practice.customerSnapshot?.lastName || practice.customer?.lastName}
+                </span>
+              </div>
+              
+              {/* Codice Fiscale */}
+              <div className="flex justify-between">
+                <span className="text-slate-400">CF:</span>
+                <span className="text-white font-mono text-xs">
+                  {practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode || '-'}
+                </span>
+              </div>
+              
+              {/* TELEFONO - Aggiunto */}
+              <div className="flex justify-between">
+                <span className="text-slate-400">Telefono:</span>
+                <span className="text-white">
+                  {practice.customerSnapshot?.phonePrimary || practice.customer?.phonePrimary || '-'}
+                </span>
+              </div>
+              
+              {/* EMAIL - Aggiunto */}
+              <div className="flex justify-between">
+                <span className="text-slate-400">Email:</span>
+                <span className="text-white">
+                  {practice.customerSnapshot?.email || practice.customer?.email || '-'}
+                </span>
+              </div>
+
+              {/* Dati Business se presenti */}
+              {(practice.customerSnapshot?.ragioneSociale || practice.customer?.ragioneSociale) && (
+                <div className="border-t border-slate-700 pt-3 mt-3">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Ragione Sociale:</span>
+                    <span className="text-white">
+                      {practice.customerSnapshot?.ragioneSociale || practice.customer?.ragioneSociale}
+                    </span>
+                  </div>
+                  {(practice.customerSnapshot?.partitaIva || practice.customer?.partitaIva) && (
+                    <div className="flex justify-between mt-2">
+                      <span className="text-slate-400">P.IVA:</span>
+                      <span className="text-white font-mono">
+                        {practice.customerSnapshot?.partitaIva || practice.customer?.partitaIva}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </motion.div>
+          
           {/* Info Pratica */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -1018,7 +1124,7 @@ export default function PracticeDetail() {
                 </div>
               )}
 
-              {/* 🔥 SEZIONE CONVERGENZA */}
+              {/* SEZIONE CONVERGENZA */}
               {practice.convergenza?.attiva && (
                 <div className="border-t border-slate-700 pt-4 mt-4">
                   <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
@@ -1084,7 +1190,7 @@ export default function PracticeDetail() {
                 </div>
               )}
 
-              {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (se presenti) */}
+              {/* LAVORAZIONI POST ATTIVAZIONE (se presenti) */}
               {practice.lavorazioniPostAttivazione && (
                 <div className="border-t border-slate-700 pt-4 mt-4">
                   <h4 className="text-sm font-semibold text-slate-300 mb-2">Lavorazioni Post Attivazione</h4>

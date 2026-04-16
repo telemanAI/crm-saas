@@ -184,16 +184,30 @@ export default function CustomerDetail() {
           </div>
         </div>
         
-        {user?.role === 'ADMIN' && (
-          <button 
-            onClick={handleDelete}
-            disabled={deleteLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
-          >
-            <Trash className="w-4 h-4" />
-            {deleteLoading ? 'Eliminazione...' : 'Elimina Cliente'}
-          </button>
-        )}
+        {/* 🔥 MODIFICATO: Aggiunto div contenitore per i due bottoni */}
+        <div className="flex items-center gap-3">
+          {/* NUOVO: Bottone Modifica */}
+          <Link href={`/operator/customers/${id}/edit`}>
+            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Modifica Cliente
+            </button>
+          </Link>
+          
+          {/* Tasto Elimina esistente (invariato) */}
+          {user?.role === 'ADMIN' && (
+            <button 
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
+            >
+              <Trash className="w-4 h-4" />
+              {deleteLoading ? 'Eliminazione...' : 'Elimina Cliente'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

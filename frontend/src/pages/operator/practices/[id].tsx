@@ -30,13 +30,13 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
-import type { PracticeDetail } from '@/types/practice';
+import type { PracticeDetail as IPracticeDetail } from '@/types/practice';
 
 export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
   const { token } = useAuthStore();
-  const [practice, setPractice] = useState<PracticeDetail | null>(null);
+ const [practice, setPractice] = useState<IPracticeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);

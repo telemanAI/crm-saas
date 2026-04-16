@@ -12,7 +12,8 @@ import {
   ShoppingCart,
   Calendar,
   CheckCircle,
-  Clock
+  Clock,
+  PencilSimple
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -45,6 +46,50 @@ interface Practice {
   createdAt: string;
 }
 
+// 🔥 NUOVA FUNZIONE: Formatta indirizzo da JSON a stringa leggibile
+const formatAddress = (address: any): string => {
+  if (!address) return 'Non specificato';
+  
+  // Se è stringa, prova a parsarlo
+  let addr = address;
+  if (typeof address === 'string') {
+    try {
+      addr = JSON.parse(address);
+    } catch (e) {
+      return address; // Se non è JSON valido, ritorna la stringa così com'è
+    }
+  }
+  
+  // Se dopo il parsing non è un oggetto, ritorna stringa
+  if (typeof addr !== 'object' || addr === null) {
+    return String(address);
+  }
+  
+  // Costruisci stringa formattata: "Via Roma 123, 00100 Città (RM)"
+  const parts = [];
+  if (addr.street) parts.push(addr.street);
+  if (addr.number) parts.push(addr.number);
+  
+  const streetPart = parts.join(' ');
+  const cityParts = [];
+  
+  if (addr.zip) cityParts.push(addr.zip);
+  if (addr.city) cityParts.push(addr.city);
+  if (addr.province) cityParts.push(`(${addr.province})`);
+  
+  const cityPart = cityParts.join(' ');
+  
+  if (streetPart && cityPart) {
+    return `${streetPart}, ${cityPart}`;
+  } else if (streetPart) {
+    return streetPart;
+  } else if (cityPart) {
+    return cityPart;
+  }
+  
+  return 'Non specificato';
+};
+
 export default function CustomerDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -53,7 +98,7 @@ export default function CustomerDetail() {
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState(false);
-    const [noteText, setNoteText] = useState('');
+  const [noteText, setNoteText] = useState('');
   const [noteLoading, setNoteLoading] = useState(false);
 
   useEffect(() => {
@@ -89,6 +134,7 @@ export default function CustomerDetail() {
       console.error('Errore caricamento pratiche:', err);
     }
   };
+
   const handleAddNote = async () => {
     if (!noteText.trim()) return;
     setNoteLoading(true);
@@ -118,6 +164,7 @@ export default function CustomerDetail() {
       alert('Errore eliminazione nota');
     }
   };
+
   const handleDelete = async () => {
     if (!confirm('Sei sicuro di voler eliminare questo cliente? Verranno eliminate anche tutte le pratiche associate. L\'azione è irreversibile.')) return;
     
@@ -169,6 +216,7 @@ export default function CustomerDetail() {
 
   return (
     <OperatorLayout title={`${customer.firstName} ${customer.lastName}`}>
+      {/* Header con bottone Modifica aggiunto */}
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-4">
           <Link href="/operator/customers">
@@ -184,19 +232,16 @@ export default function CustomerDetail() {
           </div>
         </div>
         
-        {/* 🔥 MODIFICATO: Aggiunto div contenitore per i due bottoni */}
         <div className="flex items-center gap-3">
-          {/* NUOVO: Bottone Modifica */}
+          {/* 🔥 NUOVO: Bottone Modifica */}
           <Link href={`/operator/customers/${id}/edit`}>
             <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
+              <PencilSimple className="w-4 h-4" />
               Modifica Cliente
             </button>
           </Link>
           
-          {/* Tasto Elimina esistente (invariato) */}
+          {/* Bottone Elimina esistente */}
           {user?.role === 'ADMIN' && (
             <button 
               onClick={handleDelete}
@@ -263,12 +308,13 @@ export default function CustomerDetail() {
                   </p>
                 </div>
               )}
+              {/* 🔥 MODIFICATO: Usa formatAddress invece di JSON.stringify */}
               {customer.address && (
                 <div className="col-span-2">
                   <label className="text-sm text-slate-500 block mb-1">Indirizzo</label>
                   <p className="text-white flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-slate-400 mt-1" />
-                    {typeof customer.address === 'string' ? customer.address : JSON.stringify(customer.address)}
+                    <span className="capitalize">{formatAddress(customer.address)}</span>
                   </p>
                 </div>
               )}
@@ -348,7 +394,7 @@ export default function CustomerDetail() {
             </span>
           </motion.div>
 
-                 <motion.div 
+          <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}

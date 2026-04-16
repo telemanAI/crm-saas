@@ -205,4 +205,17 @@ export class CreatePracticeDto {
   @IsOptional()
   @IsEnum(['completo', 'non_completo'])
   statoGlobale?: 'completo' | 'non_completo' | null;
+  
+   // 🔥 AGGIUNTO: Indirizzo strutturato
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => Object)
+  address?: {
+    street?: string;
+    number?: string;
+    city?: string;
+    zip?: string;
+    province?: string;
+  };
+
 }

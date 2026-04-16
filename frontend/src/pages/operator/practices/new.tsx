@@ -121,7 +121,7 @@ interface CustomerSuggestion {
   phonePrimary?: string;
   phone?: string;
   email?: string;
-  address?: string;
+  address?: any;
 }
 
 interface WizardStep {
@@ -473,6 +473,9 @@ export default function NewPractice() {
         washConfig: practice.washConfig,
         convergenza: practice.convergenza,
         lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione,
+        customerAddress: practice.customerSnapshot?.address || 
+                         practice.customer?.address || 
+                         undefined,
       });
       
       if (practice.offerType === 'business') {
@@ -605,7 +608,7 @@ export default function NewPractice() {
       lastName: customer.lastName,
       phone: customer.phonePrimary || customer.phone || '',
       email: customer.email || '',
-      installationAddress: customer.address ? { street: customer.address } : data.installationAddress
+      customerAddress: customer.address || undefined,
     });
     setShowCfSuggestions(false);
     setShowPhoneSuggestions(false);
@@ -613,7 +616,7 @@ export default function NewPractice() {
     setCfSuggestions([]);
     setPhoneSuggestions([]);
     setNameSuggestions([]);
-    setLockedCustomer(customer); // Blocca i suggerimenti per questo cliente
+    setLockedCustomer(customer);
   };
 
   const saveStep = async (stepNumber: number) => {
@@ -646,6 +649,7 @@ export default function NewPractice() {
             sedeLegale: data.sedeLegale,
             codiceRea: data.codiceRea,
             pec: data.pec,
+            address: data.customerAddress,
           }
         }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -703,10 +707,18 @@ export default function NewPractice() {
       case 'customer': 
         return { 
           customerData: { 
-            firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, 
-            phone: data.phone, email: data.email,
-            ragioneSociale: data.ragioneSociale, partitaIva: data.partitaIva, formaGiuridica: data.formaGiuridica,
-            sedeLegale: data.sedeLegale, codiceRea: data.codiceRea, pec: data.pec,
+            firstName: data.firstName, 
+            lastName: data.lastName, 
+            fiscalCode: data.fiscalCode,
+            phone: data.phone, 
+            email: data.email,
+            address: data.customerAddress,
+            ragioneSociale: data.ragioneSociale, 
+            partitaIva: data.partitaIva, 
+            formaGiuridica: data.formaGiuridica,
+            sedeLegale: data.sedeLegale, 
+            codiceRea: data.codiceRea, 
+            pec: data.pec,
           }, 
           notes: data.notes 
         };
@@ -1329,6 +1341,106 @@ export default function NewPractice() {
                                 placeholder="email@esempio.com"
                               />
                             </div>
+
+                            {/* 🔥 NUOVO: Indirizzo Cliente */}
+                            <div className="border-t border-slate-700 pt-4 mt-4">
+                              <h4 className="text-sm font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                                <MapPin className="w-4 h-4" />
+                                Indirizzo Cliente
+                              </h4>
+                              
+                              <div className="space-y-4">
+                                {/* Via */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Via / Piazza</label>
+                                  <input 
+                                    type="text" 
+                                    value={data.customerAddress?.street || ''} 
+                                    onChange={(e) => setData({ 
+                                      customerAddress: { 
+                                        ...data.customerAddress, 
+                                        street: e.target.value 
+                                      } 
+                                    })} 
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                    placeholder="Via Roma"
+                                  />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* Civico */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">Civico</label>
+                                    <input 
+                                      type="text" 
+                                      value={data.customerAddress?.number || ''} 
+                                      onChange={(e) => setData({ 
+                                        customerAddress: { 
+                                          ...data.customerAddress, 
+                                          number: e.target.value 
+                                        } 
+                                      })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="123"
+                                    />
+                                  </div>
+                                  {/* CAP */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">CAP</label>
+                                    <input 
+                                      type="text" 
+                                      value={data.customerAddress?.zip || ''} 
+                                      onChange={(e) => setData({ 
+                                        customerAddress: { 
+                                          ...data.customerAddress, 
+                                          zip: e.target.value 
+                                        } 
+                                      })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="00100"
+                                      maxLength={5}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* Città */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">Città</label>
+                                    <input 
+                                      type="text" 
+                                      value={data.customerAddress?.city || ''} 
+                                      onChange={(e) => setData({ 
+                                        customerAddress: { 
+                                          ...data.customerAddress, 
+                                          city: e.target.value 
+                                        } 
+                                      })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" 
+                                      placeholder="Roma"
+                                    />
+                                  </div>
+                                  {/* Provincia */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-slate-300 mb-2">Provincia</label>
+                                    <input 
+                                      type="text" 
+                                      value={data.customerAddress?.province || ''} 
+                                      onChange={(e) => setData({ 
+                                        customerAddress: { 
+                                          ...data.customerAddress, 
+                                          province: e.target.value.toUpperCase() 
+                                        } 
+                                      })} 
+                                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 uppercase" 
+                                      placeholder="RM"
+                                      maxLength={2}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {/* Fine Indirizzo */}
 
                             {/* Campi Business */}
                             {(showBusinessOnly || data.offerType === 'business') && (

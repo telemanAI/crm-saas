@@ -54,6 +54,15 @@ export interface PracticeData {
     comune?: string;  // 🔥 AGGIUNTO
     citta?: string;   // 🔥 AGGIUNTO
     cap?: string;     // 🔥 AGGIUNTO
+	  // 🔥 AGGIUNTO: Indirizzo cliente (Step 3)
+  customerAddress?: {
+    street?: string;      // Via
+    number?: string;      // Civico
+    city?: string;        // Città
+    zip?: string;         // CAP
+    province?: string;    // Provincia
+  };
+  
   };
   technology?: 'FTTH' | 'FTTC' | 'FWA';
   oldPhoneNumber?: string;

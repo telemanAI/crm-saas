@@ -46,6 +46,7 @@ export class PracticesService {
           fiscalCode: dto.customerData.fiscalCode.toUpperCase().trim(),
           phonePrimary: dto.customerData.phone,
           email: dto.customerData.email,
+		  address: dto.customerData?.address || null, // 🔥 AGGIUNTO
         }, userId);
       }
     }
@@ -183,6 +184,7 @@ export class PracticesService {
                 lastName: cd.lastName,
                 phonePrimary: cd.phone, 
                 email: cd.email,
+				 address: cd?.address || null, // 🔥 AGGIUNTO
               }, userId);
             }
             if (customer) practice.customerId = customer.id;
@@ -196,6 +198,7 @@ export class PracticesService {
             fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
             phonePrimary: cd.phone !== undefined ? cd.phone : practice.customerSnapshot?.phonePrimary,
             email: cd.email !== undefined ? cd.email : practice.customerSnapshot?.email,
+			address: cd.address !== undefined ? cd.address : practice.customerSnapshot?.address, // 🔥 AGGIUNTO
             ragioneSociale: cd.ragioneSociale !== undefined ? cd.ragioneSociale : practice.customerSnapshot?.ragioneSociale,
             partitaIva: cd.partitaIva !== undefined ? cd.partitaIva : practice.customerSnapshot?.partitaIva,
             formaGiuridica: cd.formaGiuridica !== undefined ? cd.formaGiuridica : practice.customerSnapshot?.formaGiuridica,

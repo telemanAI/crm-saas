@@ -24,7 +24,8 @@ import {
   Tag,
   Package,
   TelevisionSimple,
-  Warning
+  Warning,
+  NavigationArrow
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -36,7 +37,7 @@ export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
   const { token } = useAuthStore();
- const [practice, setPractice] = useState<IPracticeDetail | null>(null);
+  const [practice, setPractice] = useState<IPracticeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -145,6 +146,10 @@ export default function PracticeDetail() {
     } catch (err) {
       console.error('Errore cambio stato:', err);
       alert('Errore durante il cambio stato');
+      // Rollback dello stato locale in caso di errore
+      if (practice.operationalStatus) {
+        setOperationalStatus(practice.operationalStatus);
+      }
     } finally {
       setStatusLoading(false);
     }
@@ -221,6 +226,14 @@ export default function PracticeDetail() {
   const safeCompletedSteps = practice?.completedSteps 
     ? practice.completedSteps.map((s: any) => Number(s)).filter((n: number) => !isNaN(n)) 
     : [];
+
+  // 🔥 CHECK se abbiamo dati indirizzo da mostrare
+  const hasAddressData = practice.installationAddress && (
+    practice.installationAddress.street || 
+    practice.installationAddress.comune || 
+    practice.installationAddress.citta || 
+    practice.installationAddress.cap
+  );
 
   return (
     <OperatorLayout title={`Pratica ${practice.offerCode || practice.id.slice(0,8)}`}>
@@ -349,7 +362,7 @@ export default function PracticeDetail() {
         <div className="lg:col-span-2 space-y-6">
           
           {/* Pacchetti Aggiuntivi */}
-          {practice.additionalPackages?.selectedIds?.some(id => id !== 'none') && (
+          {practice.additionalPackages?.selectedIds?.some(pkgId => pkgId !== 'none') && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -470,7 +483,7 @@ export default function PracticeDetail() {
                 <div>
                   <h2 className="text-xl font-semibold text-white">Note & Cronologia</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    {practice.notesHistory?.length || 0} note inserite
+                    {(practice.notesHistory?.length || 0)} note inserite
                   </p>
                 </div>
               </div>
@@ -542,7 +555,10 @@ export default function PracticeDetail() {
                             })}
                           </span>
                           <button
-                            onClick={() => handleDeleteNote(practice.notesHistory!.length - 1 - index)}
+                            onClick={() => {
+                              const historyLength = practice.notesHistory?.length || 0;
+                              handleDeleteNote(historyLength - 1 - index);
+                            }}
                             className="p-1 text-slate-500 hover:text-rose-400 transition-colors ml-2"
                             title="Elimina nota"
                           >
@@ -596,12 +612,17 @@ export default function PracticeDetail() {
                   <p className="text-white font-medium">{practice.technology}</p>
                 </div>
               )}
-              {typeof practice.installationAddress?.street === 'string' && (
+              
+              {/* 🔥 INDIRIZZO COMPLETO NEL MAIN CONTENT */}
+              {practice.installationAddress?.street && (
                 <div className="col-span-2">
                   <label className="text-sm text-slate-500 block mb-1">Indirizzo Installazione</label>
                   <p className="text-white flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />
                     {practice.installationAddress.street}
+                    {practice.installationAddress.comune && `, ${practice.installationAddress.comune}`}
+                    {practice.installationAddress.citta && ` (${practice.installationAddress.citta})`}
+                    {practice.installationAddress.cap && ` - ${practice.installationAddress.cap}`}
                   </p>
                 </div>
               )}
@@ -614,7 +635,7 @@ export default function PracticeDetail() {
                   Dati Linea Precedente (Migrazione)
                 </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
-                  {typeof practice.oldLineData.oldPhoneNumber === 'string' && (
+                  {practice.oldLineData.oldPhoneNumber && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
                       <span className="text-white font-medium">{practice.oldLineData.oldPhoneNumber}</span>
@@ -626,31 +647,31 @@ export default function PracticeDetail() {
                       <span className="text-white font-mono">{practice.oldLineData.migrationCode}</span>
                     </div>
                   )}
-                  {practice.oldLineData?.gestore && (
+                  {practice.oldLineData.gestore && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Gestore</span>
                       <span className="text-white font-medium">{practice.oldLineData.gestore}</span>
                     </div>
                   )}
-                  {practice.oldLineData?.gestoreAltro && (
+                  {practice.oldLineData.gestoreAltro && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Altro Gestore</span>
                       <span className="text-white font-medium">{practice.oldLineData.gestoreAltro}</span>
                     </div>
                   )}
-                  {practice.oldLineData?.fiscalCodeOldLine && (
+                  {practice.oldLineData.fiscalCodeOldLine && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">CF Vecchia Linea</span>
                       <span className="text-white font-mono text-sm">{practice.oldLineData.fiscalCodeOldLine}</span>
                     </div>
                   )}
-                  {practice.oldLineData?.prodottiRestituire && (
+                  {practice.oldLineData.prodottiRestituire && (
                     <div className="col-span-2">
                       <span className="text-slate-500 block text-xs mb-1">Prodotti da Restituire</span>
                       <span className="text-white">{practice.oldLineData.prodottiRestituire}</span>
                     </div>
                   )}
-                  {practice.oldLineData?.notes && (
+                  {practice.oldLineData.notes && (
                     <div className="col-span-2">
                       <span className="text-slate-500 block text-xs mb-1">Note Vecchia Linea</span>
                       <p className="text-slate-300 text-sm">{practice.oldLineData.notes}</p>
@@ -740,13 +761,13 @@ export default function PracticeDetail() {
               </div>
 
               <div className="space-y-3">
-                {typeof practice.paymentMethod.iban === 'string' && (
+                {practice.paymentMethod.iban && (
                   <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
                     <span className="text-slate-400">IBAN</span>
                     <span className="text-white font-mono text-sm">{practice.paymentMethod.iban}</span>
                   </div>
                 )}
-                {typeof practice.paymentMethod.postePay === 'string' && (
+                {practice.paymentMethod.postePay && (
                   <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
                     <span className="text-slate-400">PostePay</span>
                     <span className="text-white">{practice.paymentMethod.postePay}</span>
@@ -953,6 +974,19 @@ export default function PracticeDetail() {
                 </div>
               )}
 
+              {/* 🔥 PULSANTE VAI AL CLIENTE */}
+              {practice.customerId && (
+                <div className="pt-2">
+                  <Link href={`/operator/customers/${practice.customerId}`}>
+                    <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/30 rounded-xl transition-all text-sm font-medium group">
+                      <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      Vai al Cliente
+                      <NavigationArrow className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  </Link>
+                </div>
+              )}
+
               {/* 🔥 SEZIONE CONVERGENZA */}
               {practice.convergenza?.attiva && (
                 <div className="border-t border-slate-700 pt-4 mt-4">
@@ -998,7 +1032,7 @@ export default function PracticeDetail() {
                                 }, {
                                   headers: { Authorization: `Bearer ${token}` }
                                 });
-                                fetchPractice(); // Ricarica i dati
+                                fetchPractice();
                                 setConvergenzaNumero('');
                                 alert('Numero convergenza aggiornato! Pratica completata.');
                               } catch (err) {
@@ -1058,6 +1092,52 @@ export default function PracticeDetail() {
               )}
             </div>
           </motion.div>
+
+          {/* 🔥 SEZIONE INDIRIZZO INSTALLAZIONE SEPARATA (per visibilità immediata) */}
+          {hasAddressData && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-slate-900/80 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-semibold text-white">Indirizzo Installazione</h2>
+              </div>
+
+              <div className="space-y-3 text-sm">
+                {practice.installationAddress?.street && (
+                  <div className="flex items-start gap-2">
+                    <span className="text-slate-400 w-20 flex-shrink-0">Indirizzo:</span>
+                    <span className="text-white font-medium">{practice.installationAddress.street}</span>
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-3 gap-2">
+                  {practice.installationAddress?.comune && (
+                    <div>
+                      <span className="text-slate-500 text-xs block mb-1">Comune</span>
+                      <span className="text-white font-medium">{practice.installationAddress.comune}</span>
+                    </div>
+                  )}
+                  {practice.installationAddress?.citta && (
+                    <div>
+                      <span className="text-slate-500 text-xs block mb-1">Città</span>
+                      <span className="text-white font-medium">{practice.installationAddress.citta}</span>
+                    </div>
+                  )}
+                  {practice.installationAddress?.cap && (
+                    <div>
+                      <span className="text-slate-500 text-xs block mb-1">CAP</span>
+                      <span className="text-white font-mono bg-slate-800/50 px-2 py-0.5 rounded">{practice.installationAddress.cap}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* Progresso */}
           <motion.div 

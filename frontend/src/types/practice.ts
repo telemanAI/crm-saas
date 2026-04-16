@@ -1,4 +1,3 @@
-
 // Tipi centralizzati per Practice e Customer
 // Modifica qui per aggiornare tutti i file
 // ============================================
@@ -62,6 +61,37 @@ export interface AdditionalPackagesConfig {
   totalPrice: number;
 }
 
+// Tipi per dati precedentemente 'any'
+export interface OldLineData {
+  oldPhoneNumber?: string;
+  migrationCode?: string;
+  gestore?: string;
+  gestoreAltro?: string;
+  fiscalCodeOldLine?: string;
+  prodottiRestituire?: string;
+  notes?: string;
+}
+
+export interface PaymentMethod {
+  iban?: string;
+  postePay?: string;
+  bollettino?: boolean;
+}
+
+export interface AppointmentData {
+  data?: string;
+  ora?: string;
+  oraFine?: string;
+  accordi?: string;
+  lavorazioniPost?: string;
+}
+
+export interface PrivacyData {
+  consensoMarketing?: boolean;
+  consensoProfilazione?: boolean;
+  [key: string]: any;
+}
+
 // Tipo per la lista pratiche (index.tsx)
 export interface PracticeListItem {
   id: string;
@@ -94,19 +124,20 @@ export interface PracticeDetail {
   createdAt: string;
   updatedAt: string;
   customer: CustomerBase;
+  customerId?: string; // 🔥 NUOVO: Per navigazione al cliente
   customerSnapshot?: CustomerSnapshot;
   lineType?: string;
   installationAddress?: InstallationAddress;
   technology?: string;
-  oldLineData?: any;
-  paymentMethod?: any;
+  oldLineData?: OldLineData;
+  paymentMethod?: PaymentMethod;
   soldBy?: string;
   enteredBy?: string;
   soldById?: string;
   enteredById?: string;
   notes?: string;
   newLineNotes?: string;
-  appointmentData?: any;
+  appointmentData?: AppointmentData;
   notesHistory?: NoteEntry[];
   offerType?: 'business' | 'consumer';
   offerCanone?: string;
@@ -120,5 +151,5 @@ export interface PracticeDetail {
   convergenza?: ConvergenzaInfo;
   statoGlobale?: 'completo' | 'non_completo' | null;
   lavorazioniPostAttivazione?: string;
-  privacyData?: any;
+  privacyData?: PrivacyData;
 }

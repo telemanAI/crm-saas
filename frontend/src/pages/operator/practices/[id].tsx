@@ -33,6 +33,90 @@ import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
 import type { PracticeDetail as IPracticeDetail } from '@/types/practice';
 
+// 🔥 HELPER: Converte valori potenzialmente oggetto/null in stringa sicura
+const safeString = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    // Se è un oggetto (incluso {}), evita il crash React #31
+    console.warn('[safeString] Tentativo di renderizzare oggetto:', value);
+    return '';
+  }
+  return '';
+};
+
+// 🔥 HELPER: Sanitizza dati practice che potrebbero arrivare malformati dal backend
+const sanitizePracticeData = (data: any): IPracticeDetail => {
+  // Fix installationAddress se è stringa JSON
+  if (data.installationAddress && typeof data.installationAddress === 'string') {
+    try {
+      data.installationAddress = JSON.parse(data.installationAddress);
+    } catch {
+      data.installationAddress = undefined;
+    }
+  }
+  // Assicurati che sia un oggetto valido o undefined
+  if (data.installationAddress && typeof data.installationAddress !== 'object') {
+    data.installationAddress = undefined;
+  }
+
+  // Fix oldLineData se è stringa JSON
+  if (data.oldLineData && typeof data.oldLineData === 'string') {
+    try {
+      data.oldLineData = JSON.parse(data.oldLineData);
+    } catch {
+      data.oldLineData = undefined;
+    }
+  }
+  if (data.oldLineData && typeof data.oldLineData !== 'object') {
+    data.oldLineData = undefined;
+  }
+
+  // Fix appointmentData se è stringa JSON
+  if (data.appointmentData && typeof data.appointmentData === 'string') {
+    try {
+      data.appointmentData = JSON.parse(data.appointmentData);
+    } catch {
+      data.appointmentData = undefined;
+    }
+  }
+
+  // Fix paymentMethod se è stringa JSON
+  if (data.paymentMethod && typeof data.paymentMethod === 'string') {
+    try {
+      data.paymentMethod = JSON.parse(data.paymentMethod);
+    } catch {
+      data.paymentMethod = undefined;
+    }
+  }
+
+  // Fix convergenza se è stringa JSON
+  if (data.convergenza && typeof data.convergenza === 'string') {
+    try {
+      data.convergenza = JSON.parse(data.convergenza);
+    } catch {
+      data.convergenza = undefined;
+    }
+  }
+
+  // Fix washConfig se è stringa JSON
+  if (data.washConfig && typeof data.washConfig === 'string') {
+    try {
+      data.washConfig = JSON.parse(data.washConfig);
+    } catch {
+      data.washConfig = undefined;
+    }
+  }
+
+  // Assicurati che customer sia un oggetto valido
+  if (!data.customer || typeof data.customer !== 'object') {
+    data.customer = {};
+  }
+
+  return data as IPracticeDetail;
+};
+
 export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -66,7 +150,11 @@ export default function PracticeDetail() {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const rawData = response.data;
+      let rawData = response.data;
+      
+      // 🔥 SANITIZZAZIONE CRITICA per evitare React #31
+      rawData = sanitizePracticeData(rawData);
+      
       let steps = rawData.completedSteps;
       if (typeof steps === 'string') {
         steps = steps.split(',').map((s: string) => Number(s.trim())).filter((n: number) => !isNaN(n));
@@ -146,7 +234,6 @@ export default function PracticeDetail() {
     } catch (err) {
       console.error('Errore cambio stato:', err);
       alert('Errore durante il cambio stato');
-      // Rollback dello stato locale in caso di errore
       if (practice.operationalStatus) {
         setOperationalStatus(practice.operationalStatus);
       }
@@ -227,12 +314,12 @@ export default function PracticeDetail() {
     ? practice.completedSteps.map((s: any) => Number(s)).filter((n: number) => !isNaN(n)) 
     : [];
 
-  // 🔥 CHECK se abbiamo dati indirizzo da mostrare
+  // Check sicuro per indirizzo
   const hasAddressData = practice.installationAddress && (
-    practice.installationAddress.street || 
-    practice.installationAddress.comune || 
-    practice.installationAddress.citta || 
-    practice.installationAddress.cap
+    safeString(practice.installationAddress.street) || 
+    safeString(practice.installationAddress.comune) || 
+    safeString(practice.installationAddress.citta) || 
+    safeString(practice.installationAddress.cap)
   );
 
   return (
@@ -253,7 +340,6 @@ export default function PracticeDetail() {
                 {getOperationalStatusLabel(operationalStatus)}
               </span>
               
-              {/* 🔥 BADGE STATO GLOBALE */}
               {practice.statoGlobale && (
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                   practice.statoGlobale === 'completo' 
@@ -361,7 +447,6 @@ export default function PracticeDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Pacchetti Aggiuntivi */}
           {practice.additionalPackages?.selectedIds?.some(pkgId => pkgId !== 'none') && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -405,7 +490,6 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {/* WASH Config */}
           {practice.washConfig?.enabled && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -439,24 +523,24 @@ export default function PracticeDetail() {
                 </div>
 
                 {practice.washConfig.type === 'suspect' && practice.washConfig.suspectData && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-slate-900/50 rounded-xl">
-                        <span className="text-slate-500 text-xs block mb-1">Codice Cliente/CF</span>
-                        <span className="text-white font-mono text-sm">{practice.washConfig.suspectData.clientCode || '-'}</span>
-                      </div>
-                      <div className="p-3 bg-slate-900/50 rounded-xl">
-                        <span className="text-slate-500 text-xs block mb-1">Gestione Abbonamento</span>
-                        <span className={`text-sm font-medium ${
-                          practice.washConfig.suspectData.action === 'disattiva' ? 'text-rose-400' : 'text-amber-400'
-                        }`}>
-                          {practice.washConfig.suspectData.action === 'disattiva' 
-                            ? 'Disattiva vecchio' 
-                            : 'Mantieni vecchio'}
-                        </span>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-slate-900/50 rounded-xl">
+                      <span className="text-slate-500 text-xs block mb-1">Codice Cliente/CF</span>
+                      <span className="text-white font-mono text-sm">
+                        {safeString(practice.washConfig.suspectData.clientCode) || '-'}
+                      </span>
                     </div>
-                  </>
+                    <div className="p-3 bg-slate-900/50 rounded-xl">
+                      <span className="text-slate-500 text-xs block mb-1">Gestione Abbonamento</span>
+                      <span className={`text-sm font-medium ${
+                        practice.washConfig.suspectData.action === 'disattiva' ? 'text-rose-400' : 'text-amber-400'
+                      }`}>
+                        {practice.washConfig.suspectData.action === 'disattiva' 
+                          ? 'Disattiva vecchio' 
+                          : 'Mantieni vecchio'}
+                      </span>
+                    </div>
+                  </div>
                 )}
 
                 {practice.washConfig.timestamp && (
@@ -468,7 +552,6 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {/* Note & Cronologia */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -543,7 +626,7 @@ export default function PracticeDetail() {
                       <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-medium text-amber-400">
-                            {note.createdBy || 'Operatore'}
+                            {safeString(note.createdBy) || 'Operatore'}
                           </span>
                           <span className="text-xs text-slate-500">
                             {new Date(note.createdAt).toLocaleString('it-IT', {
@@ -566,7 +649,7 @@ export default function PracticeDetail() {
                           </button>
                         </div>
                         <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                          {note.text}
+                          {safeString(note.text)}
                         </p>
                       </div>
                     </div>
@@ -581,7 +664,6 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
-          {/* Dettagli Linea */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -609,72 +691,71 @@ export default function PracticeDetail() {
               {practice.technology && (
                 <div>
                   <label className="text-sm text-slate-500 block mb-1">Tecnologia</label>
-                  <p className="text-white font-medium">{practice.technology}</p>
+                  <p className="text-white font-medium">{safeString(practice.technology)}</p>
                 </div>
               )}
               
-              {/* 🔥 INDIRIZZO COMPLETO NEL MAIN CONTENT */}
-              {practice.installationAddress?.street && (
+              {safeString(practice.installationAddress?.street) && (
                 <div className="col-span-2">
                   <label className="text-sm text-slate-500 block mb-1">Indirizzo Installazione</label>
                   <p className="text-white flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />
-                    {practice.installationAddress.street}
-                    {practice.installationAddress.comune && `, ${practice.installationAddress.comune}`}
-                    {practice.installationAddress.citta && ` (${practice.installationAddress.citta})`}
-                    {practice.installationAddress.cap && ` - ${practice.installationAddress.cap}`}
+                    {safeString(practice.installationAddress?.street)}
+                    {safeString(practice.installationAddress?.comune) && `, ${safeString(practice.installationAddress?.comune)}`}
+                    {safeString(practice.installationAddress?.citta) && ` (${safeString(practice.installationAddress?.citta)})`}
+                    {safeString(practice.installationAddress?.cap) && ` - ${safeString(practice.installationAddress?.cap)}`}
                   </p>
                 </div>
               )}
             </div>
 
-            {practice.oldLineData && (
+            {practice.oldLineData && Object.keys(practice.oldLineData).length > 0 && (
               <div className="mt-6 pt-6 border-t border-slate-800">
                 <h3 className="text-sm font-medium text-amber-400 mb-3 flex items-center gap-2">
                   <Clock className="w-4 h-4" />
                   Dati Linea Precedente (Migrazione)
                 </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
-                  {practice.oldLineData.oldPhoneNumber && (
+                  {safeString(practice.oldLineData.oldPhoneNumber) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
-                      <span className="text-white font-medium">{practice.oldLineData.oldPhoneNumber}</span>
+                      <span className="text-white font-medium">{safeString(practice.oldLineData.oldPhoneNumber)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.migrationCode && (
+                  {safeString(practice.oldLineData.migrationCode) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Codice Migrazione</span>
-                      <span className="text-white font-mono">{practice.oldLineData.migrationCode}</span>
+                      <span className="text-white font-mono">{safeString(practice.oldLineData.migrationCode)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.gestore && (
+                  {safeString(practice.oldLineData.gestore) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Gestore</span>
-                      <span className="text-white font-medium">{practice.oldLineData.gestore}</span>
+                      <span className="text-white font-medium">{safeString(practice.oldLineData.gestore)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.gestoreAltro && (
+                  {safeString(practice.oldLineData.gestoreAltro) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Altro Gestore</span>
-                      <span className="text-white font-medium">{practice.oldLineData.gestoreAltro}</span>
+                      <span className="text-white font-medium">{safeString(practice.oldLineData.gestoreAltro)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.fiscalCodeOldLine && (
+                  {safeString(practice.oldLineData.fiscalCodeOldLine) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">CF Vecchia Linea</span>
-                      <span className="text-white font-mono text-sm">{practice.oldLineData.fiscalCodeOldLine}</span>
+                      <span className="text-white font-mono text-sm">{safeString(practice.oldLineData.fiscalCodeOldLine)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.prodottiRestituire && (
+                  {safeString(practice.oldLineData.prodottiRestituire) && (
                     <div className="col-span-2">
                       <span className="text-slate-500 block text-xs mb-1">Prodotti da Restituire</span>
-                      <span className="text-white">{practice.oldLineData.prodottiRestituire}</span>
+                      <span className="text-white">{safeString(practice.oldLineData.prodottiRestituire)}</span>
                     </div>
                   )}
-                  {practice.oldLineData.notes && (
+                  {safeString(practice.oldLineData.notes) && (
                     <div className="col-span-2">
                       <span className="text-slate-500 block text-xs mb-1">Note Vecchia Linea</span>
-                      <p className="text-slate-300 text-sm">{practice.oldLineData.notes}</p>
+                      <p className="text-slate-300 text-sm">{safeString(practice.oldLineData.notes)}</p>
                     </div>
                   )}
                 </div>
@@ -682,7 +763,6 @@ export default function PracticeDetail() {
             )}
           </motion.div>
           
-          {/* Appuntamento Installazione */}
           {practice.appointmentData && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -715,29 +795,29 @@ export default function PracticeDetail() {
                   <div>
                     <label className="text-sm text-slate-500 block mb-1">Orario</label>
                     <p className="text-white font-medium text-lg">
-                      {practice.appointmentData.ora || '--:--'} - {practice.appointmentData.oraFine || '--:--'}
+                      {safeString(practice.appointmentData.ora) || '--:--'} - {safeString(practice.appointmentData.oraFine) || '--:--'}
                     </p>
                   </div>
                 )}
               </div>
               
-              {practice.appointmentData.accordi && (
+              {safeString(practice.appointmentData.accordi) && (
                 <div className="mt-4 pt-4 border-t border-slate-800">
                   <label className="text-sm text-slate-500 block mb-2">Accordi con il Cliente</label>
                   <div className="bg-indigo-900/10 border border-indigo-500/20 rounded-xl p-4">
                     <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                      {practice.appointmentData.accordi}
+                      {safeString(practice.appointmentData.accordi)}
                     </p>
                   </div>
                 </div>
               )}
               
-              {practice.appointmentData.lavorazioniPost && (
+              {safeString(practice.appointmentData.lavorazioniPost) && (
                 <div className="mt-4">
                   <label className="text-sm text-slate-500 block mb-2">Lavorazioni Post Attivazione</label>
                   <div className="bg-slate-950/50 border border-slate-700 rounded-xl p-4">
                     <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                      {practice.appointmentData.lavorazioniPost}
+                      {safeString(practice.appointmentData.lavorazioniPost)}
                     </p>
                   </div>
                 </div>
@@ -745,7 +825,6 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {/* Pagamento */}
           {practice.paymentMethod && Object.keys(practice.paymentMethod).length > 0 && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -761,16 +840,16 @@ export default function PracticeDetail() {
               </div>
 
               <div className="space-y-3">
-                {practice.paymentMethod.iban && (
+                {safeString(practice.paymentMethod.iban) && (
                   <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
                     <span className="text-slate-400">IBAN</span>
-                    <span className="text-white font-mono text-sm">{practice.paymentMethod.iban}</span>
+                    <span className="text-white font-mono text-sm">{safeString(practice.paymentMethod.iban)}</span>
                   </div>
                 )}
-                {practice.paymentMethod.postePay && (
+                {safeString(practice.paymentMethod.postePay) && (
                   <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
                     <span className="text-slate-400">PostePay</span>
-                    <span className="text-white">{practice.paymentMethod.postePay}</span>
+                    <span className="text-white">{safeString(practice.paymentMethod.postePay)}</span>
                   </div>
                 )}
                 {practice.paymentMethod.bollettino && (
@@ -786,7 +865,6 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {/* Note Linea */}
           {practice.newLineNotes && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -802,17 +880,15 @@ export default function PracticeDetail() {
               </div>
               <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
                 <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                  {practice.newLineNotes}
+                  {safeString(practice.newLineNotes)}
                 </p>
               </div>
             </motion.div>
           )}
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
           
-          {/* Info Pratica */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -851,25 +927,25 @@ export default function PracticeDetail() {
                     {practice.offerCanone && (
                       <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
                         <span className="text-slate-400 text-xs block mb-1">Canone Mensile</span>
-                        <span className="text-emerald-400 font-bold text-lg">{practice.offerCanone}</span>
+                        <span className="text-emerald-400 font-bold text-lg">{safeString(practice.offerCanone)}</span>
                       </div>
                     )}
                     {practice.offerAttivazione && (
                       <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
                         <span className="text-slate-400 text-xs block mb-1">Attivazione</span>
-                        <span className="text-white font-semibold">{practice.offerAttivazione}</span>
+                        <span className="text-white font-semibold">{safeString(practice.offerAttivazione)}</span>
                       </div>
                     )}
                     {practice.offerVincolo && (
                       <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
                         <span className="text-slate-400 text-xs block mb-1">Vincolo</span>
-                        <span className="text-amber-400 font-semibold">{practice.offerVincolo}</span>
+                        <span className="text-amber-400 font-semibold">{safeString(practice.offerVincolo)}</span>
                       </div>
                     )}
                     {practice.offerDisattivazione && (
                       <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
                         <span className="text-slate-400 text-xs block mb-1">Disattivazione</span>
-                        <span className="text-rose-400 text-sm font-semibold">{practice.offerDisattivazione}</span>
+                        <span className="text-rose-400 text-sm font-semibold">{safeString(practice.offerDisattivazione)}</span>
                       </div>
                     )}
                   </div>
@@ -877,7 +953,7 @@ export default function PracticeDetail() {
                   {practice.offerNote && (
                     <div className="bg-amber-900/10 border border-amber-600/20 rounded-lg p-3 mb-3">
                       <span className="text-amber-500 text-xs block mb-1 font-medium">Note Importanti</span>
-                      <p className="text-slate-300 text-sm leading-relaxed">{practice.offerNote}</p>
+                      <p className="text-slate-300 text-sm leading-relaxed">{safeString(practice.offerNote)}</p>
                     </div>
                   )}
                   
@@ -885,11 +961,10 @@ export default function PracticeDetail() {
                     <div className="flex items-center gap-2 text-sm bg-slate-900/50 rounded-lg p-2 border border-slate-800">
                       <Calendar className="w-4 h-4 text-amber-400" />
                       <span className="text-slate-400">Scadenza promo:</span>
-                      <span className="text-amber-400 font-semibold">{practice.offerScadenza}</span>
+                      <span className="text-amber-400 font-semibold">{safeString(practice.offerScadenza)}</span>
                     </div>
                   )}
 
-                  {/* Totale Mensile Completo */}
                   {practice.additionalPackages && (
                     <div className="mt-4 pt-4 border-t border-slate-700 bg-gradient-to-r from-emerald-900/20 to-indigo-900/20 rounded-xl p-4 border border-emerald-500/20">
                       <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
@@ -900,7 +975,7 @@ export default function PracticeDetail() {
                       <div className="space-y-2 text-sm mb-3">
                         <div className="flex justify-between text-slate-400">
                           <span>Canone Base:</span>
-                          <span>{practice.offerCanone || '-'}</span>
+                          <span>{safeString(practice.offerCanone) || '-'}</span>
                         </div>
                         {practice.additionalPackages.totalPrice > 0 && (
                           <div className="flex justify-between text-indigo-300">
@@ -946,7 +1021,7 @@ export default function PracticeDetail() {
                      practice.type === 'OPTIMA' ? 'Optima' :
                      practice.type === 'IREN' ? 'Iren' :
                      practice.type === 'SKY' ? 'SKY' :
-                     practice.type}
+                     safeString(practice.type)}
                   </span>
                 </div>
               </div>
@@ -955,7 +1030,7 @@ export default function PracticeDetail() {
                 <div>
                   <label className="text-sm text-slate-500 block mb-1">Codice Offerta</label>
                   <p className="text-white font-mono text-sm bg-slate-800/50 px-2 py-1 rounded inline-block">
-                    {practice.offerCode}
+                    {safeString(practice.offerCode)}
                   </p>
                 </div>
               )}
@@ -963,18 +1038,17 @@ export default function PracticeDetail() {
               {practice.soldBy && (
                 <div>
                   <label className="text-sm text-slate-500 block mb-1">Venduto Da</label>
-                  <p className="text-white">{practice.soldBy}</p>
+                  <p className="text-white">{safeString(practice.soldBy)}</p>
                 </div>
               )}
               
               {practice.enteredBy && (
                 <div>
                   <label className="text-sm text-slate-500 block mb-1">Inserito Da</label>
-                  <p className="text-white">{practice.enteredBy}</p>
+                  <p className="text-white">{safeString(practice.enteredBy)}</p>
                 </div>
               )}
 
-              {/* 🔥 PULSANTE VAI AL CLIENTE */}
               {practice.customerId && (
                 <div className="pt-2">
                   <Link href={`/operator/customers/${practice.customerId}`}>
@@ -987,7 +1061,6 @@ export default function PracticeDetail() {
                 </div>
               )}
 
-              {/* 🔥 SEZIONE CONVERGENZA */}
               {practice.convergenza?.attiva && (
                 <div className="border-t border-slate-700 pt-4 mt-4">
                   <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
@@ -1004,11 +1077,10 @@ export default function PracticeDetail() {
                     {practice.convergenza.tipo === 'chiusa' && practice.convergenza.numero && (
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Numero:</span>
-                        <span className="text-white font-mono">{practice.convergenza.numero}</span>
+                        <span className="text-white font-mono">{safeString(practice.convergenza.numero)}</span>
                       </div>
                     )}
                     
-                    {/* Input inline per Da Chiudere */}
                     {practice.convergenza.tipo === 'daChiudere' && (
                       <div className="space-y-2">
                         <label className="text-xs text-amber-400 block">
@@ -1053,12 +1125,11 @@ export default function PracticeDetail() {
                 </div>
               )}
 
-              {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (se presenti) */}
               {practice.lavorazioniPostAttivazione && (
                 <div className="border-t border-slate-700 pt-4 mt-4">
                   <h4 className="text-sm font-semibold text-slate-300 mb-2">Lavorazioni Post Attivazione</h4>
                   <p className="text-sm text-slate-400 bg-slate-950/50 p-3 rounded-lg border border-slate-800">
-                    {practice.lavorazioniPostAttivazione}
+                    {safeString(practice.lavorazioniPostAttivazione)}
                   </p>
                 </div>
               )}
@@ -1093,7 +1164,6 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
-          {/* 🔥 SEZIONE INDIRIZZO INSTALLAZIONE SEPARATA (per visibilità immediata) */}
           {hasAddressData && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -1108,30 +1178,30 @@ export default function PracticeDetail() {
               </div>
 
               <div className="space-y-3 text-sm">
-                {practice.installationAddress?.street && (
+                {safeString(practice.installationAddress?.street) && (
                   <div className="flex items-start gap-2">
                     <span className="text-slate-400 w-20 flex-shrink-0">Indirizzo:</span>
-                    <span className="text-white font-medium">{practice.installationAddress.street}</span>
+                    <span className="text-white font-medium">{safeString(practice.installationAddress?.street)}</span>
                   </div>
                 )}
                 
                 <div className="grid grid-cols-3 gap-2">
-                  {practice.installationAddress?.comune && (
+                  {safeString(practice.installationAddress?.comune) && (
                     <div>
                       <span className="text-slate-500 text-xs block mb-1">Comune</span>
-                      <span className="text-white font-medium">{practice.installationAddress.comune}</span>
+                      <span className="text-white font-medium">{safeString(practice.installationAddress?.comune)}</span>
                     </div>
                   )}
-                  {practice.installationAddress?.citta && (
+                  {safeString(practice.installationAddress?.citta) && (
                     <div>
                       <span className="text-slate-500 text-xs block mb-1">Città</span>
-                      <span className="text-white font-medium">{practice.installationAddress.citta}</span>
+                      <span className="text-white font-medium">{safeString(practice.installationAddress?.citta)}</span>
                     </div>
                   )}
-                  {practice.installationAddress?.cap && (
+                  {safeString(practice.installationAddress?.cap) && (
                     <div>
                       <span className="text-slate-500 text-xs block mb-1">CAP</span>
-                      <span className="text-white font-mono bg-slate-800/50 px-2 py-0.5 rounded">{practice.installationAddress.cap}</span>
+                      <span className="text-white font-mono bg-slate-800/50 px-2 py-0.5 rounded">{safeString(practice.installationAddress?.cap)}</span>
                     </div>
                   )}
                 </div>
@@ -1139,7 +1209,6 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {/* Progresso */}
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

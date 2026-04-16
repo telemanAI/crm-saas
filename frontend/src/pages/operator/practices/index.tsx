@@ -14,6 +14,7 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
+import type { PracticeListItem, PracticeType, PracticeStatus } from '@/types/practice';
 
 const getTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
@@ -35,40 +36,12 @@ const getTypeLabel = (type: string): string => {
   return typeMap[type] || type;
 };
 
-type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
 type FilterType = 'ALL' | PracticeType;
-type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
-
-interface Practice {
-  id: string;
-  type: PracticeType;
-  offerName: string;
-  customer: {
-    firstName: string;
-    lastName: string;
-    fiscalCode?: string;
-  };
-  customerSnapshot?: {
-    firstName?: string;
-    lastName?: string;
-    fiscalCode?: string;
-  };
-  status: PracticeStatus;
-  currentStep: number;
-  completedSteps?: number[];
-  operationalStatus?: string;
-  createdAt: string;
-  statoGlobale?: 'completo' | 'non_completo' | null;
-  convergenza?: {
-    attiva: boolean;
-    tipo: 'daChiudere' | 'chiusa';
-  };
-}
 
 export default function PracticesList() {
   const router = useRouter();
   const { token, isAuthenticated } = useAuthStore();
-  const [practices, setPractices] = useState<Practice[]>([]);
+  const [practices, setPractices] = useState<PracticeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');

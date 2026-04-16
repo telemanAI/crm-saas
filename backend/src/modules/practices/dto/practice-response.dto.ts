@@ -5,9 +5,10 @@ export class PracticeResponseDto {
   type: string;
   status: string;
   operationalStatus?: string;
-  statoGlobale?: 'completo' | 'non_completo' | null; // 🔥 NUOVO
+  statoGlobale?: 'completo' | 'non_completo' | null;
   currentStep: number;
   completedSteps: number[];
+  customerId: string | null; // 🔥 NUOVO: ID cliente esplicito per navigazione
   customer: {
     id: string;
     firstName: string;
@@ -39,7 +40,6 @@ export class PracticeResponseDto {
     };
     timestamp?: Date;
   };
-  // 🔥 NUOVI CAMPI
   convergenza?: {
     attiva: boolean;
     tipo: 'daChiudere' | 'chiusa' | null;
@@ -72,7 +72,7 @@ export class PracticeResponseDto {
     this.type = practice.type;
     this.status = practice.status;
     this.operationalStatus = practice.operationalStatus || 'PENDING';
-    this.statoGlobale = practice.statoGlobale || null; // 🔥 NUOVO
+    this.statoGlobale = practice.statoGlobale || null;
     this.currentStep = practice.currentStep;
     
     const steps = practice.completedSteps as any;
@@ -90,6 +90,9 @@ export class PracticeResponseDto {
     }
 
     this.completedSteps = [...new Set(numericSteps)].sort((a, b) => a - b);
+    
+    // 🔥 NUOVO: customerId esplicito (flat) per facilitare il frontend
+    this.customerId = practice.customerId || (practice.customer ? practice.customer.id : null);
     
     if (practice.customer) {
       this.customer = {
@@ -126,7 +129,6 @@ export class PracticeResponseDto {
     this.additionalPackages = practice.additionalPackages;
     this.washConfig = practice.washConfig;
     
-    // 🔥 NUOVI CAMPI
     this.convergenza = practice.convergenza;
     this.lavorazioniPostAttivazione = practice.lavorazioniPostAttivazione;
     

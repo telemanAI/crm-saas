@@ -46,7 +46,7 @@ export class PracticesService {
           fiscalCode: dto.customerData.fiscalCode.toUpperCase().trim(),
           phonePrimary: dto.customerData.phone,
           email: dto.customerData.email,
-		  address: dto.customerData?.address || null, // 🔥 AGGIUNTO
+          address: dto.customerData?.address || null, // 🔥 OGGETTO, non stringa
         }, userId);
       }
     }
@@ -77,6 +77,7 @@ export class PracticesService {
         phonePrimary: customer.phonePrimary,
         email: customer.email,
         fiscalCode: customer.fiscalCode,
+        address: customer.address, // 🔥 AGGIUNTO: popola anche nello snapshot iniziale
       } : {},
       lineType: dto.lineData?.lineType,
       installationAddress: dto.lineData?.installationAddress,
@@ -170,27 +171,29 @@ export class PracticesService {
           if (newCf?.length === 16) {
             let customer = await this.customersService.findByFiscalCode(tenantId, newCf);
             if (!customer) {
+              // Crea nuovo cliente con indirizzo come oggetto
               customer = await this.customersService.create(tenantId, {
                 firstName: cd.firstName || 'Temp', 
                 lastName: cd.lastName || 'Temp', 
                 fiscalCode: newCf,
                 phonePrimary: cd.phone, 
                 email: cd.email,
+                address: cd.address || null, // 🔥 PASSA L'OGGETTO, non stringa
               }, userId);
             } else {
-              // FIX: Aggiorna sempre i dati esistenti
+              // Aggiorna esistente con indirizzo come oggetto
               await this.customersService.update(tenantId, customer.id, {
                 firstName: cd.firstName, 
                 lastName: cd.lastName,
                 phonePrimary: cd.phone, 
                 email: cd.email,
-				 address: cd?.address || null, // 🔥 AGGIUNTO
+                address: cd.address || null, // 🔥 PASSA L'OGGETTO
               }, userId);
             }
             if (customer) practice.customerId = customer.id;
           }
           
-          // FIX: Aggiorna lo snapshot solo per i campi inviati
+          // FIX: Aggiorna lo snapshot solo per i campi inviati, includendo address come oggetto
           practice.customerSnapshot = {
             ...practice.customerSnapshot, // preserva i campi esistenti
             firstName: cd.firstName !== undefined ? cd.firstName : practice.customerSnapshot?.firstName,
@@ -198,7 +201,7 @@ export class PracticesService {
             fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
             phonePrimary: cd.phone !== undefined ? cd.phone : practice.customerSnapshot?.phonePrimary,
             email: cd.email !== undefined ? cd.email : practice.customerSnapshot?.email,
-			address: cd.address !== undefined ? cd.address : practice.customerSnapshot?.address, // 🔥 AGGIUNTO
+            address: cd.address !== undefined ? cd.address : practice.customerSnapshot?.address, // 🔥 OGGETTO
             ragioneSociale: cd.ragioneSociale !== undefined ? cd.ragioneSociale : practice.customerSnapshot?.ragioneSociale,
             partitaIva: cd.partitaIva !== undefined ? cd.partitaIva : practice.customerSnapshot?.partitaIva,
             formaGiuridica: cd.formaGiuridica !== undefined ? cd.formaGiuridica : practice.customerSnapshot?.formaGiuridica,

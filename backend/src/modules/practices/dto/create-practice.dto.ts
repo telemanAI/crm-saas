@@ -18,10 +18,17 @@ class CustomerDataDto {
   @IsString()
   email?: string;
 
-  // 🔥 AGGIUNTO: Campo address per anagrafica cliente
+  // 🔥 CORRETTO: Address come oggetto strutturato, non stringa
   @IsOptional()
-  @IsString()
-  address?: string;
+  @ValidateNested()
+  @Type(() => Object)
+  address?: {
+    street?: string;
+    number?: string;
+    city?: string;
+    zip?: string;
+    province?: string;
+  };
 }
 
 class LineDataDto {
@@ -211,16 +218,15 @@ export class CreatePracticeDto {
   @IsEnum(['completo', 'non_completo'])
   statoGlobale?: 'completo' | 'non_completo' | null;
   
-   // 🔥 AGGIUNTO: Indirizzo strutturato
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => Object)
-  address?: {
-    street?: string;
-    number?: string;
-    city?: string;
-    zip?: string;
-    province?: string;
-  };
-
+  // 🔥 RIMOSSO: Il campo address duplicato a livello principale che creava conflitto
+  // @IsOptional()
+  // @ValidateNested()
+  // @Type(() => Object)
+  // address?: {
+  //   street?: string;
+  //   number?: string;
+  //   city?: string;
+  //   zip?: string;
+  //   province?: string;
+  // };
 }

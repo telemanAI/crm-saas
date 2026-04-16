@@ -475,7 +475,7 @@ export default function NewPractice() {
         washConfig: practice.washConfig,
         convergenza: practice.convergenza,
         lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione,
-        // 🔥 AGGIUNTO: Caricamento indirizzo cliente
+        // 🔥 AGGIUNTO: Caricamento indirizzo cliente dallo snapshot o dal cliente
         customerAddress: practice.customerSnapshot?.address || 
                          practice.customer?.address || 
                          undefined,
@@ -648,7 +648,7 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode || '',
             phone: data.phone || '',
             email: data.email || '',
-            address: data.customerAddress, // 🔥 AGGIUNTO
+            address: data.customerAddress, // 🔥 AGGIUNTO: Oggetto, non stringa
             ragioneSociale: data.ragioneSociale,
             partitaIva: data.partitaIva,
             formaGiuridica: data.formaGiuridica,
@@ -718,7 +718,7 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode,
             phone: data.phone, 
             email: data.email,
-            address: data.customerAddress, // 🔥 AGGIUNTO
+            address: data.customerAddress, // 🔥 AGGIUNTO: Oggetto strutturato
             ragioneSociale: data.ragioneSociale, 
             partitaIva: data.partitaIva, 
             formaGiuridica: data.formaGiuridica,

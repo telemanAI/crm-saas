@@ -17,6 +17,11 @@ class CustomerDataDto {
   @IsOptional()
   @IsString()
   email?: string;
+
+  // 🔥 AGGIUNTO: Campo address per anagrafica cliente
+  @IsOptional()
+  @IsString()
+  address?: string;
 }
 
 class LineDataDto {

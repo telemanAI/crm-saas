@@ -25,6 +25,15 @@ export interface ConvergenzaConfig {
   numero?: string;
 }
 
+// 🔥 NUOVO: Interfaccia Indirizzo Cliente
+export interface CustomerAddress {
+  street?: string;      // Via
+  number?: string;      // Civico
+  city?: string;        // Città
+  zip?: string;         // CAP
+  province?: string;    // Provincia
+}
+
 export interface PracticeData {
   type?: 'TIM_FIBRA' | 'SKY';
   offerCode?: string;
@@ -51,19 +60,11 @@ export interface PracticeData {
     street?: string;
     city?: string;
     zip?: string;
-    comune?: string;  // 🔥 AGGIUNTO
-    citta?: string;   // 🔥 AGGIUNTO
-    cap?: string;     // 🔥 AGGIUNTO
-	  // 🔥 AGGIUNTO: Indirizzo cliente (Step 3)
-  customerAddress?: {
-    street?: string;      // Via
-    number?: string;      // Civico
-    city?: string;        // Città
-    zip?: string;         // CAP
-    province?: string;    // Provincia
+    comune?: string;
+    citta?: string;
+    cap?: string;
   };
-  
-  };
+  customerAddress?: CustomerAddress; // 🔥 AGGIUNTO: al livello corretto
   technology?: 'FTTH' | 'FTTC' | 'FWA';
   oldPhoneNumber?: string;
   migrationCode?: string;
@@ -106,6 +107,8 @@ export interface PracticeData {
   statoGlobale?: 'completo' | 'non_completo' | null;
 }
 
+// ... resto del file invariato (WIZARD_STEPS, ADDITIONAL_PACKAGES, ecc.) ...
+
 export type StepId = 
   | 'offer'
   | 'sellers'
@@ -138,7 +141,7 @@ export const WIZARD_STEPS: WizardStep[] = [
   },
   { 
     id: 'lines', 
-    title: 'Configurazione Nuova Linea',  // 🔥 RINOMINATO
+    title: 'Configurazione Nuova Linea',
     icon: 'MapPin', 
     isVisible: () => true 
   },
@@ -230,7 +233,7 @@ const initialState = {
       enableWashStep: false,
       enableAdditionalPackages: true
     },
-    convergenza: { attiva: false, tipo: null }, // 🔥 INIZIALIZZATO
+    convergenza: { attiva: false, tipo: null },
     statoGlobale: null,
     lavorazioniPostAttivazione: undefined
   } as PracticeData,

@@ -113,6 +113,7 @@ const getExcludedPackageIds = (offerName: string): string[] => {
   return [...new Set(excluded)];
 };
 
+// 🔥 MODIFICA 1: Interfaccia CustomerSuggestion con campo address
 interface CustomerSuggestion {
   id: string;
   fiscalCode: string;
@@ -121,7 +122,7 @@ interface CustomerSuggestion {
   phonePrimary?: string;
   phone?: string;
   email?: string;
-  address?: any;
+  address?: any; // 🔥 AGGIUNTO
 }
 
 interface WizardStep {
@@ -413,6 +414,7 @@ export default function NewPractice() {
     }
   }, [router.query, router.isReady, token, reset, setStep, setPracticeId]);
 
+  // 🔥 MODIFICA 3: loadPracticeData con caricamento indirizzo
   const loadPracticeData = async (id: string) => {
     try {
       const response = await api.get(`/practices/${id}`, {
@@ -473,6 +475,7 @@ export default function NewPractice() {
         washConfig: practice.washConfig,
         convergenza: practice.convergenza,
         lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione,
+        // 🔥 AGGIUNTO: Caricamento indirizzo cliente
         customerAddress: practice.customerSnapshot?.address || 
                          practice.customer?.address || 
                          undefined,
@@ -601,6 +604,7 @@ export default function NewPractice() {
     return () => clearTimeout(timeoutId);
   }, [data.firstName, data.lastName, token, lockedCustomer]);
 
+  // 🔥 MODIFICA 2: handleSelectCustomer con customerAddress
   const handleSelectCustomer = (customer: CustomerSuggestion) => {
     setData({
       fiscalCode: customer.fiscalCode,
@@ -608,7 +612,7 @@ export default function NewPractice() {
       lastName: customer.lastName,
       phone: customer.phonePrimary || customer.phone || '',
       email: customer.email || '',
-      customerAddress: customer.address || undefined,
+      customerAddress: customer.address || undefined, // 🔥 AGGIUNTO
     });
     setShowCfSuggestions(false);
     setShowPhoneSuggestions(false);
@@ -619,6 +623,7 @@ export default function NewPractice() {
     setLockedCustomer(customer);
   };
 
+  // 🔥 MODIFICA 5: saveStep con address nel POST iniziale
   const saveStep = async (stepNumber: number) => {
     try {
       if (stepNumber === 1 && !practiceId) {
@@ -643,13 +648,13 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode || '',
             phone: data.phone || '',
             email: data.email || '',
+            address: data.customerAddress, // 🔥 AGGIUNTO
             ragioneSociale: data.ragioneSociale,
             partitaIva: data.partitaIva,
             formaGiuridica: data.formaGiuridica,
             sedeLegale: data.sedeLegale,
             codiceRea: data.codiceRea,
             pec: data.pec,
-            address: data.customerAddress,
           }
         }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -684,6 +689,7 @@ export default function NewPractice() {
     }
   };
 
+  // 🔥 MODIFICA 4: getStepData con address nei dati da salvare
   const getStepData = (stepNumber: number) => {
     const step = steps.find(s => s.id === stepNumber);
     const stepId = step?.stepId;
@@ -712,7 +718,7 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode,
             phone: data.phone, 
             email: data.email,
-            address: data.customerAddress,
+            address: data.customerAddress, // 🔥 AGGIUNTO
             ragioneSociale: data.ragioneSociale, 
             partitaIva: data.partitaIva, 
             formaGiuridica: data.formaGiuridica,
@@ -1342,7 +1348,7 @@ export default function NewPractice() {
                               />
                             </div>
 
-                            {/* 🔥 NUOVO: Indirizzo Cliente */}
+                            {/* 🔥 MODIFICA 6: UI Step 3 - Indirizzo Cliente */}
                             <div className="border-t border-slate-700 pt-4 mt-4">
                               <h4 className="text-sm font-semibold text-indigo-400 mb-4 flex items-center gap-2">
                                 <MapPin className="w-4 h-4" />
@@ -1794,7 +1800,7 @@ export default function NewPractice() {
                               <input type="text" value={data.installationAddress?.street || ''} onChange={(e) => setData({ installationAddress: { ...data.installationAddress, street: e.target.value } })} placeholder="Via Roma 123, Milano" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                             </div>
 
-                            {/* 🔥 NUOVI CAMPI: Comune, Città, CAP */}
+                            {/* Comune, Città, CAP */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Comune</label>
@@ -1853,7 +1859,7 @@ export default function NewPractice() {
                               </div>
                             </div>
 
-                            {/* 🔥 SEZIONE CONVERGENZA */}
+                            {/* Sezione Convergenza */}
                             <div className="border-t border-slate-700 pt-6">
                               <div className="flex items-center gap-3 mb-4">
                                 <input 
@@ -1953,7 +1959,7 @@ export default function NewPractice() {
                               )}
                             </div>
 
-                            {/* 🔥 LAVORAZIONI POST ATTIVAZIONE (spostato dallo step 8) */}
+                            {/* Lavorazioni Post Attivazione */}
                             <div className="border-t border-slate-700 pt-6">
                               <div className="flex items-center gap-3 mb-4">
                                 <input 
@@ -2249,8 +2255,6 @@ export default function NewPractice() {
                                 placeholder="Accordi presi con il cliente..."
                               />
                             </div>
-
-                            {/* RIMOSSO: Lavorazioni Post Attivazione - spostato a step 4 */}
                           </div>
                         )}
 
@@ -2327,7 +2331,7 @@ export default function NewPractice() {
                               </div>
                             )}
 
-                            {/* WASH Config (se presente - retroattivo) */}
+                            {/* WASH Config (se presente) */}
                             {data.washConfig && data.washConfig.enabled && (
                               <div className="bg-slate-800/50 rounded-xl p-6 border border-amber-500/30">
                                 <h4 className="font-semibold text-amber-400 mb-4 flex items-center gap-2">
@@ -2467,7 +2471,7 @@ export default function NewPractice() {
                             </button>
                             
                             <div className="flex items-center gap-3">
-                              {/* 🔥 TASTO SALTA - visibile dallo step 3 in poi */}
+                              {/* Tasto Salta - visibile dallo step 3 in poi */}
                               {step.id >= 3 && (
                                 <button
                                   onClick={() => handleSkipStep(step.id)}

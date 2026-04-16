@@ -24,6 +24,13 @@ export interface CustomerSnapshot extends Partial<CustomerBase> {
   codiceRea?: string;
   pec?: string;
   phone?: string;
+  address?: {           // 🔥 AGGIUNTO: Indirizzo del cliente
+    street?: string;
+    number?: string;
+    city?: string;
+    zip?: string;
+    province?: string;
+  };
 }
 
 export interface InstallationAddress {

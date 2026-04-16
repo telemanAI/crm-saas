@@ -19,20 +19,48 @@ export default function NewCustomer() {
   const router = useRouter();
   const { token } = useAuthStore();
   const [loading, setLoading] = useState(false);
+  
+  // 🔥 MODIFICATO: Indirizzo strutturato come oggetto
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     fiscalCode: '',
     phonePrimary: '',
     email: '',
-    address: '',
+    address: {
+      street: '',      // Via/Piazza
+      number: '',      // Civico
+      city: '',        // Città
+      zip: '',         // CAP
+      province: '',    // Provincia
+    },
   });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // 🔥 NUOVO: Gestione campi indirizzo annidati
+  const handleAddressChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        [field]: value
+      }
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
+      // 🔥 Il backend si aspetta address come oggetto JSON
       await api.post('/customers', formData, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -44,13 +72,6 @@ export default function NewCustomer() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({
-      ...prev,
-      [e.target.name]: e.target.value
-    }));
   };
 
   return (
@@ -173,21 +194,89 @@ export default function NewCustomer() {
           </div>
         </div>
 
-        {/* Indirizzo */}
-        <div className="mb-8">
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Indirizzo
-          </label>
-          <div className="relative">
-            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-            <input
-              type="text"
-              name="address"
-              value={formData.address}
-              onChange={handleChange}
-              className="w-full pl-12 pr-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-              placeholder="Via Roma 123, Milano"
-            />
+        {/* 🔥 NUOVO: Sezione Indirizzo Strutturato */}
+        <div className="border-t border-slate-700 pt-6 mb-6">
+          <div className="flex items-center gap-2 mb-4">
+            <MapPin className="w-5 h-5 text-indigo-400" />
+            <h3 className="text-sm font-semibold text-indigo-400">Indirizzo Cliente</h3>
+          </div>
+          
+          <div className="space-y-4">
+            {/* Via / Piazza */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Via / Piazza
+              </label>
+              <input
+                type="text"
+                value={formData.address.street}
+                onChange={(e) => handleAddressChange('street', e.target.value)}
+                className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                placeholder="Via Roma"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Civico */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Civico
+                </label>
+                <input
+                  type="text"
+                  value={formData.address.number}
+                  onChange={(e) => handleAddressChange('number', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  placeholder="123"
+                />
+              </div>
+              
+              {/* CAP */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  CAP
+                </label>
+                <input
+                  type="text"
+                  value={formData.address.zip}
+                  onChange={(e) => handleAddressChange('zip', e.target.value)}
+                  maxLength={5}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  placeholder="00100"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {/* Città */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Città
+                </label>
+                <input
+                  type="text"
+                  value={formData.address.city}
+                  onChange={(e) => handleAddressChange('city', e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  placeholder="Milano"
+                />
+              </div>
+              
+              {/* Provincia */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Provincia
+                </label>
+                <input
+                  type="text"
+                  value={formData.address.province}
+                  onChange={(e) => handleAddressChange('province', e.target.value.toUpperCase())}
+                  maxLength={2}
+                  className="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 uppercase"
+                  placeholder="MI"
+                />
+              </div>
+            </div>
           </div>
         </div>
 

@@ -1,5 +1,3 @@
-Ecco il file backend/src/modules/email/email.service.ts completo (435 righe) — sovrascrivilo tutto:
-
 import { Injectable } from '@nestjs/common';
 import { Resend } from 'resend';
 

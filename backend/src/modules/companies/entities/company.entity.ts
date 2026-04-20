@@ -4,6 +4,8 @@
  * Una Company può avere N Shop (negozi fisici/virtuali).
  * Identificata univocamente dalla combinazione legalName + vatNumber.
  */
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+
 @Entity('companies')
 @Index(['legalName', 'vatNumber'], { unique: true })
 export class Company {
@@ -13,11 +15,9 @@ export class Company {
   @Column({ type: 'varchar', length: 255, name: 'legal_name' })
   legalName: string;
 
-  // P.IVA - obbligatoria quando ragione sociale esiste già (per distinguere Company omonime)
   @Column({ type: 'varchar', length: 50, name: 'vat_number', nullable: true })
   vatNumber: string | null;
 
-  // FOUNDER owner principale. Solo lui può aggiungere nuovi shop a questa Company.
   @Column({ type: 'uuid', name: 'owner_id' })
   ownerId: string;
 

@@ -21,7 +21,6 @@ export class OtpService {
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-    // Invalida OTP precedenti per questa email
     await this.otpRepo.update({ email: normalized, used: false }, { used: true });
 
     const otp = this.otpRepo.create({
@@ -36,7 +35,7 @@ export class OtpService {
     const sent = await this.emailService.sendOtpEmail(normalized, code);
     if (!sent) {
       throw new BadRequestException(
-        \"Impossibile inviare il codice. Verifica l'indirizzo email o riprova.\",
+        "Impossibile inviare il codice. Verifica l'indirizzo email o riprova.",
       );
     }
     return { message: 'Codice inviato. Controlla la tua casella email.' };
@@ -69,7 +68,6 @@ export class OtpService {
     await this.otpRepo.save(otp);
   }
 
-  /** Cleanup periodico: elimina OTP scaduti (chiamabile da cron job). */
   async cleanupExpired(): Promise<number> {
     const res = await this.otpRepo.delete({ expiresAt: LessThan(new Date()) });
     return res.affected || 0;

@@ -76,21 +76,21 @@ export default function ShopSwitcher() {
   return (
     <>
       <button
-        data-testid=\"shop-switcher-btn\"
+        data-testid="shop-switcher-btn"
         onClick={() => setOpen(true)}
-        className=\"flex items-center gap-2.5 px-3 py-2 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition-all group\"
+        className="flex items-center gap-2.5 px-3 py-2 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition-all group"
       >
-        <Storefront weight=\"duotone\" className=\"w-4.5 h-4.5 text-indigo-400\" />
-        <div className=\"text-left\">
-          <p className=\"text-white text-sm font-semibold leading-tight\">{activeShop?.name || 'Seleziona negozio'}</p>
+        <Storefront weight="duotone" className="w-4.5 h-4.5 text-indigo-400" />
+        <div className="text-left">
+          <p className="text-white text-sm font-semibold leading-tight">{activeShop?.name || 'Seleziona negozio'}</p>
           {activeShop?.subscriptionCode && (
-            <p className=\"text-slate-500 text-[10px] font-mono leading-tight\">Codice {activeShop.subscriptionCode}</p>
+            <p className="text-slate-500 text-[10px] font-mono leading-tight">Codice {activeShop.subscriptionCode}</p>
           )}
         </div>
         {shops.length > 1 && (
           <>
-            <CaretDown className=\"w-3 h-3 text-slate-500 ml-1\" />
-            <span className=\"hidden md:flex items-center gap-0.5 ml-2 px-1.5 py-0.5 bg-slate-950 rounded text-[10px] text-slate-500 font-mono border border-slate-800\">
+            <CaretDown className="w-3 h-3 text-slate-500 ml-1" />
+            <span className="hidden md:flex items-center gap-0.5 ml-2 px-1.5 py-0.5 bg-slate-950 rounded text-[10px] text-slate-500 font-mono border border-slate-800">
               ⌘K
             </span>
           </>
@@ -104,33 +104,33 @@ export default function ShopSwitcher() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setOpen(false)}
-            className=\"fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-[12vh] p-4\"
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center pt-[12vh] p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.97, y: -8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: -8 }}
               onClick={(e) => e.stopPropagation()}
-              className=\"w-full max-w-[600px] bg-slate-900/95 backdrop-blur-2xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden\"
+              className="w-full max-w-[600px] bg-slate-900/95 backdrop-blur-2xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
             >
-              <div className=\"flex items-center gap-3 px-5 py-4 border-b border-slate-800\">
-                <MagnifyingGlass className=\"w-5 h-5 text-slate-500\" />
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800">
+                <MagnifyingGlass className="w-5 h-5 text-slate-500" />
                 <input
                   ref={inputRef}
-                  data-testid=\"shop-switcher-search\"
+                  data-testid="shop-switcher-search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder=\"Cerca negozio per nome o codice...\"
-                  className=\"flex-1 bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none\"
+                  placeholder="Cerca negozio per nome o codice..."
+                  className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 focus:outline-none"
                 />
-                <span className=\"text-xs text-slate-600 font-mono\">ESC</span>
+                <span className="text-xs text-slate-600 font-mono">ESC</span>
               </div>
-              <div className=\"max-h-[50vh] overflow-y-auto p-3\">
+              <div className="max-h-[50vh] overflow-y-auto p-3">
                 {Object.entries(grouped).map(([companyId, group]) => (
-                  <div key={companyId} className=\"mb-3\">
+                  <div key={companyId} className="mb-3">
                     {group.length > 1 && (
-                      <div className=\"flex items-center gap-1.5 px-2 py-1 text-[10px] text-slate-500 uppercase tracking-wider\">
-                        <Buildings className=\"w-3 h-3\" />
+                      <div className="flex items-center gap-1.5 px-2 py-1 text-[10px] text-slate-500 uppercase tracking-wider">
+                        <Buildings className="w-3 h-3" />
                         <span>Gruppo · {group.length} negozi</span>
                       </div>
                     )}
@@ -146,15 +146,15 @@ export default function ShopSwitcher() {
                             isActive ? 'bg-indigo-500/15 border border-indigo-500/30' : 'hover:bg-slate-800/50 border border-transparent'
                           }`}
                         >
-                          <Storefront weight=\"duotone\" className={`w-5 h-5 ${isActive ? 'text-indigo-300' : 'text-slate-500'}`} />
-                          <div className=\"flex-1 min-w-0\">
-                            <p className=\"text-white text-sm font-medium truncate\">{shop.name}</p>
-                            <p className=\"text-slate-500 text-xs font-mono\">Codice {shop.subscriptionCode} · {shop.role}</p>
+                          <Storefront weight="duotone" className={`w-5 h-5 ${isActive ? 'text-indigo-300' : 'text-slate-500'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-white text-sm font-medium truncate">{shop.name}</p>
+                            <p className="text-slate-500 text-xs font-mono">Codice {shop.subscriptionCode} · {shop.role}</p>
                           </div>
                           {loading === shop.shopId ? (
-                            <ArrowsLeftRight className=\"w-4 h-4 text-indigo-400 animate-pulse\" />
+                            <ArrowsLeftRight className="w-4 h-4 text-indigo-400 animate-pulse" />
                           ) : isActive ? (
-                            <Check className=\"w-4 h-4 text-indigo-400\" />
+                            <Check className="w-4 h-4 text-indigo-400" />
                           ) : null}
                         </button>
                       );
@@ -162,10 +162,10 @@ export default function ShopSwitcher() {
                   </div>
                 ))}
                 {Object.keys(grouped).length === 0 && (
-                  <div className=\"text-center py-10 text-slate-500 text-sm\">Nessun negozio corrisponde alla ricerca</div>
+                  <div className="text-center py-10 text-slate-500 text-sm">Nessun negozio corrisponde alla ricerca</div>
                 )}
               </div>
-              <div className=\"px-5 py-3 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between\">
+              <div className="px-5 py-3 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between">
                 <span>{shops.length} negozi disponibili</span>
                 <span>Ultimo switch salvato localmente</span>
               </div>

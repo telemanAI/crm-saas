@@ -37,7 +37,7 @@ export class InvitesService {
         where: { userId: existingUser.id, shopId, isActive: true },
       });
       if (existing) {
-        throw new BadRequestException(\"L'utente è già membro attivo di questo negozio\");
+        throw new BadRequestException("L'utente è già membro attivo di questo negozio");
       }
     }
 
@@ -151,7 +151,7 @@ export class InvitesService {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utente non trovato');
     if (user.email.toLowerCase() !== invite.email.toLowerCase()) {
-      throw new BadRequestException(\"L'email dell'invito non corrisponde al tuo account\");
+      throw new BadRequestException("L'email dell'invito non corrisponde al tuo account");
     }
     const membership = await this.membershipsService.grantAccess({
       userId: user.id,

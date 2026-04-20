@@ -21,8 +21,6 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) || {}),
     };
-    
-    // Aggiunge automaticamente il token se presente
     if (token && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
     }
@@ -31,12 +29,11 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
       headers,
       ...options,
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || `Errore ${response.status}`);
     }
-    
     return await response.json();
   } catch (error: any) {
     if (error.message === 'Failed to fetch') {
@@ -47,30 +44,129 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
 }
 
 export const authApi = {
+  // Legacy login (email + password + subscriptionCode) - MANTENUTO per retrocompat
   login: (email: string, password: string, subscriptionCode?: string) =>
-    apiClient('/auth/login', { 
-      method: 'POST', 
-      body: JSON.stringify({ email, password, subscriptionCode }) 
+    apiClient('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, subscriptionCode }),
     }),
+
+  // ✨ NUOVO: Fast login (senza subscriptionCode per utenti normali)
+  loginV2: (email: string, password: string, subscriptionCode?: string) =>
+    apiClient('/auth/login-v2', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, ...(subscriptionCode ? { subscriptionCode } : {}) }),
+    }),
+
   superAdminLogin: (email: string, password: string) =>
-    apiClient('/auth/admin/login', { 
-      method: 'POST', 
-      body: JSON.stringify({ email, password }) 
+    apiClient('/auth/admin/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
     }),
-  // ✅ AGGIUNTO: impersonate per entrare nel CRM del negozio
+
   impersonate: (tenantId: string) =>
-    apiClient('/auth/impersonate', { 
-      method: 'POST', 
-      body: JSON.stringify({ tenantId }) 
+    apiClient('/auth/impersonate', {
+      method: 'POST',
+      body: JSON.stringify({ tenantId }),
     }),
+
   register: (data: any) =>
-    apiClient('/tenants/register', { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
+    apiClient('/tenants/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
+
+  // ✨ NUOVO: Registrazione negoziante con password
+  registerShopOwner: (data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    shopName: string;
+    legalName: string;
+    vatNumber?: string;
+    slug?: string;
+  }) =>
+    apiClient('/auth/register-shop-owner', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // ✨ NUOVO: OTP
+  requestOtp: (email: string) =>
+    apiClient('/auth/otp/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  verifyOtp: (email: string, code: string) =>
+    apiClient('/auth/otp/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }),
+
+  // ✨ NUOVO: Completa registrazione social/OTP
+  completeRegistration: (data: {
+    pendingToken: string;
+    role: 'shop_owner' | 'operator';
+    shopName?: string;
+    legalName?: string;
+    vatNumber?: string;
+    inviteToken?: string;
+  }) =>
+    apiClient('/auth/complete-registration', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  // ✨ NUOVO: Shop switching
+  myShops: () => apiClient('/auth/my-shops'),
+  switchShop: (shopId: string) =>
+    apiClient('/auth/switch-shop', {
+      method: 'POST',
+      body: JSON.stringify({ shopId }),
+    }),
+
+  // ✨ NUOVO: Invite
+  getInvite: (token: string) => apiClient(`/auth/invite/${token}`),
+
+  // URLs per redirect social login (usati con window.location.href)
+  googleLoginUrl: () => `${API_BASE_URL}/auth/google`,
+  facebookLoginUrl: () => `${API_BASE_URL}/auth/facebook`,
 };
 
-export const customersAPI = { 
+export const invitesApi = {
+  create: (data: { email: string; role: string; permissions?: any; adminNote?: string }) =>
+    apiClient('/invites', { method: 'POST', body: JSON.stringify(data) }),
+  list: () => apiClient('/invites'),
+  resend: (id: string) => apiClient(`/invites/${id}/resend`, { method: 'POST' }),
+  revoke: (id: string) => apiClient(`/invites/${id}`, { method: 'DELETE' }),
+  acceptWithPassword: (token: string, data: { password: string; firstName: string; lastName: string }) =>
+    apiClient(`/invites/accept/${token}/password`, { method: 'POST', body: JSON.stringify(data) }),
+  acceptAuthenticated: (token: string) =>
+    apiClient(`/invites/accept/${token}`, { method: 'POST' }),
+};
+
+export const membershipsApi = {
+  list: () => apiClient('/memberships'),
+  updatePermissions: (userId: string, permissions: any) =>
+    apiClient(`/memberships/${userId}/permissions`, { method: 'PATCH', body: JSON.stringify(permissions) }),
+  updateRole: (userId: string, role: string) =>
+    apiClient(`/memberships/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  revoke: (userId: string, endOfRelationshipNote?: string) =>
+    apiClient(`/memberships/${userId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ endOfRelationshipNote }),
+    }),
+  history: (userId: string) => apiClient(`/memberships/history/${userId}`),
+};
+
+export const companiesApi = {
+  mine: () => apiClient('/companies/mine'),
+  all: () => apiClient('/companies'),
+  shopsOf: (id: string) => apiClient(`/companies/${id}/shops`),
+};
+
+export const customersAPI = {
   getAll: () => apiClient('/customers'),
   getById: (id: string) => apiClient(`/customers/${id}`),
   create: (data: any) => apiClient('/customers', { method: 'POST', body: JSON.stringify(data) }),
@@ -78,7 +174,7 @@ export const customersAPI = {
   delete: (id: string) => apiClient(`/customers/${id}`, { method: 'DELETE' }),
 };
 
-export const practicesAPI = { 
+export const practicesAPI = {
   getAll: () => apiClient('/practices'),
   getById: (id: string) => apiClient(`/practices/${id}`),
   create: (data: any) => apiClient('/practices', { method: 'POST', body: JSON.stringify(data) }),
@@ -86,7 +182,7 @@ export const practicesAPI = {
   delete: (id: string) => apiClient(`/practices/${id}`, { method: 'DELETE' }),
 };
 
-export const usersAPI = { 
+export const usersAPI = {
   getAll: () => apiClient('/users'),
   getById: (id: string) => apiClient(`/users/${id}`),
   create: (data: any) => apiClient('/users', { method: 'POST', body: JSON.stringify(data) }),

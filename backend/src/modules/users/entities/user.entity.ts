@@ -1,5 +1,7 @@
-﻿import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+
+export type AuthProvider = 'local' | 'google' | 'facebook' | 'otp';
 
 @Entity('users')
 export class User {
@@ -9,8 +11,9 @@ export class User {
   @Column({ type: 'varchar', length: 255, unique: true })
   email: string;
 
-  @Column({ type: 'varchar', length: 255, name: 'password_hash' })
-  passwordHash: string;
+  // ⚠️ NULLABLE per utenti social-only/OTP-only che non hanno password
+  @Column({ type: 'varchar', length: 255, name: 'password_hash', nullable: true })
+  passwordHash: string | null;
 
   @Column({ type: 'varchar', length: 100, name: 'first_name', nullable: true })
   firstName: string;
@@ -22,6 +25,8 @@ export class User {
   phone: string;
 
   // Role: SUPER_ADMIN (no tenant), ADMIN/FOUNDER/OPERATOR (con tenant)
+  // NOTA: il ruolo sull'entity User è quello \"primario\" (retrocompat). Il ruolo
+  // effettivo per ciascuno shop è in user_shop_memberships.role.
   @Column({
     type: 'enum',
     enum: ['SUPER_ADMIN', 'ADMIN', 'FOUNDER', 'OPERATOR'],
@@ -29,7 +34,8 @@ export class User {
   })
   role: 'SUPER_ADMIN' | 'ADMIN' | 'FOUNDER' | 'OPERATOR';
 
-  // Relazione tenant (null per Super Admin)
+  // Relazione tenant PRIMARIO (null per Super Admin, o per utenti social pre-onboarding)
+  // Kept for backward compatibility. La fonte di verità multi-shop è user_shop_memberships.
   @Column({ type: 'uuid', name: 'tenant_id', nullable: true })
   tenantId: string | null;
 
@@ -56,6 +62,21 @@ export class User {
 
   @Column({ type: 'timestamp', name: 'verification_token_expires', nullable: true })
   verificationTokenExpires: Date | null;
+
+  // ===== NUOVI CAMPI: Social / OTP auth =====
+  @Column({
+    type: 'enum',
+    enum: ['local', 'google', 'facebook', 'otp'],
+    default: 'local',
+  })
+  provider: AuthProvider;
+
+  // ID utente fornito dal provider social (Google sub, Facebook id)
+  @Column({ type: 'varchar', length: 255, name: 'provider_id', nullable: true })
+  providerId: string | null;
+
+  @Column({ type: 'text', name: 'avatar_url', nullable: true })
+  avatarUrl: string | null;
 
   // Timestamp
   @CreateDateColumn({ name: 'created_at' })

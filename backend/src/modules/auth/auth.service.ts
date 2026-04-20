@@ -1,13 +1,23 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { UsersService } from '../users/users.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { SuperAdminLoginDto } from './dto/super-admin-login.dto';
+import { FastLoginDto } from './dto/fast-login.dto';
+import { RegisterShopOwnerDto } from './dto/auth-flow.dto';
 import { EmailService } from '../email/email.service';
+import { MembershipsService } from '../memberships/memberships.service';
+import { CompaniesService } from '../companies/companies.service';
+import { User } from '../users/entities/user.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { v4 as uuidv4 } from 'uuid';
+
+const SUPER_ADMIN_CODE = '847293516';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +26,10 @@ export class AuthService {
     private tenantsService: TenantsService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private membershipsService: MembershipsService,
+    private companiesService: CompaniesService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(Tenant) private readonly shopRepo: Repository<Tenant>,
   ) {}
 
   async validateUser(email: string, pass: string, subscriptionCode: string): Promise<any> {
@@ -24,6 +38,9 @@ export class AuthService {
 
     const user = await this.usersService.findByEmail(email, tenant.id);
     if (!user) throw new UnauthorizedException('Credenziali non valide');
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Questo account usa login social/OTP — accedi in quel modo');
+    }
 
     const isMatch = await bcrypt.compare(pass, user.passwordHash);
     if (!isMatch) throw new UnauthorizedException('Credenziali non valide');
@@ -35,7 +52,6 @@ export class AuthService {
   async login(loginDto: LoginDto) {
     // Check if it's super admin code
     const SUPER_ADMIN_CODE = '847293516';
-    
     if (loginDto.subscriptionCode === SUPER_ADMIN_CODE) {
       // Super Admin login
       const user = await this.validateSuperAdmin(loginDto.email, loginDto.password);
@@ -89,7 +105,8 @@ export class AuthService {
   }
 
   async register(registerDto: RegisterDto) {
-    const { name, email, password, confirmPassword, slug } = registerDto;
+    const { name, email, password, confirmPassword } = registerDto;
+    let slug = registerDto.slug;
 
     // Validazione password
     if (password !== confirmPassword) {
@@ -108,10 +125,25 @@ export class AuthService {
       throw new BadRequestException(`Configurazione email non valida: ${emailConfig.error}`);
     }
 
-    // Check esistenze
-    const existingTenantBySlug = await this.tenantsService.findBySlug(slug);
+    // Auto-genera slug se mancante
+    if (!slug || slug.trim().length < 3) {
+      slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 50) || 'shop';
+    }
+
+    // Check esistenze; se slug collide aggiunge suffisso numerico
+    let existingTenantBySlug = await this.tenantsService.findBySlug(slug);
     if (existingTenantBySlug) {
-      throw new BadRequestException('Slug già in uso');
+      const baseSlug = slug;
+      let suffix = 1;
+      while (existingTenantBySlug) {
+        slug = `${baseSlug}-${suffix}`;
+        existingTenantBySlug = await this.tenantsService.findBySlug(slug);
+        suffix += 1;
+      }
     }
 
     const existingUser = await this.usersService.findByEmail(email);
@@ -235,6 +267,9 @@ export class AuthService {
     if (!user || user.role !== 'SUPER_ADMIN') {
       throw new UnauthorizedException('Accesso negato');
     }
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Credenziali non valide');
+    }
 
     const isMatch = await bcrypt.compare(pass, user.passwordHash);
     if (!isMatch) throw new UnauthorizedException('Credenziali non valide');
@@ -294,5 +329,272 @@ export class AuthService {
         isImpersonated: true // 👈 Frontend lo usa per mostrare "Torna a SuperAdmin"
       },
     };
+  }
+
+  // ==========================================================
+  // NUOVO: Fast login senza subscriptionCode per utenti normali
+  // ==========================================================
+  async fastLogin(dto: FastLoginDto) {
+    const email = dto.email.trim().toLowerCase();
+    const user = await this.usersService.findByEmail(email);
+    if (!user) throw new UnauthorizedException('Credenziali non valide');
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('Questo account usa login social/OTP — accedi in quel modo');
+    }
+    const passOk = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!passOk) throw new UnauthorizedException('Credenziali non valide');
+
+    // SUPER_ADMIN: richiede codice double-security
+    if (user.role === 'SUPER_ADMIN') {
+      if (dto.subscriptionCode !== SUPER_ADMIN_CODE) {
+        throw new UnauthorizedException('Codice di sicurezza SuperAdmin richiesto');
+      }
+      const token = this.jwtService.sign({
+        email: user.email,
+        sub: user.id,
+        role: 'SUPER_ADMIN',
+        tenantId: null,
+        isSuperAdmin: true,
+      });
+      return {
+        access_token: token,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: 'SUPER_ADMIN',
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+        shops: [],
+      };
+    }
+
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email non verificata. Controlla la tua casella di posta.');
+    }
+
+    user.lastLogin = new Date();
+    await this.userRepo.save(user);
+
+    const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+    const shops = shopsData.map(s => ({
+      shopId: s.shop.id,
+      name: s.shop.name,
+      subscriptionCode: s.shop.subscriptionCode,
+      role: s.membership.role,
+      permissions: s.membership.permissions,
+      companyId: s.shop.companyId,
+    }));
+
+    // Fallback retrocompat: se nessuna membership ma user.tenantId esiste → costruisci una "shop card" al volo
+    if (shops.length === 0 && user.tenantId) {
+      const legacy = await this.shopRepo.findOne({ where: { id: user.tenantId } });
+      if (legacy) {
+        shops.push({
+          shopId: legacy.id,
+          name: legacy.name,
+          subscriptionCode: legacy.subscriptionCode,
+          role: user.role as any,
+          permissions: {} as any,
+          companyId: legacy.companyId,
+        });
+      }
+    }
+
+    const activeShopId = shops[0]?.shopId || user.tenantId || null;
+    const activeRole = shops[0]?.role || user.role;
+    const token = this.jwtService.sign({
+      email: user.email,
+      sub: user.id,
+      role: activeRole,
+      tenantId: activeShopId,
+    });
+
+    return {
+      access_token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: activeRole,
+        tenantId: activeShopId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatarUrl: user.avatarUrl,
+      },
+      shops,
+    };
+  }
+
+  // ==========================================================
+  // NUOVO: Registrazione negoziante (con password)
+  // ==========================================================
+  async registerShopOwner(dto: RegisterShopOwnerDto) {
+    const email = dto.email.trim().toLowerCase();
+    const existing = await this.usersService.findByEmail(email);
+    if (existing) throw new BadRequestException('Email già registrata');
+
+    const emailConfig = await this.emailService.validateEmailConfiguration();
+    if (!emailConfig.valid) {
+      throw new BadRequestException(`Configurazione email non valida: ${emailConfig.error}`);
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(dto.password, salt);
+
+    // Crea user con ruolo FOUNDER, email verificata = false (manda email conferma)
+    const verificationToken = uuidv4();
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+    const user = await this.usersService.create({
+      email,
+      passwordHash,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      role: 'FOUNDER',
+      isActive: true,
+      emailVerified: false,
+      verificationToken,
+      verificationTokenExpires,
+      provider: 'local',
+    } as any);
+
+    // Crea Company + Shop
+    const company = await this.companiesService.resolveOrCreateForNewShop({
+      legalName: dto.legalName || dto.shopName,
+      vatNumber: dto.vatNumber || null,
+      currentUserId: user.id,
+    });
+
+    const shop = await this.createShopUnderCompany({
+      name: dto.shopName,
+      slugHint: dto.slug,
+      companyId: company.id,
+      vatNumber: dto.vatNumber || null,
+    });
+
+    user.tenantId = shop.id;
+    await this.userRepo.save(user);
+
+    await this.membershipsService.grantAccess({
+      userId: user.id,
+      shopId: shop.id,
+      role: 'FOUNDER',
+    });
+
+    // Invia email di verifica (retrocompat)
+    await this.emailService.sendVerificationEmail(email, verificationToken, dto.firstName);
+
+    return {
+      message: 'Negozio creato. Controlla la tua email per confermare.',
+      subscriptionCode: shop.subscriptionCode,
+      companyId: company.id,
+      shop: { id: shop.id, name: shop.name, slug: shop.slug },
+      user: { id: user.id, email: user.email, role: user.role },
+    };
+  }
+
+  async getUserShops(userId: string) {
+    const shopsData = await this.membershipsService.findActiveShopsForUser(userId);
+    return shopsData.map(s => ({
+      shopId: s.shop.id,
+      name: s.shop.name,
+      subscriptionCode: s.shop.subscriptionCode,
+      role: s.membership.role,
+      permissions: s.membership.permissions,
+      companyId: s.shop.companyId,
+    }));
+  }
+
+  /**
+   * Aggiungi negozio da FOUNDER autenticato.
+   * mode='same-company': usa una Company esistente (deve essere owner)
+   * mode='new-company': crea nuova Company (richiede legalName + vatNumber se homonym)
+   */
+  async addShopForFounder(params: {
+    userId: string;
+    name: string;
+    mode: 'same-company' | 'new-company';
+    companyId?: string; // per same-company
+    legalName?: string; // per new-company
+    vatNumber?: string;
+  }) {
+    if (!params.name?.trim()) throw new BadRequestException('Nome negozio obbligatorio');
+
+    let targetCompanyId: string;
+    if (params.mode === 'same-company') {
+      if (!params.companyId) throw new BadRequestException('companyId richiesto');
+      const companies = await this.companiesService.findByOwner(params.userId);
+      const company = companies.find(c => c.id === params.companyId);
+      if (!company) {
+        throw new BadRequestException('Non sei il proprietario di questa ragione sociale');
+      }
+      targetCompanyId = company.id;
+    } else {
+      const company = await this.companiesService.resolveOrCreateForNewShop({
+        legalName: params.legalName || params.name,
+        vatNumber: params.vatNumber || null,
+        currentUserId: params.userId,
+      });
+      targetCompanyId = company.id;
+    }
+
+    const shop = await this.createShopUnderCompany({
+      name: params.name,
+      companyId: targetCompanyId,
+      vatNumber: params.vatNumber,
+    });
+
+    await this.membershipsService.grantAccess({
+      userId: params.userId,
+      shopId: shop.id,
+      role: 'FOUNDER',
+    });
+
+    return {
+      shopId: shop.id,
+      name: shop.name,
+      subscriptionCode: shop.subscriptionCode,
+      slug: shop.slug,
+      companyId: targetCompanyId,
+    };
+  }
+
+  private async createShopUnderCompany(params: {
+    name: string;
+    slugHint?: string;
+    companyId: string;
+    vatNumber?: string | null;
+  }): Promise<Tenant> {
+    let code: string;
+    let exists: Tenant | null;
+    do {
+      code = Math.floor(10000 + Math.random() * 90000).toString();
+      exists = await this.shopRepo.findOne({ where: { subscriptionCode: code } });
+    } while (exists);
+
+    const baseSlug =
+      (params.slugHint || params.name)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+        .slice(0, 50) || 'shop';
+    let slug = baseSlug;
+    let suffix = 0;
+    while (await this.shopRepo.findOne({ where: { slug } })) {
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+
+    const shop = this.shopRepo.create({
+      name: params.name,
+      subscriptionCode: code,
+      slug,
+      vatNumber: params.vatNumber || null,
+      companyId: params.companyId,
+      planType: 'basic',
+      subscriptionStatus: 'trial',
+      isActive: true,
+    });
+    return this.shopRepo.save(shop);
   }
 }

@@ -1,3 +1,4 @@
+
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
@@ -21,6 +22,9 @@ import { ExportsModule } from './modules/exports/exports.module';
 import { ImportJob } from './modules/imports/entities/import-job.entity';
 import { ImportTemplate } from './modules/imports/entities/import-template.entity';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { CompaniesModule } from './modules/companies/companies.module';
+import { MembershipsModule } from './modules/memberships/memberships.module';
+import { InvitesModule } from './modules/invites/invites.module';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -37,6 +41,11 @@ import { InventoryItem } from './modules/inventory/entities/inventory-item.entit
 import { InventoryMovement } from './modules/inventory/entities/inventory-movement.entity';
 import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
 import { Offer } from './modules/offers/entities/offer.entity';
+import { Company } from './modules/companies/entities/company.entity';
+import { UserShopMembership } from './modules/memberships/entities/user-shop-membership.entity';
+import { Invite } from './modules/invites/entities/invite.entity';
+import { OtpCode } from './modules/auth/entities/otp-code.entity';
+import { PendingRegistration } from './modules/auth/entities/pending-registration.entity';
 
 @Module({
   imports: [
@@ -48,11 +57,11 @@ import { Offer } from './modules/offers/entities/offer.entity';
       password: process.env.DB_PASSWORD || 'crm_password',
       database: process.env.DB_NAME || 'crm_db',
       entities: [
-        User, 
-        Tenant, 
+        User,
+        Tenant,
         Customer,
-        Practice, 
-        CustomField, 
+        Practice,
+        CustomField,
         CustomFieldValue,
         AuditLog,
         CashClosing,
@@ -62,8 +71,14 @@ import { Offer } from './modules/offers/entities/offer.entity';
         InventoryMovement,
         SalesPractice,
         Offer,
-		ImportJob,         
+        ImportJob,
         ImportTemplate,
+        // NUOVE v2
+        Company,
+        UserShopMembership,
+        Invite,
+        OtpCode,
+        PendingRegistration,
       ],
       synchronize: process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
@@ -88,11 +103,15 @@ import { Offer } from './modules/offers/entities/offer.entity';
     SalesModule,
     StatsModule,
     OffersModule,
-	SuperAdminModule,
+    SuperAdminModule,
     EmailModule,
     CleanupModule,
-	ImportsModule,      
-    ExportsModule, 
+    ImportsModule,
+    ExportsModule,
+    // NUOVI v2
+    CompaniesModule,
+    MembershipsModule,
+    InvitesModule,
   ],
 })
 export class AppModule {}

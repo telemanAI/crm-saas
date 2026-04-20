@@ -1,5 +1,10 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
+/**
+ * Tenant == Shop (Negozio) nella nuova terminologia.
+ * Nome legacy mantenuto per retrocompatibilità con il resto del codebase.
+ * Ogni Shop appartiene ad una Company (ragione sociale).
+ */
 @Entity('tenants')
 export class Tenant {
   @PrimaryGeneratedColumn('uuid')
@@ -40,6 +45,11 @@ export class Tenant {
 
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
+
+  // ===== NUOVO: legame con Company (ragione sociale) =====
+  // Nullable durante migrazione; dopo data-migration sarà NOT NULL
+  @Column({ type: 'uuid', name: 'company_id', nullable: true })
+  companyId: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

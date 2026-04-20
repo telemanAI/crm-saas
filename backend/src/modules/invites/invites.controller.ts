@@ -1,0 +1,89 @@
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Delete,
+  Req,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  BadRequestException,
+} from '@nestjs/common';
+import { InvitesService } from './invites.service';
+import { CreateInviteDto, AcceptInviteViaPasswordDto } from './dto/invite.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+@Controller('invites')
+export class InvitesController {
+  constructor(private readonly invitesService: InvitesService) {}
+
+  /**
+   * Admin/Founder crea invito per il proprio shop attivo (tenantId dal JWT).
+   */
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Req() req: any, @Body() dto: CreateInviteDto) {
+    const shopId = req.user.tenantId;
+    if (!shopId) throw new BadRequestException('Nessuno shop attivo nel token');
+    const invite = await this.invitesService.createInvite(shopId, req.user.id, dto);
+    return {
+      id: invite.id,
+      token: invite.token,
+      email: invite.email,
+      role: invite.role,
+      status: invite.status,
+      expiresAt: invite.expiresAt,
+    };
+  }
+
+  @Post(':id/resend')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async resend(@Param('id') id: string) {
+    const invite = await this.invitesService.resendInvite(id);
+    return { message: 'Invito reinviato', token: invite.token };
+  }
+
+  @Delete(':id')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async revoke(@Param('id') id: string) {
+    await this.invitesService.revoke(id);
+    return { message: 'Invito revocato' };
+  }
+
+  @Get()
+  @UseGuards(JwtAuthGuard)
+  async list(@Req() req: any) {
+    const shopId = req.user.tenantId;
+    if (!shopId) throw new BadRequestException('Nessuno shop attivo nel token');
+    return this.invitesService.listByShop(shopId);
+  }
+
+  /**
+   * Accettazione invito via password (utente NUOVO).
+   */
+  @Post('accept/:token/password')
+  @HttpCode(HttpStatus.OK)
+  async acceptWithPassword(
+    @Param('token') token: string,
+    @Body() dto: AcceptInviteViaPasswordDto,
+  ) {
+    const user = await this.invitesService.acceptInviteCreatingUser(token, dto);
+    return { message: 'Invito accettato. Accedi con le tue credenziali.', userId: user.id };
+  }
+
+  /**
+   * Accettazione invito per utente GIÀ LOGGATO (per social/OTP).
+   */
+  @Post('accept/:token')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async acceptAuthenticated(@Param('token') token: string, @Req() req: any) {
+    const membership = await this.invitesService.acceptInviteWithUserId(token, req.user.id);
+    return { message: 'Ora fai parte del negozio', shopId: membership.shopId, role: membership.role };
+  }
+}

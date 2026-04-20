@@ -1,0 +1,268 @@
+import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, LessThan } from 'typeorm';
+import { JwtService } from '@nestjs/jwt';
+import { v4 as uuidv4 } from 'uuid';
+import { User, AuthProvider } from '../../users/entities/user.entity';
+import { PendingRegistration } from '../entities/pending-registration.entity';
+import { MembershipsService } from '../../memberships/memberships.service';
+import { CompaniesService } from '../../companies/companies.service';
+import { Tenant } from '../../tenants/entities/tenant.entity';
+import { CompleteRegistrationDto } from '../dto/auth-flow.dto';
+import { InvitesService } from '../../invites/invites.service';
+
+const PENDING_TTL_MINUTES = 30;
+
+interface SocialProfile {
+  provider: AuthProvider;
+  providerId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string;
+}
+
+@Injectable()
+export class SocialAuthService {
+  constructor(
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(PendingRegistration) private readonly pendingRepo: Repository<PendingRegistration>,
+    @InjectRepository(Tenant) private readonly shopRepo: Repository<Tenant>,
+    private readonly jwtService: JwtService,
+    private readonly membershipsService: MembershipsService,
+    private readonly companiesService: CompaniesService,
+    private readonly invitesService: InvitesService,
+  ) {}
+
+  /**
+   * Entry dopo il callback OAuth (Google/Facebook) o dopo verifica OTP.
+   * Se user esiste → emette JWT e ritorna { status: 'logged_in', token, shops }.
+   * Se NON esiste → crea pending registration e ritorna { status: 'pending', pendingToken }.
+   */
+  async handleSocialOrOtpLogin(profile: SocialProfile): Promise<
+    | { status: 'logged_in'; token: string; user: any; shops: any[] }
+    | { status: 'pending'; pendingToken: string; email: string; firstName?: string; lastName?: string }
+  > {
+    const email = profile.email.trim().toLowerCase();
+    if (!email) throw new BadRequestException('Email mancante dal provider');
+
+    let user = await this.userRepo.findOne({ where: { email } });
+
+    if (user) {
+      // Aggiorna provider se era 'local' e ha fatto primo social login (link account)
+      let updated = false;
+      if (profile.provider !== 'otp' && user.provider === 'local') {
+        user.provider = profile.provider;
+        user.providerId = profile.providerId;
+        updated = true;
+      }
+      if (!user.avatarUrl && profile.avatarUrl) {
+        user.avatarUrl = profile.avatarUrl;
+        updated = true;
+      }
+      if (!user.emailVerified) {
+        // Social/OTP = email verificata per definizione
+        user.emailVerified = true;
+        updated = true;
+      }
+      user.lastLogin = new Date();
+      if (updated || true) await this.userRepo.save(user);
+
+      const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+      const token = this.signToken({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        tenantId: shops[0]?.shop.id || user.tenantId || null,
+      });
+      return {
+        status: 'logged_in',
+        token,
+        user: this.sanitizeUser(user),
+        shops: shops.map(s => ({
+          shopId: s.shop.id,
+          name: s.shop.name,
+          subscriptionCode: s.shop.subscriptionCode,
+          role: s.membership.role,
+          permissions: s.membership.permissions,
+          companyId: s.shop.companyId,
+        })),
+      };
+    }
+
+    // User non esiste → crea pending registration
+    const pendingToken = uuidv4().replace(/-/g, '') + uuidv4().replace(/-/g, '');
+    const expiresAt = new Date(Date.now() + PENDING_TTL_MINUTES * 60 * 1000);
+    const pending = this.pendingRepo.create({
+      token: pendingToken,
+      email,
+      provider: profile.provider as any,
+      providerId: profile.providerId,
+      firstName: profile.firstName || null,
+      lastName: profile.lastName || null,
+      avatarUrl: profile.avatarUrl || null,
+      expiresAt,
+    });
+    await this.pendingRepo.save(pending);
+
+    return {
+      status: 'pending',
+      pendingToken,
+      email,
+      firstName: profile.firstName,
+      lastName: profile.lastName,
+    };
+  }
+
+  /**
+   * Completa la registrazione dopo social/OTP con scelta ruolo.
+   * - role='shop_owner' → crea Company (o link esistente) + Shop + FOUNDER membership.
+   * - role='operator' → richiede inviteToken valido, applica l'invito.
+   */
+  async completeRegistration(dto: CompleteRegistrationDto): Promise<{ token: string; user: any; shops: any[] }> {
+    const pending = await this.pendingRepo.findOne({ where: { token: dto.pendingToken } });
+    if (!pending) throw new UnauthorizedException('Sessione di registrazione non valida o scaduta');
+    if (pending.expiresAt < new Date()) {
+      await this.pendingRepo.delete({ id: pending.id });
+      throw new UnauthorizedException('Sessione di registrazione scaduta, ricomincia');
+    }
+
+    // Verifica user non creato nel frattempo
+    let user = await this.userRepo.findOne({ where: { email: pending.email } });
+    if (user) {
+      // race condition → log him in con le membership
+      await this.pendingRepo.delete({ id: pending.id });
+      const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+      const token = this.signToken({
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        tenantId: shops[0]?.shop.id || user.tenantId,
+      });
+      return { token, user: this.sanitizeUser(user), shops: this.serializeShops(shops) };
+    }
+
+    // Crea user
+    user = this.userRepo.create({
+      email: pending.email,
+      firstName: pending.firstName || '',
+      lastName: pending.lastName || '',
+      avatarUrl: pending.avatarUrl,
+      provider: pending.provider as AuthProvider,
+      providerId: pending.providerId,
+      emailVerified: true,
+      role: dto.role === 'shop_owner' ? 'FOUNDER' : 'OPERATOR',
+      isActive: true,
+      passwordHash: null,
+    });
+    user = await this.userRepo.save(user);
+
+    if (dto.role === 'shop_owner') {
+      if (!dto.shopName) throw new BadRequestException('Nome del negozio obbligatorio');
+      const company = await this.companiesService.resolveOrCreateForNewShop({
+        legalName: dto.legalName || dto.shopName,
+        vatNumber: dto.vatNumber,
+        currentUserId: user.id,
+      });
+      const shop = await this.createShopUnderCompany({
+        name: dto.shopName,
+        companyId: company.id,
+        vatNumber: dto.vatNumber,
+      });
+      user.tenantId = shop.id;
+      await this.userRepo.save(user);
+      await this.membershipsService.grantAccess({
+        userId: user.id,
+        shopId: shop.id,
+        role: 'FOUNDER',
+      });
+    } else if (dto.role === 'operator') {
+      if (!dto.inviteToken) {
+        throw new BadRequestException('Gli operatori possono registrarsi solo tramite invito');
+      }
+      await this.invitesService.acceptInviteWithUserId(dto.inviteToken, user.id);
+    }
+
+    await this.pendingRepo.delete({ id: pending.id });
+    const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+    const token = this.signToken({
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      tenantId: shops[0]?.shop.id || user.tenantId,
+    });
+    return { token, user: this.sanitizeUser(user), shops: this.serializeShops(shops) };
+  }
+
+  /** Cambia shop attivo: emette nuovo JWT con tenantId aggiornato. */
+  async switchActiveShop(userId: string, shopId: string): Promise<{ token: string }> {
+    const membership = await this.membershipsService.findActiveForUserAndShop(userId, shopId);
+    if (!membership) throw new UnauthorizedException('Non hai accesso a questo negozio');
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+    const token = this.signToken({
+      sub: user.id,
+      email: user.email,
+      role: membership.role,
+      tenantId: shopId,
+    });
+    return { token };
+  }
+
+  private async createShopUnderCompany(params: { name: string; companyId: string; vatNumber?: string | null }): Promise<Tenant> {
+    // Genera subscriptionCode univoco (5 cifre)
+    let code: string;
+    let exists: Tenant | null;
+    do {
+      code = Math.floor(10000 + Math.random() * 90000).toString();
+      exists = await this.shopRepo.findOne({ where: { subscriptionCode: code } });
+    } while (exists);
+
+    // Genera slug univoco
+    const baseSlug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'shop';
+    let slug = baseSlug;
+    let suffix = 0;
+    while (await this.shopRepo.findOne({ where: { slug } })) {
+      suffix += 1;
+      slug = `${baseSlug}-${suffix}`;
+    }
+
+    const shop = this.shopRepo.create({
+      name: params.name,
+      subscriptionCode: code,
+      slug,
+      vatNumber: params.vatNumber || null,
+      companyId: params.companyId,
+      planType: 'basic',
+      subscriptionStatus: 'trial',
+      isActive: true,
+    });
+    return this.shopRepo.save(shop);
+  }
+
+  private sanitizeUser(u: User) {
+    const { passwordHash, verificationToken, ...rest } = u as any;
+    return rest;
+  }
+
+  private serializeShops(shops: Array<{ membership: any; shop: Tenant }>) {
+    return shops.map(s => ({
+      shopId: s.shop.id,
+      name: s.shop.name,
+      subscriptionCode: s.shop.subscriptionCode,
+      role: s.membership.role,
+      permissions: s.membership.permissions,
+      companyId: s.shop.companyId,
+    }));
+  }
+
+  private signToken(payload: any): string {
+    return this.jwtService.sign(payload);
+  }
+
+  /** Cleanup job: elimina pending scaduti */
+  async cleanupExpiredPending(): Promise<number> {
+    const res = await this.pendingRepo.delete({ expiresAt: LessThan(new Date()) });
+    return res.affected || 0;
+  }
+}

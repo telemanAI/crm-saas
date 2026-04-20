@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -15,7 +15,8 @@ export class RegisterDto {
   @IsString()
   confirmPassword: string;
 
+  // ⚠️ Slug reso OPZIONALE — se assente, il backend lo genera dal name
+  @IsOptional()
   @IsString()
-  @MinLength(3)
-  slug: string;
+  slug?: string;
 }

@@ -4,7 +4,7 @@ export class AddFounderRoleAndUserFields1710000000003 implements MigrationInterf
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 1. Aggiorna enum ruoli per includere FOUNDER
     await queryRunner.query(`
-      ALTER TYPE user_role_enum ADD VALUE IF NOT EXISTS 'FOUNDER';
+      ALTER TYPE users_role_enum ADD VALUE IF NOT EXISTS 'FOUNDER';
     `);
 
     // 2. Aggiungi campi mancanti alla tabella users (se non esistono)

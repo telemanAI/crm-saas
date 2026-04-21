@@ -104,6 +104,34 @@ export class AuthFlowsController {
     return this.authService.getUserShops(req.user.id);
   }
 
+  /**
+   * Aggiungi un nuovo negozio (solo FOUNDER autenticato).
+   * Il negozio viene creato sotto la Company esistente (se mode=same-company) o nuova.
+   */
+  @Post('add-shop')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  async addShop(
+    @Req() req: any,
+    @Body() body: {
+      name: string;
+      mode: 'same-company' | 'new-company';
+      companyId?: string;
+      legalName?: string;
+      vatNumber?: string;
+    },
+  ) {
+    if (!req.user?.id) throw new UnauthorizedException('Utente non identificato');
+    return this.authService.addShopForFounder({
+      userId: req.user.id,
+      name: body.name,
+      mode: body.mode || 'same-company',
+      companyId: body.companyId,
+      legalName: body.legalName,
+      vatNumber: body.vatNumber,
+    });
+  }
+
   // =====================================================
   // Google OAuth
   // =====================================================

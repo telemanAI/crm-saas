@@ -1,207 +1,48 @@
-﻿import {
-  Controller,
-  Post,
-  Body,
-  Get,
-  Req,
-  Res,
-  UseGuards,
-  HttpCode,
-  HttpStatus,
-  Param,
-  UnauthorizedException,
-  BadRequestException,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
+﻿import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { OtpService } from './services/otp.service';
-import { SocialAuthService } from './services/social-auth.service';
-import { InvitesService } from '../invites/invites.service';
-import { GoogleAuthGuard, FacebookAuthGuard } from './guards/oauth.guards';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { SuperAdminLoginDto } from './dto/super-admin-login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { FastLoginDto } from './dto/fast-login.dto';
-import {
-  RequestOtpDto,
-  VerifyOtpDto,
-  CompleteRegistrationDto,
-  RegisterShopOwnerDto,
-} from './dto/auth-flow.dto';
 
-/**
- * Nuovo auth controller (flussi v2, additivo).
- * Non sostituisce auth.controller.ts esistente: aggiunge endpoint paralleli.
- */
 @Controller('auth')
-export class AuthFlowsController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly otpService: OtpService,
-    private readonly socialAuthService: SocialAuthService,
-    private readonly invitesService: InvitesService,
-  ) {}
+export class AuthController {
+  constructor(private readonly authService: AuthService) {}
 
-  // =====================================================
-  // Fast login (senza subscriptionCode per utenti normali)
-  // =====================================================
-  @Post('login-v2')
+  @Post('login')
   @HttpCode(HttpStatus.OK)
-  async loginV2(@Body() dto: FastLoginDto) {
-    return this.authService.fastLogin(dto);
+  async login(@Body() loginDto: LoginDto) {
+    return this.authService.login(loginDto);
   }
 
-  // =====================================================
-  // Registrazione negoziante con password
-  // =====================================================
-  @Post('register-shop-owner')
+  @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async registerShopOwner(@Body() dto: RegisterShopOwnerDto) {
-    return this.authService.registerShopOwner(dto);
+  async register(@Body() registerDto: RegisterDto) {
+    return this.authService.register(registerDto);
   }
 
-  // =====================================================
-  // OTP
-  // =====================================================
-  @Post('otp/request')
+  @Post('admin/login')
   @HttpCode(HttpStatus.OK)
-  async requestOtp(@Body() dto: RequestOtpDto) {
-    return this.otpService.requestOtp(dto.email);
+  async superAdminLogin(@Body() loginDto: SuperAdminLoginDto) {
+    return this.authService.superAdminLogin(loginDto);
   }
 
-  @Post('otp/verify')
-  @HttpCode(HttpStatus.OK)
-  async verifyOtp(@Body() dto: VerifyOtpDto) {
-    await this.otpService.verifyOtp(dto.email, dto.code);
-    return this.socialAuthService.handleSocialOrOtpLogin({
-      provider: 'otp',
-      providerId: dto.email,
-      email: dto.email,
-    });
-  }
-
-  // =====================================================
-  // Completa registrazione (dopo social login / OTP per NUOVO utente)
-  // =====================================================
-  @Post('complete-registration')
-  @HttpCode(HttpStatus.OK)
-  async completeRegistration(@Body() dto: CompleteRegistrationDto) {
-    return this.socialAuthService.completeRegistration(dto);
-  }
-
-  // =====================================================
-  // Switch shop (per utenti multi-negozio)
-  // =====================================================
-  @Post('switch-shop')
+  @Post('impersonate')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
-  async switchShop(@Req() req: any, @Body() body: { shopId: string }) {
-    if (!body?.shopId) throw new BadRequestException('shopId richiesto');
-    return this.socialAuthService.switchActiveShop(req.user.id, body.shopId);
+  async impersonate(@Body() body: { tenantId: string }) {
+    return this.authService.impersonate(body.tenantId);
   }
 
-  @Get('my-shops')
-  @UseGuards(JwtAuthGuard)
-  async myShops(@Req() req: any) {
-    return this.authService.getUserShops(req.user.id);
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
   }
 
-  /**
-   * Aggiungi un nuovo negozio (solo FOUNDER autenticato).
-   * Il negozio viene creato sotto la Company esistente (se mode=same-company) o nuova.
-   */
-  @Post('add-shop')
-  @UseGuards(JwtAuthGuard)
-  @HttpCode(HttpStatus.CREATED)
-  async addShop(
-    @Req() req: any,
-    @Body() body: {
-      name: string;
-      mode: 'same-company' | 'new-company';
-      companyId?: string;
-      legalName?: string;
-      vatNumber?: string;
-    },
-  ) {
-    if (!req.user?.id) throw new UnauthorizedException('Utente non identificato');
-    return this.authService.addShopForFounder({
-      userId: req.user.id,
-      name: body.name,
-      mode: body.mode || 'same-company',
-      companyId: body.companyId,
-      legalName: body.legalName,
-      vatNumber: body.vatNumber,
-    });
-  }
-
-  // =====================================================
-  // Google OAuth
-  // =====================================================
-  @Get('google')
-  @UseGuards(GoogleAuthGuard)
-  async googleAuth(): Promise<void> {
-    // passport redirect, nothing to return
-  }
-
-  @Get('google/callback')
-  @UseGuards(GoogleAuthGuard)
-  async googleCallback(@Req() req: Request, @Res() res: Response) {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl) {
-      throw new BadRequestException('FRONTEND_URL non configurato');
-    }
-    const profile: any = (req as any).user;
-    const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
-    if (result.status === 'logged_in') {
-      const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
-      const userEncoded = encodeURIComponent(JSON.stringify(result.user));
-      return res.redirect(
-        `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
-      );
-    }
-    return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}`,
-    );
-  }
-
-  // =====================================================
-  // Facebook OAuth (attivo solo se credenziali presenti in env)
-  // =====================================================
-  @Get('facebook')
-  @UseGuards(FacebookAuthGuard)
-  async facebookAuth(): Promise<void> {}
-
-  @Get('facebook/callback')
-  @UseGuards(FacebookAuthGuard)
-  async facebookCallback(@Req() req: Request, @Res() res: Response) {
-    const frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl) throw new BadRequestException('FRONTEND_URL non configurato');
-    const profile: any = (req as any).user;
-    const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
-    if (result.status === 'logged_in') {
-      const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
-      const userEncoded = encodeURIComponent(JSON.stringify(result.user));
-      return res.redirect(
-        `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
-      );
-    }
-    return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}`,
-    );
-  }
-
-  // =====================================================
-  // Invite public endpoints (non serve auth per leggerlo)
-  // =====================================================
-  @Get('invite/:token')
-  async getInvite(@Param('token') token: string) {
-    const invite = await this.invitesService.getByToken(token);
-    return {
-      email: invite.email,
-      role: invite.role,
-      shopName: invite.shop?.name,
-      shopCode: invite.shop?.subscriptionCode,
-      adminNote: invite.adminNote,
-      expiresAt: invite.expiresAt,
-    };
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  async resendVerification(@Body('email') email: string) {
+    return this.authService.resendVerificationEmail(email);
   }
 }

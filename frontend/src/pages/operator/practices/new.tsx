@@ -505,9 +505,9 @@ export default function NewPractice() {
       // Mappa completedSteps numeri del backend a stepId stringhe correnti
       const stepsFromBackend = practice.completedSteps || [];
       const currentSteps = getSteps(practice.offerName, tenantConfig.enableWashStep, tenantConfig.enableAdditionalPackages);
-      const mappedStepIds = stepsFromBackend
+       const mappedStepIds = stepsFromBackend
         .map((num: number) => currentSteps.find(s => s.id === num)?.stepId)
-        .filter((id): id is string => !!id);
+        .filter(Boolean) as string[];
       
       setCompletedSteps(stepsFromBackend);
       setCompletedStepIds(mappedStepIds);

@@ -1,5 +1,31 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+/**
+ * Storage adattivo: se "authRememberMe" vale "true" usa localStorage (sessione persistente),
+ * altrimenti sessionStorage (si cancella alla chiusura del browser/tab).
+ */
+const adaptiveStorage = {
+  getItem: (name: string) => {
+    if (typeof window === 'undefined') return null;
+    const remember = window.localStorage.getItem('authRememberMe') === 'true';
+    const store = remember ? window.localStorage : window.sessionStorage;
+    return store.getItem(name);
+  },
+  setItem: (name: string, value: string) => {
+    if (typeof window === 'undefined') return;
+    const remember = window.localStorage.getItem('authRememberMe') === 'true';
+    const primary = remember ? window.localStorage : window.sessionStorage;
+    const secondary = remember ? window.sessionStorage : window.localStorage;
+    primary.setItem(name, value);
+    secondary.removeItem(name);
+  },
+  removeItem: (name: string) => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.removeItem(name);
+    window.sessionStorage.removeItem(name);
+  },
+};
 
 export interface User {
   id: string;
@@ -67,7 +93,10 @@ export const useAuthStore = create<AuthState>()(
           user: state.user ? { ...state.user, tenantId: shopId } : null,
         })),
 
-      clearAuth: () =>
+      clearAuth: () => {
+        if (typeof window !== 'undefined') {
+          window.localStorage.removeItem('authRememberMe');
+        }
         set({
           user: null,
           token: null,
@@ -77,7 +106,8 @@ export const useAuthStore = create<AuthState>()(
           isImpersonating: false,
           originalUser: null,
           originalToken: null,
-        }),
+        });
+      },
 
       updateUser: (userData) =>
         set((state) => ({
@@ -106,6 +136,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => adaptiveStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,

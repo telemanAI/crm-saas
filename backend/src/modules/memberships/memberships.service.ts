@@ -96,6 +96,16 @@ export class MembershipsService {
       relations: ['shop'],
       order: { joinedAt: 'DESC' },
     });
+    // Auto-heal: se un FOUNDER/ADMIN esistente ha permessi vuoti (da vecchia versione del codice),
+    // li ripristiniamo con i default. Questo risolve record legacy dove il membership
+    // è stato creato prima che i default fossero applicati.
+    for (const m of memberships) {
+      const isEmpty = !m.permissions || Object.keys(m.permissions).length === 0;
+      if (isEmpty && (m.role === 'FOUNDER' || m.role === 'ADMIN')) {
+        m.permissions = DEFAULT_PERMISSIONS[m.role];
+        await this.repo.save(m);
+      }
+    }
     return memberships.map(m => ({ membership: m, shop: m.shop }));
   }
 

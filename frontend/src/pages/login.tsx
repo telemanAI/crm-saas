@@ -125,6 +125,13 @@ export default function Login() {
   const [showSuperAdminField, setShowSuperAdminField] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState<boolean>(true);
+
+  const applyRememberMe = (value: boolean) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('authRememberMe', value ? 'true' : 'false');
+    }
+  };
 
   const handlePasswordLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +141,7 @@ export default function Login() {
       const result: any = await authApi.loginV2(email, password, superAdminCode || undefined);
       const { user, access_token, shops } = result;
       if (!user || !access_token) throw new Error('Risposta del server non valida');
+      applyRememberMe(rememberMe);
       setAuth(user, access_token, shops || []);
       if (user.role === 'SUPER_ADMIN') return router.push('/admin/dashboard');
       if ((shops || []).length > 1) return router.push('/select-shop');
@@ -175,6 +183,7 @@ export default function Login() {
           `/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}`,
         );
       }
+      applyRememberMe(rememberMe);
       setAuth(result.user, result.token, result.shops || []);
       if ((result.shops || []).length > 1) return router.push('/select-shop');
       return router.push('/operator/dashboard');
@@ -314,6 +323,16 @@ export default function Login() {
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
+                <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none py-1" data-testid="remember-me-label">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    data-testid="remember-me-checkbox"
+                    className="w-4 h-4 rounded accent-indigo-500 bg-slate-950 border-slate-700"
+                  />
+                  <span>Resta connesso su questo dispositivo</span>
+                </label>
                 <ErrorBox error={error} />
                 <SubmitButton loading={isLoading} testid="login-submit-btn">Accedi</SubmitButton>
               </form>
@@ -332,6 +351,16 @@ export default function Login() {
                   testid="otp-code-input"
                   required
                 />
+                <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none py-1">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    data-testid="remember-me-otp-checkbox"
+                    className="w-4 h-4 rounded accent-indigo-500 bg-slate-950 border-slate-700"
+                  />
+                  <span>Resta connesso su questo dispositivo</span>
+                </label>
                 <ErrorBox error={error} />
                 <SubmitButton loading={isLoading} testid="otp-verify-btn">Verifica e accedi</SubmitButton>
                 <button

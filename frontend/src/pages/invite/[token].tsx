@@ -50,19 +50,26 @@ export default function InviteAccept() {
   const [submitting, setSubmitting] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!router.isReady || !token) return;
     (async () => {
       try {
         const data = await authApi.getInvite(token);
         setInvite(data);
-        if (user && authToken && user.email.toLowerCase() === data.email.toLowerCase()) {
+        const userEmail = user?.email?.toLowerCase();
+        const inviteEmail = data?.email?.toLowerCase();
+        if (userEmail && authToken && userEmail === inviteEmail) {
           setMode('existing');
+        } else if (userEmail && userEmail !== inviteEmail) {
+          setMode('choose');
+        } else {
+          setMode('choose');
         }
       } catch (e: any) {
-        setError(e.message || 'Invito non valido');
+        console.error('[invite] Errore caricamento invito:', e);
+        setError(e?.message || 'Invito non valido o scaduto');
       }
     })();
-  }, [token, user, authToken]);
+  }, [router.isReady, token, user, authToken]);
 
   const acceptAuthenticated = async () => {
     if (!token) return;
@@ -140,6 +147,15 @@ export default function InviteAccept() {
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-5">
               <p className="text-amber-400 text-xs uppercase font-semibold mb-1">Messaggio dell'admin</p>
               <p className="text-amber-200 text-sm italic">"{invite.adminNote}"</p>
+            </div>
+          )}
+
+          {mode !== 'existing' && user?.email && user.email.toLowerCase() !== invite.email?.toLowerCase() && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-center">
+              <p className="text-amber-300 text-xs">
+                Sei attualmente loggato come <b>{user.email}</b>. Questo invito è per <b>{invite.email}</b>.
+                <br />Completa la registrazione con l'email dell'invito per accettare.
+              </p>
             </div>
           )}
 

@@ -26,6 +26,13 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
+    // BYPASS TOTALE: SUPER_ADMIN e FOUNDER hanno accesso a tutte le risorse del loro scope.
+    // Il FOUNDER è il proprietario del negozio, può fare tutto ciò che fa un ADMIN + più.
+    // Questo evita di dover aggiungere 'FOUNDER' ad ogni decorator @Roles nel codebase.
+    if (user.role === 'SUPER_ADMIN' || user.role === 'FOUNDER') {
+      return true;
+    }
+
     return requiredRoles.some((role) => user.role === role);
   }
 }

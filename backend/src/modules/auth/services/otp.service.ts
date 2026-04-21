@@ -1,12 +1,14 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, MoreThan } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { OtpCode } from '../entities/otp-code.entity';
 import { EmailService } from '../../email/email.service';
 
 const OTP_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
+const RATE_LIMIT_WINDOW_MINUTES = 15;
+const RATE_LIMIT_MAX_REQUESTS = 3;
 
 @Injectable()
 export class OtpService {
@@ -17,6 +19,22 @@ export class OtpService {
 
   async requestOtp(email: string): Promise<{ message: string }> {
     const normalized = email.trim().toLowerCase();
+
+    // Rate limiting: max N richieste per email nella finestra di tempo
+    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_MINUTES * 60 * 1000);
+    const recentCount = await this.otpRepo.count({
+      where: {
+        email: normalized,
+        createdAt: MoreThan(windowStart),
+      },
+    });
+    if (recentCount >= RATE_LIMIT_MAX_REQUESTS) {
+      throw new HttpException(
+        `Troppe richieste. Riprova tra ${RATE_LIMIT_WINDOW_MINUTES} minuti.`,
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);

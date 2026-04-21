@@ -150,16 +150,31 @@ export class AuthFlowsController {
       throw new BadRequestException('FRONTEND_URL non configurato');
     }
     const profile: any = (req as any).user;
+    // Estrai eventuale invite token dallo state OAuth (format "invite:TOKEN")
+    const state = String((req.query as any)?.state || '');
+    const inviteToken = state.startsWith('invite:') ? state.slice(7) : null;
+
     const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
     if (result.status === 'logged_in') {
+      // Utente già esistente: se c'è un invito, applicalo subito
+      if (inviteToken) {
+        try {
+          const userObj = result.user as any;
+          await this.invitesService.acceptInviteWithUserId(inviteToken, userObj.id);
+        } catch (e) {
+          console.error('[google/callback] accept invite failed:', e);
+        }
+      }
       const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
       const userEncoded = encodeURIComponent(JSON.stringify(result.user));
       return res.redirect(
         `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
       );
     }
+    // Utente nuovo: passa anche l'invite al complete-registration se presente
+    const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
     return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}`,
+      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
     );
   }
 
@@ -176,16 +191,28 @@ export class AuthFlowsController {
     const frontendUrl = process.env.FRONTEND_URL;
     if (!frontendUrl) throw new BadRequestException('FRONTEND_URL non configurato');
     const profile: any = (req as any).user;
+    const state = String((req.query as any)?.state || '');
+    const inviteToken = state.startsWith('invite:') ? state.slice(7) : null;
+
     const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
     if (result.status === 'logged_in') {
+      if (inviteToken) {
+        try {
+          const userObj = result.user as any;
+          await this.invitesService.acceptInviteWithUserId(inviteToken, userObj.id);
+        } catch (e) {
+          console.error('[facebook/callback] accept invite failed:', e);
+        }
+      }
       const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
       const userEncoded = encodeURIComponent(JSON.stringify(result.user));
       return res.redirect(
         `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
       );
     }
+    const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
     return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}`,
+      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
     );
   }
 

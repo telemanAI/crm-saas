@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Layout } from '../../../components/layout/Layout';
+import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
@@ -60,7 +60,7 @@ export default function ExportsPage() {
   ];
 
   return (
-    <Layout>
+    <OperatorLayout title="Esportazione Dati">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Esportazione Dati</h1>
@@ -262,6 +262,6 @@ export default function ExportsPage() {
           </div>
         </div>
       </div>
-    </Layout>
+    </OperatorLayout>
   );
 }

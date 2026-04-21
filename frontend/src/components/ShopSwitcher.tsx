@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Storefront, CaretDown, MagnifyingGlass, Buildings, Check, ArrowsLeftRight } from 'phosphor-react';
+import { Storefront, CaretDown, MagnifyingGlass, Buildings, Check, ArrowsLeftRight, Plus } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/lib/api';
 
@@ -163,6 +163,16 @@ export default function ShopSwitcher() {
                 ))}
                 {Object.keys(grouped).length === 0 && (
                   <div className="text-center py-10 text-slate-500 text-sm">Nessun negozio corrisponde alla ricerca</div>
+                )}
+                {/* Pulsante "Aggiungi negozio" — visibile solo ai FOUNDER */}
+                {shops.some((s) => s.role === 'FOUNDER') && (
+                  <button
+                    data-testid="shop-switcher-add-btn"
+                    onClick={() => { setOpen(false); router.push('/operator/add-shop'); }}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium"
+                  >
+                    <Plus className="w-4 h-4" weight="bold" /> Aggiungi nuovo negozio
+                  </button>
                 )}
               </div>
               <div className="px-5 py-3 border-t border-slate-800 text-xs text-slate-500 flex items-center justify-between">

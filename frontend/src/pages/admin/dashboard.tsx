@@ -20,7 +20,7 @@ import {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const { user, token, isAuthenticated, setImpersonate } = useAuthStore();
+  const { user, token, isAuthenticated, isImpersonating, setImpersonate } = useAuthStore();
   
   // Stats globali
   const [stats, setStats] = useState<any>(null);
@@ -43,12 +43,14 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     // ✅ FIX: Solo SUPER_ADMIN può accedere alle route /admin/*
+    //        Se stiamo impersonando, non fare redirect (gestito da enterTenantCRM)
+    if (isImpersonating) return;
     if (!isAuthenticated || !user || user.role !== 'SUPER_ADMIN') {
       router.push('/login');
       return;
     }
     loadDashboardData();
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user, router, isImpersonating]);
 
   const loadDashboardData = async () => {
     if (!token) return;
@@ -87,8 +89,10 @@ export default function AdminDashboard() {
     try {
       const response = await authApi.impersonate(tenantId);
       if (response.access_token) {
+        // IMPORTANTE: navighiamo PRIMA di modificare lo store, altrimenti l'useEffect
+        // di questa pagina vede user.role !== SUPER_ADMIN e fa un redirect a /login (flash)
+        await router.push('/operator/dashboard');
         setImpersonate(response.user, response.access_token);
-        router.push('/operator/dashboard');
       } else {
         alert('Errore durante l\'accesso al CRM');
       }

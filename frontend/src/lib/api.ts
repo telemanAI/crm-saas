@@ -126,6 +126,19 @@ export const authApi = {
       body: JSON.stringify({ shopId }),
     }),
 
+  // ✨ NUOVO: Aggiungi nuovo negozio (solo FOUNDER)
+  addShop: (data: {
+    name: string;
+    mode: 'same-company' | 'new-company';
+    companyId?: string;
+    legalName?: string;
+    vatNumber?: string;
+  }) =>
+    apiClient('/auth/add-shop', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
   // ✨ NUOVO: Invite
   getInvite: (token: string) => apiClient(`/auth/invite/${token}`),
 

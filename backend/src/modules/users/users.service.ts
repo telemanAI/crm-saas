@@ -237,6 +237,7 @@ export class UsersService {
   async findOperatorsByTenantId(tenantId: string): Promise<User[]> {
     return this.usersRepository.find({
       where: [
+        { tenantId, role: 'FOUNDER', isActive: true },
         { tenantId, role: 'ADMIN', isActive: true },
         { tenantId, role: 'OPERATOR', isActive: true }
       ],

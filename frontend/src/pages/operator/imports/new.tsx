@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import { Layout } from '../../../components/layout/Layout';
+import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
 import UploadStep from './UploadStep';
 import MappingStep from './MappingStep';
@@ -63,8 +64,11 @@ export default function NewImportPage() {
     }
   };
 
+  const LayoutComponent: any = mode === 'admin' ? Layout : OperatorLayout;
+  const layoutProps: any = mode === 'admin' ? {} : { title: 'Nuova Importazione' };
+
   return (
-    <Layout>
+    <LayoutComponent {...layoutProps}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -127,7 +131,7 @@ export default function NewImportPage() {
         <Card className="p-8">
           {currentStep === 1 && (
             <UploadStep
-              tenantId={effectiveTenantId as string}  // ✅ AGGIUNTO
+              tenantId={effectiveTenantId as string}
               onComplete={handleStepComplete}
               onCancel={handleCancel}
             />
@@ -148,7 +152,7 @@ export default function NewImportPage() {
           {currentStep === 3 && (
             <ValidationStep
               jobId={importData.jobId as string}
-			   tenantId={effectiveTenantId as string}
+              tenantId={effectiveTenantId as string}
               mappingConfig={importData.mappingConfig}
               fileName={importData.fileName as string}
               totalRows={importData.totalRows}
@@ -159,6 +163,6 @@ export default function NewImportPage() {
           )}
         </Card>
       </div>
-    </Layout>
+    </LayoutComponent>
   );
 }

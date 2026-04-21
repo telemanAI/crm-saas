@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Layout } from '../../../components/layout/Layout';
+import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
@@ -47,7 +47,7 @@ export default function ImportsPage() {
   };
 
   return (
-    <Layout>
+    <OperatorLayout title="Importazioni">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
@@ -162,6 +162,6 @@ export default function ImportsPage() {
           </div>
         )}
       </div>
-    </Layout>
+    </OperatorLayout>
   );
 }

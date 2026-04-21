@@ -1,5 +1,3 @@
-Il file completo frontend/src/pages/operator/add-shop.tsx da creare nuovo (258 righe):
-
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';

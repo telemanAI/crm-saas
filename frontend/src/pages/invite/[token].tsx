@@ -75,10 +75,23 @@ export default function InviteAccept() {
     if (!token) return;
     setSubmitting(true);
     try {
-      await invitesApi.acceptAuthenticated(token);
-      const shops: any = await authApi.myShops();
-      if (user && authToken) setAuth(user, authToken, shops);
-      router.push('/select-shop');
+      const res: any = await invitesApi.acceptAuthenticated(token);
+      // Backend ora restituisce access_token fresco con tenantId = shop invitato
+      if (res?.access_token && res?.user) {
+        setAuth(res.user, res.access_token, res.shops || []);
+        // Se l'utente ha più di un negozio lo mandiamo al selettore così
+        // sa di poter switchare, altrimenti dritto in dashboard.
+        if ((res.shops || []).length > 1) {
+          router.push('/select-shop');
+        } else {
+          router.push('/operator/dashboard');
+        }
+      } else {
+        // Fallback legacy (vecchio backend senza access_token nel response)
+        const shops: any = await authApi.myShops();
+        if (user && authToken) setAuth(user, authToken, shops);
+        router.push('/select-shop');
+      }
     } catch (e: any) {
       setError(e.message || 'Errore');
     } finally {

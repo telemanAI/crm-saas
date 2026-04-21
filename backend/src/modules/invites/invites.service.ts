@@ -9,6 +9,7 @@ import { UserShopMembership, DEFAULT_PERMISSIONS } from '../memberships/entities
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { MembershipsService } from '../memberships/memberships.service';
 import { EmailService } from '../email/email.service';
+import { JwtService } from '@nestjs/jwt';
 import { CreateInviteDto, AcceptInviteViaPasswordDto } from './dto/invite.dto';
 
 const INVITE_TTL_HOURS = 72;
@@ -22,6 +23,7 @@ export class InvitesService {
     @InjectRepository(UserShopMembership) private readonly membershipRepo: Repository<UserShopMembership>,
     private readonly membershipsService: MembershipsService,
     private readonly emailService: EmailService,
+    private readonly jwtService: JwtService,
   ) {}
 
   async createInvite(shopId: string, invitedBy: string, dto: CreateInviteDto): Promise<Invite> {
@@ -207,5 +209,45 @@ export class InvitesService {
       where: { shopId },
       order: { createdAt: 'DESC' },
     });
+  }
+
+  /**
+   * Accetta invito per utente loggato E restituisce subito una sessione fresca
+   * (JWT con tenantId = shop invitato + lista shops aggiornata), così il
+   * frontend può puntare direttamente al nuovo negozio senza passare da
+   * /select-shop e senza usare il vecchio JWT che aveva il tenantId sbagliato.
+   */
+  async acceptInviteAndBuildSession(
+    token: string,
+    userId: string,
+  ): Promise<{
+    membership: UserShopMembership;
+    access_token: string;
+    user: any;
+    shops: any[];
+  }> {
+    const membership = await this.acceptInviteWithUserId(token, userId);
+    const user = await this.userRepo.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utente non trovato');
+
+    const shopsData = await this.membershipsService.findActiveShopsForUser(userId);
+    const shops = shopsData.map((s) => ({
+      shopId: s.shop.id,
+      name: s.shop.name,
+      subscriptionCode: s.shop.subscriptionCode,
+      role: s.membership.role,
+      permissions: s.membership.permissions,
+      companyId: s.shop.companyId,
+    }));
+
+    const access_token = this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: membership.role,
+      tenantId: membership.shopId,
+    });
+
+    const { passwordHash, verificationToken, ...safeUser } = user as any;
+    return { membership, access_token, user: safeUser, shops };
   }
 }

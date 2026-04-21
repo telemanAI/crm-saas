@@ -78,12 +78,24 @@ export class InvitesController {
 
   /**
    * Accettazione invito per utente GIÀ LOGGATO (per social/OTP).
+   * Ritorna anche un access_token fresco con tenantId = negozio invitato
+   * così il frontend può saltare il passaggio da /select-shop.
    */
   @Post('accept/:token')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async acceptAuthenticated(@Param('token') token: string, @Req() req: any) {
-    const membership = await this.invitesService.acceptInviteWithUserId(token, req.user.id);
-    return { message: 'Ora fai parte del negozio', shopId: membership.shopId, role: membership.role };
+    const result = await this.invitesService.acceptInviteAndBuildSession(
+      token,
+      req.user.id,
+    );
+    return {
+      message: 'Ora fai parte del negozio',
+      shopId: result.membership.shopId,
+      role: result.membership.role,
+      access_token: result.access_token,
+      user: result.user,
+      shops: result.shops,
+    };
   }
 }

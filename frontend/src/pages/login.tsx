@@ -229,7 +229,7 @@ export default function Login() {
               <button
                 data-testid="google-login-btn"
                 onClick={() => openSocialLogin('google')}
-                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-900 font-medium py-3 rounded-xl transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] font-medium py-3 rounded-xl transition-colors border border-slate-300"
               >
                 <GoogleLogo weight="bold" className="w-5 h-5" /> Continua con Google
               </button>

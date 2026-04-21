@@ -10,11 +10,15 @@ import {
   ChartLine,
   Crown,
   ArrowLeft,
-  TelevisionSimple
+  TelevisionSimple,
+  UploadSimple,
+  DownloadSimple,
+  UsersThree,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
 import api from '@/lib/axios';
+import ShopSwitcher from '@/components/ShopSwitcher';
 
 interface OperatorLayoutProps {
   children: ReactNode;
@@ -23,11 +27,16 @@ interface OperatorLayoutProps {
 
 export default function OperatorLayout({ children, title = 'Dashboard' }: OperatorLayoutProps) {
   const router = useRouter();
-  const { user, isImpersonating, clearAuth, exitImpersonate, originalUser } = useAuthStore();
+  const { user, shops, activeShopId, isImpersonating, clearAuth, exitImpersonate, originalUser } = useAuthStore();
   const { isDark } = useThemeStore();
   
   // Stato per mostrare/nascondere Report WASH
   const [showWashReport, setShowWashReport] = useState(false);
+
+  // Ruolo effettivo dell'utente nel negozio attivo (può differire dal ruolo globale)
+  const activeMembership = shops.find((s) => s.shopId === activeShopId);
+  const effectiveRole = activeMembership?.role || user?.role;
+  const canManageTeam = effectiveRole === 'FOUNDER' || effectiveRole === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   // Carica config WASH dal tenant
   useEffect(() => {
@@ -61,7 +70,9 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
     { href: '/operator/customers', icon: Users, label: 'Clienti' },
     { href: '/operator/practices', icon: ShoppingCart, label: 'Pratiche' },
     { href: '/operator/reports', icon: ChartLine, label: 'Report' },
-    { href: '/operator/users', icon: Users, label: 'Operatori' },
+    ...(canManageTeam ? [{ href: '/operator/team', icon: UsersThree, label: 'Team' }] : []),
+    { href: '/operator/imports', icon: UploadSimple, label: 'Import' },
+    { href: '/operator/exports', icon: DownloadSimple, label: 'Export' },
     { href: '/operator/settings', icon: Buildings, label: 'Impostazioni' },
   ];
 
@@ -164,7 +175,8 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
           <div className="flex items-center gap-4">
             <h2 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>{title}</h2>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {shops.length > 0 ? <ShopSwitcher /> : null}
             <button className={`relative p-2 transition-colors ${isDark ? 'text-slate-400 hover:text-slate-200' : 'text-gray-500 hover:text-gray-700'}`}>
               <Bell className="w-5 h-5" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full" />

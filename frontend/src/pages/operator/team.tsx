@@ -25,6 +25,7 @@ interface MemberCardProps {
   onEdit: () => void;
   onRemove: () => void;
   canManage: boolean;
+  isSuperAdmin?: boolean;
 }
 
 interface InviteCardProps {
@@ -46,6 +47,7 @@ interface RemoveDialogProps {
 
 interface EditPermissionsDialogProps {
   m: any;
+  isSuperAdmin?: boolean;
   onClose: () => void;
   onDone: () => void;
 }
@@ -62,7 +64,8 @@ export default function TeamPage() {
   const [includeInactive, setIncludeInactive] = useState<boolean>(false);
 
   const myMembership = shops.find((s) => s.shopId === activeShopId);
-  const canManage = myMembership?.role === 'FOUNDER' || myMembership?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const canManage = myMembership?.role === 'FOUNDER' || myMembership?.role === 'ADMIN' || isSuperAdmin;
 
   useEffect(() => {
     if (!canManage) return;
@@ -142,7 +145,7 @@ export default function TeamPage() {
               <div className="text-center py-12 bg-slate-900/40 rounded-2xl border border-slate-800 text-slate-500">Nessun membro</div>
             ) : (
               filteredMembers.map((m: any) => (
-                <MemberCard key={m.userId} m={m} onEdit={() => setEditPermissions(m)} onRemove={() => setRemoveDialog(m)} canManage={canManage} />
+                <MemberCard key={m.userId} m={m} onEdit={() => setEditPermissions(m)} onRemove={() => setRemoveDialog(m)} canManage={canManage} isSuperAdmin={isSuperAdmin} />
               ))
             )}
           </div>
@@ -167,14 +170,14 @@ export default function TeamPage() {
           <RemoveDialog m={removeDialog} onClose={() => setRemoveDialog(null)} onDone={() => { setRemoveDialog(null); load(); }} />
         ) : null}
         {editPermissions ? (
-          <EditPermissionsDialog m={editPermissions} onClose={() => setEditPermissions(null)} onDone={() => { setEditPermissions(null); load(); }} />
+          <EditPermissionsDialog m={editPermissions} isSuperAdmin={isSuperAdmin} onClose={() => setEditPermissions(null)} onDone={() => { setEditPermissions(null); load(); }} />
         ) : null}
       </AnimatePresence>
     </OperatorLayout>
   );
 }
 
-function MemberCard({ m, onEdit, onRemove, canManage }: MemberCardProps) {
+function MemberCard({ m, onEdit, onRemove, canManage, isSuperAdmin }: MemberCardProps) {
   const roleIcon = m.role === 'FOUNDER' ? <Crown className="w-5 h-5" weight="fill" /> : m.role === 'ADMIN' ? <Shield className="w-5 h-5" /> : <User className="w-5 h-5" />;
   const roleColor = m.role === 'FOUNDER' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : m.role === 'ADMIN' ? 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' : 'bg-slate-700/30 text-slate-300 border-slate-600/30';
   const activePermCount = Object.values(m.permissions || {}).filter((v) => v === true).length;
@@ -203,7 +206,7 @@ function MemberCard({ m, onEdit, onRemove, canManage }: MemberCardProps) {
             </div>
           ) : null}
         </div>
-        {canManage && m.isActive && m.role !== 'FOUNDER' ? (
+        {canManage && m.isActive && (isSuperAdmin || m.role !== 'FOUNDER') ? (
           <div className="flex gap-2">
             <button onClick={onEdit} className="p-2 text-indigo-400 hover:bg-indigo-500/10 rounded-lg" title="Permessi" data-testid={`edit-perm-${m.userId}`}>
               <Pencil className="w-5 h-5" />
@@ -335,7 +338,7 @@ function RemoveDialog({ m, onClose, onDone }: RemoveDialogProps) {
   );
 }
 
-function EditPermissionsDialog({ m, onClose, onDone }: EditPermissionsDialogProps) {
+function EditPermissionsDialog({ m, isSuperAdmin, onClose, onDone }: EditPermissionsDialogProps) {
   const [perms, setPerms] = useState<Record<string, boolean>>(m.permissions || {});
   const [role, setRole] = useState<string>(m.role);
   const [loading, setLoading] = useState<boolean>(false);
@@ -364,6 +367,7 @@ function EditPermissionsDialog({ m, onClose, onDone }: EditPermissionsDialogProp
           <select value={role} onChange={(e) => setRole(e.target.value)} data-testid="edit-role-select" className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-2.5 text-slate-200 text-sm">
             <option value="OPERATOR">Operatore</option>
             <option value="ADMIN">Amministratore</option>
+            {isSuperAdmin ? <option value="FOUNDER">Founder (proprietario)</option> : null}
           </select>
         </div>
 

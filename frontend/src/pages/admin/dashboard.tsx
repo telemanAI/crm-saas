@@ -57,9 +57,9 @@ export default function AdminDashboard() {
     try {
       // Carica stats globali e tenants in parallelo
       const [statsRes, tenantsRes, activityRes] = await Promise.all([
-        api.get('/api/super-admin/stats').catch(() => null),
-        api.get('/api/admin/tenants'), // ✅ FIX: Cambiato da '/api/tenants' a '/api/admin/tenants'
-        api.get('/api/super-admin/activity/recent').catch(() => null)
+        api.get('/super-admin/stats').catch(() => null),
+        api.get('/api/admin/tenants'), // SuperAdminController usa path 'api/admin' con globalPrefix 'api' → /api/api/admin
+        api.get('/super-admin/activity/recent').catch(() => null)
       ]);
 
       setStats(statsRes?.data || {

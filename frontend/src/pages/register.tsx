@@ -173,7 +173,7 @@ export default function Register() {
               </div>
 
               <div className="grid grid-cols-2 gap-2 mb-5">
-                <button type="button" onClick={() => openSocial('google')} className="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-900 font-medium py-2.5 rounded-lg text-sm" data-testid="register-google-btn">
+                <button type="button" onClick={() => openSocial('google')} className="flex items-center justify-center gap-2 bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] font-medium py-2.5 rounded-lg text-sm border border-slate-300" data-testid="register-google-btn">
                   <GoogleLogo weight="bold" className="w-4 h-4" /> Google
                 </button>
                 <button type="button" onClick={() => openSocial('facebook')} className="flex items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium py-2.5 rounded-lg text-sm" data-testid="register-facebook-btn">

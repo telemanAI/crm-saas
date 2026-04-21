@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Check, 
@@ -113,7 +113,7 @@ const getExcludedPackageIds = (offerName: string): string[] => {
   return [...new Set(excluded)];
 };
 
-// 🔥 MODIFICA 1: Interfaccia CustomerSuggestion con campo address
+// Interfaccia CustomerSuggestion con campo address
 interface CustomerSuggestion {
   id: string;
   fiscalCode: string;
@@ -122,7 +122,7 @@ interface CustomerSuggestion {
   phonePrimary?: string;
   phone?: string;
   email?: string;
-  address?: any; // 🔥 AGGIUNTO
+  address?: any;
 }
 
 interface WizardStep {
@@ -286,6 +286,7 @@ export default function NewPractice() {
   const { token } = useAuthStore();
   const { data, setData, currentStep, setStep, reset, practiceId, setPracticeId } = usePracticeWizardStore();
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
+  const [completedStepIds, setCompletedStepIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedStep, setExpandedStep] = useState(1);
   const [checkingDrafts, setCheckingDrafts] = useState(true);
@@ -304,6 +305,9 @@ export default function NewPractice() {
   const [showBusinessOnly, setShowBusinessOnly] = useState(false);
   const [dbOffers, setDbOffers] = useState<Record<string, any[]> | null>(null);
   const [tenantConfig, setTenantConfig] = useState({ enableWashStep: false, enableAdditionalPackages: true });
+  
+  // Ref per scroll programmatico
+  const stepRefs = useRef<{[key: number]: HTMLDivElement | null}>({});
   
   // Carica configurazione tenant
   useEffect(() => {
@@ -324,6 +328,20 @@ export default function NewPractice() {
   // Steps dinamici basati su offerta e config
   const steps = getSteps(data.offerName, tenantConfig.enableWashStep, tenantConfig.enableAdditionalPackages);
   const totalSteps = steps.length;
+  
+  // Scroll programmatico quando cambia lo step espanso
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const el = stepRefs.current[expandedStep];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        const headerOffset = 120; // spazio per header fisso
+        const scrollTop = window.pageYOffset + rect.top - headerOffset;
+        window.scrollTo({ top: scrollTop, behavior: 'smooth' });
+      }
+    }, 400); // aspetta l'animazione framer-motion
+    return () => clearTimeout(timer);
+  }, [expandedStep]);
   
   // Sincronizza pacchetti quando cambia l'offerta (rimuove dai selezionati quelli ora inclusi nell'offerta base)
   useEffect(() => {
@@ -401,6 +419,7 @@ export default function NewPractice() {
         if (practiceId || completedSteps.length > 0 || data.type) {
           reset();
           setCompletedSteps([]);
+          setCompletedStepIds([]);
           setExpandedStep(1);
           setStep(1);
           setPracticeId(null);
@@ -414,7 +433,6 @@ export default function NewPractice() {
     }
   }, [router.query, router.isReady, token, reset, setStep, setPracticeId]);
 
-  // 🔥 MODIFICA 3: loadPracticeData con caricamento indirizzo
   const loadPracticeData = async (id: string) => {
     try {
       const response = await api.get(`/practices/${id}`, {
@@ -475,7 +493,6 @@ export default function NewPractice() {
         washConfig: practice.washConfig,
         convergenza: practice.convergenza,
         lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione,
-        // 🔥 AGGIUNTO: Caricamento indirizzo cliente dallo snapshot o dal cliente
         customerAddress: practice.customerSnapshot?.address || 
                          practice.customer?.address || 
                          undefined,
@@ -485,8 +502,15 @@ export default function NewPractice() {
         setShowBusinessOnly(true);
       }
       
+      // Mappa completedSteps numeri del backend a stepId stringhe correnti
       const stepsFromBackend = practice.completedSteps || [];
+      const currentSteps = getSteps(practice.offerName, tenantConfig.enableWashStep, tenantConfig.enableAdditionalPackages);
+      const mappedStepIds = stepsFromBackend
+        .map((num: number) => currentSteps.find(s => s.id === num)?.stepId)
+        .filter((id): id is string => !!id);
+      
       setCompletedSteps(stepsFromBackend);
+      setCompletedStepIds(mappedStepIds);
       setPracticeId(practice.id);
       
       const nextStep = Math.max(...stepsFromBackend, 0) + 1;
@@ -604,7 +628,6 @@ export default function NewPractice() {
     return () => clearTimeout(timeoutId);
   }, [data.firstName, data.lastName, token, lockedCustomer]);
 
-  // 🔥 MODIFICA 2: handleSelectCustomer con customerAddress
   const handleSelectCustomer = (customer: CustomerSuggestion) => {
     setData({
       fiscalCode: customer.fiscalCode,
@@ -612,7 +635,7 @@ export default function NewPractice() {
       lastName: customer.lastName,
       phone: customer.phonePrimary || customer.phone || '',
       email: customer.email || '',
-      customerAddress: customer.address || undefined, // 🔥 AGGIUNTO
+      customerAddress: customer.address || undefined,
     });
     setShowCfSuggestions(false);
     setShowPhoneSuggestions(false);
@@ -623,7 +646,6 @@ export default function NewPractice() {
     setLockedCustomer(customer);
   };
 
-  // 🔥 MODIFICA 5: saveStep con address nel POST iniziale
   const saveStep = async (stepNumber: number) => {
     try {
       if (stepNumber === 1 && !practiceId) {
@@ -648,7 +670,7 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode || '',
             phone: data.phone || '',
             email: data.email || '',
-            address: data.customerAddress, // 🔥 AGGIUNTO: Oggetto, non stringa
+            address: data.customerAddress,
             ragioneSociale: data.ragioneSociale,
             partitaIva: data.partitaIva,
             formaGiuridica: data.formaGiuridica,
@@ -689,25 +711,24 @@ export default function NewPractice() {
     }
   };
 
-  // 🔥 MODIFICA 4: getStepData con address nei dati da salvare
   const getStepData = (stepNumber: number) => {
     const step = steps.find(s => s.id === stepNumber);
     const stepId = step?.stepId;
     
     switch (stepId) {
-		case 'offer':
-      return {
-        type: data.type,
-        offerCode: data.offerCode,
-        offerName: data.offerName,
-        offerCanone: data.offerCanone,
-        offerAttivazione: data.offerAttivazione,
-        offerVincolo: data.offerVincolo,
-        offerNote: data.offerNote,
-        offerDisattivazione: data.offerDisattivazione,
-        offerType: data.offerType,
-        offerScadenza: data.offerScadenza,
-      };
+      case 'offer':
+        return {
+          type: data.type,
+          offerCode: data.offerCode,
+          offerName: data.offerName,
+          offerCanone: data.offerCanone,
+          offerAttivazione: data.offerAttivazione,
+          offerVincolo: data.offerVincolo,
+          offerNote: data.offerNote,
+          offerDisattivazione: data.offerDisattivazione,
+          offerType: data.offerType,
+          offerScadenza: data.offerScadenza,
+        };
       case 'sellers': 
         return { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy };
       case 'customer': 
@@ -718,7 +739,7 @@ export default function NewPractice() {
             fiscalCode: data.fiscalCode,
             phone: data.phone, 
             email: data.email,
-            address: data.customerAddress, // 🔥 AGGIUNTO: Oggetto strutturato
+            address: data.customerAddress,
             ragioneSociale: data.ragioneSociale, 
             partitaIva: data.partitaIva, 
             formaGiuridica: data.formaGiuridica,
@@ -771,9 +792,13 @@ export default function NewPractice() {
   const handleStepComplete = async (stepId: number) => {
     try {
       await saveStep(stepId);
+      const step = steps.find(s => s.id === stepId);
 
       if (!completedSteps.includes(stepId)) {
         setCompletedSteps([...completedSteps, stepId]);
+      }
+      if (step && !completedStepIds.includes(step.stepId)) {
+        setCompletedStepIds([...completedStepIds, step.stepId]);
       }
       
       if (!isLastStep(stepId)) {
@@ -786,29 +811,38 @@ export default function NewPractice() {
   };
 
   const handleSkipStep = async (stepId: number) => {
-  try {
-    // Salva i dati parziali (anche se non completi/invalidi)
-    await saveStep(stepId);
-    
-    // Marca come completato per sbloccare il prossimo
-    if (!completedSteps.includes(stepId)) {
-      setCompletedSteps([...completedSteps, stepId]);
+    try {
+      await saveStep(stepId);
+      const step = steps.find(s => s.id === stepId);
+      
+      if (!completedSteps.includes(stepId)) {
+        setCompletedSteps([...completedSteps, stepId]);
+      }
+      if (step && !completedStepIds.includes(step.stepId)) {
+        setCompletedStepIds([...completedStepIds, step.stepId]);
+      }
+      
+      if (!isLastStep(stepId)) {
+        setExpandedStep(stepId + 1);
+        setStep(stepId + 1);
+      }
+    } catch (err) {
+      console.error('Errore salvataggio:', err);
+      alert('Errore durante il salvataggio dello step');
     }
-    
-    // Avanza al prossimo
-    if (!isLastStep(stepId)) {
-      setExpandedStep(stepId + 1);
-      setStep(stepId + 1);
-    }
-  } catch (err) {
-    console.error('Errore salvataggio:', err);
-    alert('Errore durante il salvataggio dello step');
-  }
-};
+  };
 
   const handleStepClick = (stepId: number) => {
-    const maxCompleted = Math.max(...completedSteps, 0);
-    const canAccess = completedSteps.includes(stepId) || stepId === 1 || stepId <= maxCompleted + 1;
+    const step = steps.find(s => s.id === stepId);
+    if (!step) return;
+    
+    const targetIndex = steps.findIndex(s => s.id === stepId);
+    const maxCompletedIndex = Math.max(
+      ...completedStepIds.map(id => steps.findIndex(s => s.stepId === id)),
+      -1
+    );
+    
+    const canAccess = completedStepIds.includes(step.stepId) || stepId === 1 || targetIndex <= maxCompletedIndex + 1;
     
     if (canAccess) {
       setExpandedStep(stepId);
@@ -875,7 +909,7 @@ export default function NewPractice() {
         const hasLineType = data.lineType && data.installationAddress?.street && data.technology;
         if (!hasLineType) return false;
         
-        // 🔥 Validazione convergenza
+        // Validazione convergenza
         if (data.convergenza?.attiva) {
           if (data.convergenza.tipo === 'chiusa' && !data.convergenza.numero) {
             return false; // Blocca se "chiusa" senza numero
@@ -943,12 +977,18 @@ export default function NewPractice() {
             const isCompleted = completedSteps.includes(step.id);
             const isExpanded = expandedStep === step.id;
             const isValid = isStepValid(step.id);
-            const maxCompleted = Math.max(...completedSteps, 0);
-            const canAccess = completedSteps.includes(step.id) || step.id === 1 || step.id <= maxCompleted + 1;
+            
+            const targetIndex = steps.findIndex(s => s.id === step.id);
+            const maxCompletedIndex = Math.max(
+              ...completedStepIds.map(id => steps.findIndex(s => s.stepId === id)),
+              -1
+            );
+            const canAccess = completedStepIds.includes(step.stepId) || step.id === 1 || targetIndex <= maxCompletedIndex + 1;
 
             return (
               <motion.div
                 key={step.id}
+                ref={(el) => { stepRefs.current[step.id] = el; }}
                 className={`bg-slate-900/80 backdrop-blur-xl border rounded-2xl overflow-hidden transition-all ${
                   isExpanded ? 'border-indigo-600/50' : 'border-slate-800'
                 } ${!canAccess ? 'opacity-50' : ''}`}
@@ -1017,6 +1057,7 @@ export default function NewPractice() {
                                     });
                                     // Reset step completati quando cambia filtro business
                                     setCompletedSteps([]);
+                                    setCompletedStepIds([]);
                                   }
                                 }}
                                 className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
@@ -1122,6 +1163,10 @@ export default function NewPractice() {
                                         });
                                         // Reset step completati > 3 quando cambia offerta, mantieni 1,2,3
                                         setCompletedSteps(prev => prev.filter(s => s <= 3));
+                                        setCompletedStepIds(prev => {
+                                          const baseIds = ['offer', 'sellers', 'customer'];
+                                          return prev.filter(id => baseIds.includes(id));
+                                        });
                                       }
                                     }}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
@@ -1348,7 +1393,7 @@ export default function NewPractice() {
                               />
                             </div>
 
-                            {/* 🔥 MODIFICA 6: UI Step 3 - Indirizzo Cliente */}
+                            {/* Indirizzo Cliente */}
                             <div className="border-t border-slate-700 pt-4 mt-4">
                               <h4 className="text-sm font-semibold text-indigo-400 mb-4 flex items-center gap-2">
                                 <MapPin className="w-4 h-4" />
@@ -2377,12 +2422,12 @@ export default function NewPractice() {
                                   <span className="text-white font-medium">{data.offerCanone || '€0,00'}</span>
                                 </div>
                                 
-                              {((data.additionalPackages?.totalPrice || 0) > 0) && (
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
-                            <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}</span>
-                          </div>
-                        )}
+                                {((data.additionalPackages?.totalPrice || 0) > 0) && (
+                                  <div className="flex justify-between items-center text-sm">
+                                    <span className="text-slate-300">Pacchetti Aggiuntivi:</span>
+                                    <span className="text-indigo-300 font-medium">+ €{(data.additionalPackages?.totalPrice || 0).toFixed(2)}</span>
+                                  </div>
+                                )}
                                 
                                 <div className="border-t border-slate-600 my-2" />
                                 

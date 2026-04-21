@@ -157,7 +157,7 @@ export default function InviteAccept() {
           {mode === 'choose' && (
             <div className="space-y-3">
               <p className="text-slate-400 text-sm text-center mb-2">Come vuoi accedere?</p>
-              <button onClick={() => openSocial('google')} className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-900 font-medium py-3 rounded-xl" data-testid="invite-google-btn">
+              <button onClick={() => openSocial('google')} className="w-full flex items-center justify-center gap-3 bg-[#ffffff] hover:bg-[#f8fafc] text-[#0f172a] font-medium py-3 rounded-xl border border-slate-300" data-testid="invite-google-btn">
                 <GoogleLogo weight="bold" className="w-5 h-5" /> Continua con Google
               </button>
               <button onClick={() => openSocial('facebook')} className="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium py-3 rounded-xl" data-testid="invite-facebook-btn">

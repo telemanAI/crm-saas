@@ -7,7 +7,7 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class WashReportController {
   constructor(
     @InjectRepository(Practice)

@@ -15,6 +15,7 @@ import { InvitesService } from './invites.service';
 import { CreateInviteDto, AcceptInviteViaPasswordDto } from './dto/invite.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Controller('invites')
 export class InvitesController {
@@ -24,7 +25,7 @@ export class InvitesController {
    * Admin/Founder crea invito per il proprio shop attivo (tenantId dal JWT).
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req: any, @Body() dto: CreateInviteDto) {
@@ -42,7 +43,7 @@ export class InvitesController {
   }
 
   @Post(':id/resend')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async resend(@Param('id') id: string) {
@@ -51,7 +52,7 @@ export class InvitesController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async revoke(@Param('id') id: string) {
@@ -60,7 +61,7 @@ export class InvitesController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   async list(@Req() req: any) {
     const shopId = req.user.tenantId;
     if (!shopId) throw new BadRequestException('Nessuno shop attivo nel token');
@@ -81,12 +82,12 @@ export class InvitesController {
   }
 
   /**
-   * Accettazione invito per utente GIÀ LOGGATO (per social/OTP).
+   * Accettazione invito per utente GIÃ€ LOGGATO (per social/OTP).
    * Ritorna anche un access_token fresco con tenantId = negozio invitato
-   * così il frontend può saltare il passaggio da /select-shop.
+   * cosÃ¬ il frontend puÃ² saltare il passaggio da /select-shop.
    */
   @Post('accept/:token')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   async acceptAuthenticated(@Param('token') token: string, @Req() req: any) {
     const result = await this.invitesService.acceptInviteAndBuildSession(

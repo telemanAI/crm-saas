@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MembershipsService } from './memberships.service';
 import { MembershipPermissions, MembershipRole } from './entities/user-shop-membership.entity';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Controller('memberships')
 export class MembershipsController {
@@ -23,7 +24,7 @@ export class MembershipsController {
 
   /** Elenco membri dello shop attivo (richiede ADMIN/FOUNDER). */
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   async list(@Req() req: any) {
     const shopId = req.user.tenantId;
     if (!shopId) throw new BadRequestException('Nessuno shop attivo');
@@ -44,7 +45,7 @@ export class MembershipsController {
   }
 
   @Patch(':userId/permissions')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   async updatePermissions(
     @Req() req: any,
@@ -55,7 +56,7 @@ export class MembershipsController {
   }
 
   @Patch(':userId/role')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   async updateRole(
     @Req() req: any,
@@ -66,7 +67,7 @@ export class MembershipsController {
   }
 
   @Delete(':userId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async revoke(
@@ -83,7 +84,7 @@ export class MembershipsController {
   }
 
   @Get('history/:userId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
   async history(@Req() req: any, @Param('userId') userId: string) {
     return this.membershipsService.getHistoryInShop(userId, req.user.tenantId);
   }

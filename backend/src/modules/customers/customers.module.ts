@@ -6,6 +6,8 @@ import { CustomersService } from './customers.service';
 import { Customer } from './entities/customer.entity';
 import { Practice } from '../practices/entities/practice.entity';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { MembershipsModule } from '../memberships/memberships.module';
 
 @Module({
   imports: [

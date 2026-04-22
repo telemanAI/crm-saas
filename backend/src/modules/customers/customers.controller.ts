@@ -6,7 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('customers')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 

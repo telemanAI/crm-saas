@@ -21,7 +21,7 @@ import { CreateTemplateDto } from './dto/create-template.dto';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('imports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 

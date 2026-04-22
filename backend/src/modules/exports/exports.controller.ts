@@ -6,7 +6,7 @@ import { RequirePermission } from '../auth/decorators/require-permission.decorat
 import * as fs from 'fs';
 
 @Controller('api/exports')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}
 

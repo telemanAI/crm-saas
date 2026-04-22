@@ -11,6 +11,8 @@ import { Customer } from '../customers/entities/customer.entity';
 import { Practice } from '../practices/entities/practice.entity';
 import { FixedLineAdapter } from './adapters/fixed-line.adapter';
 import { UnifiedAdapter } from './adapters/unified.adapter';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { MembershipsModule } from '../memberships/memberships.module';
 
 @Module({
   imports: [

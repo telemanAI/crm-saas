@@ -4,13 +4,12 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('stats')
 export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
   @Get('dashboard')
-  @RequirePermission('canViewReports')
   async getDashboardStats(@Request() req): Promise<DashboardStatsDto> {
     const tenantId = req.user.tenantId;
     return this.statsService.getDashboardStats(tenantId);

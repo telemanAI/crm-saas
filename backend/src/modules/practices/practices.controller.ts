@@ -19,7 +19,7 @@ import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('practices')
 export class PracticesController {
   constructor(

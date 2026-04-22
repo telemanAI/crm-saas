@@ -5,6 +5,7 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
 import { MembershipsService } from './memberships.service';
 import { MembershipsController } from './memberships.controller';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
 @Module({
   imports: [TypeOrmModule.forFeature([UserShopMembership, Tenant, User])],

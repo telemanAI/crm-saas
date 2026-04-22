@@ -6,6 +6,8 @@ import { PracticesService } from './practices.service';
 import { Practice } from './entities/practice.entity';
 import { User } from '../users/entities/user.entity';
 import { CustomersModule } from '../customers/customers.module';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { MembershipsModule } from '../memberships/memberships.module';
 
 const JWT_SECRET = "super-secret-key-change-in-production";
 

@@ -2,7 +2,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
-import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
@@ -26,7 +25,6 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { InvitesModule } from './modules/invites/invites.module';
-import { PermissionsGuard } from './modules/auth/guards/permissions.guard';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -115,11 +113,6 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
     MembershipsModule,
     InvitesModule,
   ],
-  providers: [
-    // PermissionsGuard globale: protegge TUTTI gli endpoint con granularita sui permessi.
-    // Se un metodo NON ha @RequirePermission(), il guard passa (return true).
-    // Per endpoint pubblici usare @Public() (da auth/decorators/public.decorator.ts).
-    { provide: APP_GUARD, useClass: PermissionsGuard },
-  ],
+  providers: [],
 })
 export class AppModule {}

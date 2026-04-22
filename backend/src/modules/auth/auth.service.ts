@@ -1,3 +1,4 @@
+// backend/src/modules/auth/auth.service.ts
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -50,18 +51,16 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    // Check if it's super admin code
     const SUPER_ADMIN_CODE = '847293516';
     if (loginDto.subscriptionCode === SUPER_ADMIN_CODE) {
-      // Super Admin login
       const user = await this.validateSuperAdmin(loginDto.email, loginDto.password);
-      
+
       const payload = {
         email: user.email,
         sub: user.id,
         role: 'SUPER_ADMIN',
         tenantId: null,
-        isSuperAdmin: true
+        isSuperAdmin: true,
       };
 
       return {
@@ -76,19 +75,17 @@ export class AuthService {
       };
     }
 
-    // Normal tenant login
     const user = await this.validateUser(loginDto.email, loginDto.password, loginDto.subscriptionCode);
-    
-    // Controlla se l'email è verificata
+
     if (!user.emailVerified) {
       throw new UnauthorizedException('Email non verificata. Controlla la tua casella di posta.');
     }
-    
+
     const payload = {
       email: user.email,
       sub: user.id,
       role: user.role,
-      tenantId: user.tenantId
+      tenantId: user.tenantId,
     };
 
     return {
@@ -108,24 +105,20 @@ export class AuthService {
     const { name, email, password, confirmPassword } = registerDto;
     let slug = registerDto.slug;
 
-    // Validazione password
     if (password !== confirmPassword) {
       throw new BadRequestException('Le password non coincidono');
     }
 
-    // Validazione email formato
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       throw new BadRequestException('Formato email non valido');
     }
 
-    // Validazione configurazione email PRIMA di procedere
     const emailConfig = await this.emailService.validateEmailConfiguration();
     if (!emailConfig.valid) {
       throw new BadRequestException(`Configurazione email non valida: ${emailConfig.error}`);
     }
 
-    // Auto-genera slug se mancante
     if (!slug || slug.trim().length < 3) {
       slug = name
         .toLowerCase()
@@ -134,7 +127,6 @@ export class AuthService {
         .slice(0, 50) || 'shop';
     }
 
-    // Check esistenze; se slug collide aggiunge suffisso numerico
     let existingTenantBySlug = await this.tenantsService.findBySlug(slug);
     if (existingTenantBySlug) {
       const baseSlug = slug;
@@ -151,7 +143,6 @@ export class AuthService {
       throw new BadRequestException('Email già registrata');
     }
 
-    // Genera dati
     let subscriptionCode: string;
     let existingTenant;
     do {
@@ -161,25 +152,22 @@ export class AuthService {
 
     const verificationToken = uuidv4();
     const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // TENTA INVIO EMAIL PRIMA di salvare nel DB
-    // Questo è il pattern "fail fast" - se l'email non parte, non creiamo nulla
     const emailSent = await this.emailService.sendVerificationEmail(
-      email, 
-      verificationToken, 
-      name
+      email,
+      verificationToken,
+      name,
     );
 
     if (!emailSent) {
       throw new BadRequestException(
-        'Impossibile inviare l\'email di verifica. Verifica che l\'indirizzo email sia corretto o riprova più tardi.'
+        'Impossibile inviare l\'email di verifica. Verifica che l\'indirizzo email sia corretto o riprova più tardi.',
       );
     }
 
-    // Solo se l'email è partita, creiamo tenant e utente
     const tenant = await this.tenantsService.create({
       name,
       subscriptionCode,
@@ -189,13 +177,12 @@ export class AuthService {
       isActive: true,
     });
 
-    // Crea primo utente come FOUNDER (non ADMIN)
     const user = await this.usersService.create({
       email,
       passwordHash,
       firstName: 'Admin',
       lastName: name,
-      role: 'FOUNDER', // ← FOUNDER invece di ADMIN
+      role: 'FOUNDER',
       tenantId: tenant.id,
       isActive: true,
       emailVerified: false,
@@ -221,7 +208,7 @@ export class AuthService {
 
   async verifyEmail(token: string) {
     const user = await this.usersService.findByVerificationToken(token);
-    
+
     if (!user) {
       throw new BadRequestException('Token non valido o scaduto');
     }
@@ -233,7 +220,7 @@ export class AuthService {
     user.emailVerified = true;
     user.verificationToken = null;
     user.verificationTokenExpires = null;
-    
+
     await this.usersService.save(user);
 
     return { message: 'Email verificata con successo! Ora puoi accedere.' };
@@ -241,7 +228,7 @@ export class AuthService {
 
   async resendVerificationEmail(email: string) {
     const user = await this.usersService.findByEmail(email);
-    
+
     if (!user) {
       throw new BadRequestException('Email non trovata');
     }
@@ -255,7 +242,7 @@ export class AuthService {
 
     user.verificationToken = verificationToken;
     user.verificationTokenExpires = verificationTokenExpires;
-    
+
     await this.usersService.save(user);
     await this.emailService.sendVerificationEmail(email, verificationToken, user.firstName || 'Utente');
 
@@ -286,7 +273,7 @@ export class AuthService {
       sub: user.id,
       role: 'SUPER_ADMIN',
       tenantId: null,
-      isSuperAdmin: true
+      isSuperAdmin: true,
     };
 
     return {
@@ -305,16 +292,15 @@ export class AuthService {
     const tenant = await this.tenantsService.findById(tenantId);
     if (!tenant) throw new UnauthorizedException('Negozio non trovato');
 
-    // 🔥 FIX: Usa il nuovo metodo che cerca sia FOUNDER che ADMIN
     const admin = await this.usersService.findAdminOrFounderByTenantId(tenantId);
     if (!admin) throw new UnauthorizedException('Nessun amministratore trovato per questo negozio');
 
     const payload = {
       email: admin.email,
       sub: admin.id,
-      role: admin.role, // FOUNDER o ADMIN
+      role: admin.role,
       tenantId: admin.tenantId,
-      isImpersonated: true, // 👈 Flag per frontend
+      isImpersonated: true,
     };
 
     return {
@@ -326,14 +312,11 @@ export class AuthService {
         tenantId: admin.tenantId,
         firstName: admin.firstName,
         lastName: admin.lastName,
-        isImpersonated: true // 👈 Frontend lo usa per mostrare "Torna a SuperAdmin"
+        isImpersonated: true,
       },
     };
   }
 
-  // ==========================================================
-  // NUOVO: Fast login senza subscriptionCode per utenti normali
-  // ==========================================================
   async fastLogin(dto: FastLoginDto) {
     const email = dto.email.trim().toLowerCase();
     const user = await this.usersService.findByEmail(email);
@@ -344,7 +327,6 @@ export class AuthService {
     const passOk = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passOk) throw new UnauthorizedException('Credenziali non valide');
 
-    // SUPER_ADMIN: richiede codice double-security
     if (user.role === 'SUPER_ADMIN') {
       if (dto.subscriptionCode !== SUPER_ADMIN_CODE) {
         throw new UnauthorizedException('Codice di sicurezza SuperAdmin richiesto');
@@ -377,7 +359,7 @@ export class AuthService {
     await this.userRepo.save(user);
 
     const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
-    const shops = shopsData.map(s => ({
+    const shops = shopsData.map((s) => ({
       shopId: s.shop.id,
       name: s.shop.name,
       subscriptionCode: s.shop.subscriptionCode,
@@ -386,7 +368,6 @@ export class AuthService {
       companyId: s.shop.companyId,
     }));
 
-    // Fallback retrocompat: se nessuna membership ma user.tenantId esiste → costruisci una "shop card" al volo
     if (shops.length === 0 && user.tenantId) {
       const legacy = await this.shopRepo.findOne({ where: { id: user.tenantId } });
       if (legacy) {
@@ -425,9 +406,6 @@ export class AuthService {
     };
   }
 
-  // ==========================================================
-  // NUOVO: Registrazione negoziante (con password)
-  // ==========================================================
   async registerShopOwner(dto: RegisterShopOwnerDto) {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.usersService.findByEmail(email);
@@ -441,7 +419,6 @@ export class AuthService {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(dto.password, salt);
 
-    // Crea user con ruolo FOUNDER, email verificata = false (manda email conferma)
     const verificationToken = uuidv4();
     const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -458,7 +435,6 @@ export class AuthService {
       provider: 'local',
     } as any);
 
-    // Crea Company + Shop
     const company = await this.companiesService.resolveOrCreateForNewShop({
       legalName: dto.legalName || dto.shopName,
       vatNumber: dto.vatNumber || null,
@@ -481,7 +457,6 @@ export class AuthService {
       role: 'FOUNDER',
     });
 
-    // Invia email di verifica (retrocompat)
     await this.emailService.sendVerificationEmail(email, verificationToken, dto.firstName);
 
     return {
@@ -495,7 +470,7 @@ export class AuthService {
 
   async getUserShops(userId: string) {
     const shopsData = await this.membershipsService.findActiveShopsForUser(userId);
-    return shopsData.map(s => ({
+    return shopsData.map((s) => ({
       shopId: s.shop.id,
       name: s.shop.name,
       subscriptionCode: s.shop.subscriptionCode,
@@ -505,17 +480,12 @@ export class AuthService {
     }));
   }
 
-  /**
-   * Aggiungi negozio da FOUNDER autenticato.
-   * mode='same-company': usa una Company esistente (deve essere owner)
-   * mode='new-company': crea nuova Company (richiede legalName + vatNumber se homonym)
-   */
   async addShopForFounder(params: {
     userId: string;
     name: string;
     mode: 'same-company' | 'new-company';
-    companyId?: string; // per same-company
-    legalName?: string; // per new-company
+    companyId?: string;
+    legalName?: string;
     vatNumber?: string;
   }) {
     if (!params.name?.trim()) throw new BadRequestException('Nome negozio obbligatorio');
@@ -524,7 +494,7 @@ export class AuthService {
     if (params.mode === 'same-company') {
       if (!params.companyId) throw new BadRequestException('companyId richiesto');
       const companies = await this.companiesService.findByOwner(params.userId);
-      const company = companies.find(c => c.id === params.companyId);
+      const company = companies.find((c) => c.id === params.companyId);
       if (!company) {
         throw new BadRequestException('Non sei il proprietario di questa ragione sociale');
       }
@@ -550,12 +520,32 @@ export class AuthService {
       role: 'FOUNDER',
     });
 
+    // Ri-emetti il JWT puntando al nuovo shop come tenantId attivo e ritorna
+    // la lista shops aggiornata così il frontend può sincronizzarsi senza reload.
+    const user = await this.userRepo.findOne({ where: { id: params.userId } });
+    const shopsData = await this.membershipsService.findActiveShopsForUser(params.userId);
+    const access_token = this.jwtService.sign({
+      sub: params.userId,
+      email: user?.email,
+      role: 'FOUNDER',
+      tenantId: shop.id,
+    });
+
     return {
       shopId: shop.id,
       name: shop.name,
       subscriptionCode: shop.subscriptionCode,
       slug: shop.slug,
       companyId: targetCompanyId,
+      access_token,
+      shops: shopsData.map((s) => ({
+        shopId: s.shop.id,
+        name: s.shop.name,
+        subscriptionCode: s.shop.subscriptionCode,
+        role: s.membership.role,
+        permissions: s.membership.permissions,
+        companyId: s.shop.companyId,
+      })),
     };
   }
 

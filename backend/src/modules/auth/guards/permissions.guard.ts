@@ -1,4 +1,5 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+// backend/src/modules/auth/guards/permissions.guard.ts
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { MembershipsService } from '../../memberships/memberships.service';
 import { MembershipPermissions } from '../../memberships/entities/user-shop-membership.entity';
@@ -6,13 +7,14 @@ import { PERMISSION_KEY } from '../decorators/require-permission.decorator';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
+  private readonly logger = new Logger('PermissionsGuard');
+
   constructor(
     private readonly reflector: Reflector,
     private readonly membershipsService: MembershipsService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    // Safety: se endpoint pubblico, non controllare nulla
     const isPublic = this.reflector.getAllAndOverride<boolean>(
       'isPublic',
       [ctx.getHandler(), ctx.getClass()],
@@ -27,23 +29,45 @@ export class PermissionsGuard implements CanActivate {
 
     const req = ctx.switchToHttp().getRequest();
     const user = req.user;
-    if (!user) throw new ForbiddenException('Non autenticato');
+    if (!user) {
+      this.logger.warn(`[${required}] BLOCK: req.user è undefined (JwtAuthGuard non ha popolato)`);
+      throw new ForbiddenException('Non autenticato');
+    }
 
-    // SUPER_ADMIN e impersonation bypass
-    if (user.role === 'SUPER_ADMIN' || user.isSuperAdmin) return true;
+    if (user.role === 'SUPER_ADMIN' || user.isSuperAdmin) {
+      this.logger.log(`[${required}] ALLOW: SUPER_ADMIN bypass (user=${user.email})`);
+      return true;
+    }
 
     const shopId = user.tenantId;
-    if (!shopId) throw new ForbiddenException('Nessuno shop attivo');
+    if (!shopId) {
+      this.logger.warn(`[${required}] BLOCK: shopId (tenantId) mancante nel JWT per user=${user.email}`);
+      throw new ForbiddenException('Nessuno shop attivo');
+    }
 
-    const membership = await this.membershipsService.findActiveForUserAndShop(user.id || user.sub, shopId);
-    if (!membership) throw new ForbiddenException('Nessuna membership attiva in questo negozio');
+    const userId = user.id || user.sub || user.userId;
+    const membership = await this.membershipsService.findActiveForUserAndShop(userId, shopId);
+    if (!membership) {
+      this.logger.warn(`[${required}] BLOCK: nessuna membership attiva user=${userId} shop=${shopId}`);
+      throw new ForbiddenException('Nessuna membership attiva in questo negozio');
+    }
 
-    // FOUNDER bypass sempre
-    if (membership.role === 'FOUNDER') return true;
+    if (membership.role === 'FOUNDER') {
+      this.logger.log(`[${required}] ALLOW: FOUNDER bypass (user=${user.email} shop=${shopId})`);
+      return true;
+    }
 
     const permissions = (membership.permissions || {}) as MembershipPermissions;
-    if (permissions[required] === true) return true;
+    this.logger.log(
+      `[${required}] CHECK: user=${user.email} role=${membership.role} shop=${shopId} permissions=${JSON.stringify(permissions)}`,
+    );
 
+    if (permissions[required] === true) {
+      this.logger.log(`[${required}] ALLOW: permesso concesso`);
+      return true;
+    }
+
+    this.logger.warn(`[${required}] BLOCK: permesso mancante (valore=${permissions[required]})`);
     throw new ForbiddenException(`Permesso mancante: ${required}`);
   }
 }

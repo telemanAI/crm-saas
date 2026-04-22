@@ -2,6 +2,7 @@ import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('stats')
@@ -9,12 +10,14 @@ export class StatsController {
   constructor(private readonly statsService: StatsService) {}
 
   @Get('dashboard')
+  @RequirePermission('canViewReports')
   async getDashboardStats(@Request() req): Promise<DashboardStatsDto> {
     const tenantId = req.user.tenantId;
     return this.statsService.getDashboardStats(tenantId);
   }
 
   @Get('trends')
+  @RequirePermission('canViewReports')
   async getTrends(
     @Request() req,
     @Query('period') period: 'month' | 'day' = 'month',
@@ -24,6 +27,7 @@ export class StatsController {
   }
 
   @Get('report')
+  @RequirePermission('canViewReports')
   async getReport(
     @Request() req,
     @Query('range') range: 'today' | 'week' | 'month' = 'month',

@@ -1,10 +1,11 @@
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import {
   Controller,
   Get,
   Post,
   Put,
-  Patch, // 🔥 NUOVO
+  Patch, // NUOVO
   Delete,
   Body,
   Param,
@@ -26,6 +27,7 @@ export class PracticesController {
   ) {}
 
   @Post()
+  @RequirePermission('canCreatePractices')
   async create(
     @Request() req,
     @Body() dto: CreatePracticeDto,
@@ -74,7 +76,7 @@ export class PracticesController {
     return this.practicesService.updateOperationalStatus(user.tenantId, id, status);
   }
 
-  // 🔥 NUOVO: Endpoint per aggiornare solo il numero convergenza (inline edit dal dettaglio)
+  // NUOVO: Endpoint per aggiornare solo il numero convergenza (inline edit dal dettaglio)
   @Patch(':id/convergence')
   async updateConvergence(
     @Request() req,
@@ -93,6 +95,7 @@ export class PracticesController {
 
   @Delete(':id')
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
+  @RequirePermission('canDeletePractices')
   async remove(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,

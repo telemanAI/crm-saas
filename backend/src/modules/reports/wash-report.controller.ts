@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice } from '../practices/entities/practice.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard)
@@ -16,6 +17,7 @@ export class WashReportController {
   ) {}
 
   @Get('wash-stats')
+  @RequirePermission('canViewReports')
   async getWashStats(
     @Request() req: any,
     @Query('dateFrom') dateFrom?: string,
@@ -62,6 +64,7 @@ export class WashReportController {
   }
 
   @Get('wash-details')
+  @RequirePermission('canViewReports')
   async getWashDetails(
     @Request() req: any,
     @Query('dateFrom') dateFrom?: string,
@@ -69,7 +72,7 @@ export class WashReportController {
   ) {
     const tenantId = req.user.tenantId;
     
-    // 🔒 Verifica che il WASH sia abilitato per questo tenant
+    // Verifica che il WASH sia abilitato per questo tenant
     const tenant = await this.tenantRepository.findOne({ 
       where: { id: tenantId } 
     });

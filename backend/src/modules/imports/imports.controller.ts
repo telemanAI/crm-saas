@@ -18,6 +18,7 @@ import { UploadFileDto } from './dto/upload-file.dto';
 import { ValidateImportDto } from './dto/validate-import.dto';
 import { ExecuteImportDto } from './dto/execute-import.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('imports')
 @UseGuards(JwtAuthGuard)
@@ -25,6 +26,7 @@ export class ImportsController {
   constructor(private readonly importsService: ImportsService) {}
 
   @Post('upload')
+  @RequirePermission('canImportData')
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(
     @UploadedFile() file: Express.Multer.File,
@@ -78,17 +80,18 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
     
-    // 🔥 PASSA rowCorrections al service
+    // PASSA rowCorrections al service
     return this.importsService.validateImport(
       jobId, 
       body.mappingConfig, 
       effectiveTenantId,
-      body.rowCorrections // 🔥 Aggiunto
+      body.rowCorrections
     );
   }
 
-  // ✅ FIX EXECUTE: Aggiunta gestione tenantId per SuperAdmin
+  // FIX EXECUTE: Aggiunta gestione tenantId per SuperAdmin
   @Post('execute')
+  @RequirePermission('canImportData')
   async executeImport(
     @Body() dto: ExecuteImportDto & { rowCorrections?: any[] },
     @Query('tenantId') queryTenantId: string,
@@ -102,12 +105,12 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
 
-    // 🔥 PASSA rowCorrections al service
+    // PASSA rowCorrections al service
     const job = await this.importsService.executeImport(
       dto.jobId,
       effectiveTenantId,
       req.user.userId,
-      dto.rowCorrections // 🔥 Aggiunto
+      dto.rowCorrections
     );
 
     return {
@@ -135,6 +138,7 @@ export class ImportsController {
   }
 
   @Post('templates')
+  @RequirePermission('canImportData')
   async createTemplate(@Body() dto: CreateTemplateDto, @Req() req) {
     const template = await this.importsService.createTemplate(
       dto,

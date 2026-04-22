@@ -14,6 +14,7 @@ import {
 import { InvitesService } from './invites.service';
 import { CreateInviteDto, AcceptInviteViaPasswordDto } from './dto/invite.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('invites')
 export class InvitesController {
@@ -24,6 +25,7 @@ export class InvitesController {
    */
   @Post()
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.CREATED)
   async create(@Req() req: any, @Body() dto: CreateInviteDto) {
     const shopId = req.user.tenantId;
@@ -41,6 +43,7 @@ export class InvitesController {
 
   @Post(':id/resend')
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async resend(@Param('id') id: string) {
     const invite = await this.invitesService.resendInvite(id);
@@ -49,6 +52,7 @@ export class InvitesController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async revoke(@Param('id') id: string) {
     await this.invitesService.revoke(id);

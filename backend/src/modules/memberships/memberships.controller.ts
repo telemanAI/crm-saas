@@ -15,6 +15,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MembershipsService } from './memberships.service';
 import { MembershipPermissions, MembershipRole } from './entities/user-shop-membership.entity';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('memberships')
 export class MembershipsController {
@@ -44,6 +45,7 @@ export class MembershipsController {
 
   @Patch(':userId/permissions')
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   async updatePermissions(
     @Req() req: any,
     @Param('userId') userId: string,
@@ -54,6 +56,7 @@ export class MembershipsController {
 
   @Patch(':userId/role')
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   async updateRole(
     @Req() req: any,
     @Param('userId') userId: string,
@@ -64,6 +67,7 @@ export class MembershipsController {
 
   @Delete(':userId')
   @UseGuards(JwtAuthGuard)
+  @RequirePermission('canChangeUserRoles')
   @HttpCode(HttpStatus.OK)
   async revoke(
     @Req() req: any,

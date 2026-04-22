@@ -3,6 +3,7 @@ import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -53,6 +54,7 @@ export class CustomersController {
 
   @Delete(':id')
   @Roles('ADMIN')
+  @RequirePermission('canDeleteCustomers')
   async remove(@Param('id') id: string, @Request() req) {
     return this.customersService.remove(req.user.tenantId, id);
   }

@@ -19,6 +19,7 @@ import { SocialAuthService } from './services/social-auth.service';
 import { InvitesService } from '../invites/invites.service';
 import { GoogleAuthGuard, FacebookAuthGuard } from './guards/oauth.guards';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { Public } from './decorators/public.decorator';
 import { FastLoginDto } from './dto/fast-login.dto';
 import {
   RequestOtpDto,
@@ -43,6 +44,7 @@ export class AuthFlowsController {
   // =====================================================
   // Fast login (senza subscriptionCode per utenti normali)
   // =====================================================
+  @Public()
   @Post('login-v2')
   @HttpCode(HttpStatus.OK)
   async loginV2(@Body() dto: FastLoginDto) {
@@ -52,6 +54,7 @@ export class AuthFlowsController {
   // =====================================================
   // Registrazione negoziante con password
   // =====================================================
+  @Public()
   @Post('register-shop-owner')
   @HttpCode(HttpStatus.CREATED)
   async registerShopOwner(@Body() dto: RegisterShopOwnerDto) {
@@ -61,12 +64,14 @@ export class AuthFlowsController {
   // =====================================================
   // OTP
   // =====================================================
+  @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   async requestOtp(@Body() dto: RequestOtpDto) {
     return this.otpService.requestOtp(dto.email);
   }
 
+  @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
   async verifyOtp(@Body() dto: VerifyOtpDto) {
@@ -81,6 +86,7 @@ export class AuthFlowsController {
   // =====================================================
   // Completa registrazione (dopo social login / OTP per NUOVO utente)
   // =====================================================
+  @Public()
   @Post('complete-registration')
   @HttpCode(HttpStatus.OK)
   async completeRegistration(@Body() dto: CompleteRegistrationDto) {
@@ -135,12 +141,14 @@ export class AuthFlowsController {
   // =====================================================
   // Google OAuth
   // =====================================================
+  @Public()
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   async googleAuth(): Promise<void> {
     // passport redirect, nothing to return
   }
 
+  @Public()
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req: Request, @Res() res: Response) {
@@ -156,7 +164,7 @@ export class AuthFlowsController {
 
     const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
     if (result.status === 'logged_in') {
-      // Utente già esistente: se c'è un invito, applicalo subito
+      // Utente gia esistente: se c'e un invito, applicalo subito
       if (inviteToken) {
         try {
           const userObj = result.user as any;
@@ -174,17 +182,19 @@ export class AuthFlowsController {
     // Utente nuovo: passa anche l'invite al complete-registration se presente
     const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
     return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
+      `${frontendUrl}/auth/callback?token=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
     );
   }
 
   // =====================================================
   // Facebook OAuth (attivo solo se credenziali presenti in env)
   // =====================================================
+  @Public()
   @Get('facebook')
   @UseGuards(FacebookAuthGuard)
   async facebookAuth(): Promise<void> {}
 
+  @Public()
   @Get('facebook/callback')
   @UseGuards(FacebookAuthGuard)
   async facebookCallback(@Req() req: Request, @Res() res: Response) {
@@ -219,6 +229,7 @@ export class AuthFlowsController {
   // =====================================================
   // Invite public endpoints (non serve auth per leggerlo)
   // =====================================================
+  @Public()
   @Get('invite/:token')
   async getInvite(@Param('token') token: string) {
     const invite = await this.invitesService.getByToken(token);

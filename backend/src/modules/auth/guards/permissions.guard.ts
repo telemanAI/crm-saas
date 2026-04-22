@@ -12,6 +12,13 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    // Safety: se endpoint pubblico, non controllare nulla
+    const isPublic = this.reflector.getAllAndOverride<boolean>(
+      'isPublic',
+      [ctx.getHandler(), ctx.getClass()],
+    );
+    if (isPublic) return true;
+
     const required = this.reflector.getAllAndOverride<keyof MembershipPermissions>(
       PERMISSION_KEY,
       [ctx.getHandler(), ctx.getClass()],

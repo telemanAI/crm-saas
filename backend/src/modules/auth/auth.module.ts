@@ -40,6 +40,7 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
     TypeOrmModule.forFeature([User, Tenant, OtpCode, PendingRegistration]),
     PassportModule,
     JwtModule.register({
+      global: true,
       secret: process.env.JWT_SECRET || 'your-secret-key',
       signOptions: { expiresIn: '24h' },
     }),

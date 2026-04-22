@@ -1,3 +1,5 @@
+  MembershipsModule,
+export class ExportsModule {}
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExportsService } from './exports.service';

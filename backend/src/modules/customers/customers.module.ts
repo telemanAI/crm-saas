@@ -17,6 +17,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
       signOptions: { expiresIn: '24h' },
     }),
     CustomFieldsModule,
+    MembershipsModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

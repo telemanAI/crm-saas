@@ -22,6 +22,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
         fileSize: 10 * 1024 * 1024, // 10MB
       },
     }),
+    MembershipsModule,
   ],
   controllers: [
     ImportsController,

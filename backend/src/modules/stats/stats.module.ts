@@ -22,6 +22,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
     PracticesModule,
     CustomersModule,
     ImportsModule,
+    MembershipsModule,
   ],
   controllers: [
     StatsController,

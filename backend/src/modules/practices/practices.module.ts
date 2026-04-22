@@ -16,6 +16,7 @@ const JWT_SECRET = "super-secret-key-change-in-production";
     TypeOrmModule.forFeature([Practice, User]),
     JwtModule.register({ secret: JWT_SECRET }),
     CustomersModule,
+    MembershipsModule,
   ],
   controllers: [PracticesController],
   providers: [PracticesService],

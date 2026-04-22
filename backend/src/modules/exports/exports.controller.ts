@@ -1,6 +1,7 @@
 import { Controller, Post, Body, Res, UseGuards, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { ExportsService, ExportFilters } from './exports.service';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import * as fs from 'fs';
@@ -28,7 +29,6 @@ export class ExportsController {
       if (err) {
         console.error('Error downloading file:', err);
       }
-      // Cancella file dopo download
       fs.unlinkSync(filePath);
     });
   }
@@ -50,7 +50,6 @@ export class ExportsController {
       if (err) {
         console.error('Error downloading file:', err);
       }
-      // Cancella file dopo download
       fs.unlinkSync(filePath);
     });
   }

@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { ImportsService } from './imports.service';
 import { UploadFileDto } from './dto/upload-file.dto';
 import { ValidateImportDto } from './dto/validate-import.dto';
@@ -80,7 +81,6 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
     
-    // PASSA rowCorrections al service
     return this.importsService.validateImport(
       jobId, 
       body.mappingConfig, 
@@ -89,7 +89,6 @@ export class ImportsController {
     );
   }
 
-  // FIX EXECUTE: Aggiunta gestione tenantId per SuperAdmin
   @Post('execute')
   @RequirePermission('canImportData')
   async executeImport(
@@ -105,7 +104,6 @@ export class ImportsController {
       throw new BadRequestException('Tenant ID richiesto');
     }
 
-    // PASSA rowCorrections al service
     const job = await this.importsService.executeImport(
       dto.jobId,
       effectiveTenantId,

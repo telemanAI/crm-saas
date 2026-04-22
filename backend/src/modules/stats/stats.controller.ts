@@ -1,6 +1,7 @@
 import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import { StatsService } from './stats.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { DashboardStatsDto } from './dto/dashboard-stats.dto';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 

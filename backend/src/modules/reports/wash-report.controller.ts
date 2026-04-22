@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice } from '../practices/entities/practice.entity';
@@ -72,7 +73,6 @@ export class WashReportController {
   ) {
     const tenantId = req.user.tenantId;
     
-    // Verifica che il WASH sia abilitato per questo tenant
     const tenant = await this.tenantRepository.findOne({ 
       where: { id: tenantId } 
     });

@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, FindOptionsWhere } from 'typeorm';
 import {
   UserShopMembership,
   MembershipRole,
@@ -13,14 +13,14 @@ import { User } from '../users/entities/user.entity';
 @Injectable()
 export class MembershipsService {
   constructor(
-    @InjectRepository(UserShopMembership) private readonly repo: Repository<UserShopMembership>,
-    @InjectRepository(Tenant) private readonly shopRepo: Repository<Tenant>,
-    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    @InjectRepository(UserShopMembership)
+    private readonly repo: Repository<UserShopMembership>,
+    @InjectRepository(Tenant)
+    private readonly shopRepo: Repository<Tenant>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {}
 
-  /**
-   * Concede l'accesso ad uno Shop. Se esiste membership inattiva la riattiva (conservando storico).
-   */
   async grantAccess(params: {
     userId: string;
     shopId: string;
@@ -30,21 +30,22 @@ export class MembershipsService {
   }): Promise<UserShopMembership> {
     const { userId, shopId, role, permissions, invitedBy } = params;
 
-    let membership = await this.repo.findOne({ where: { userId, shopId } });
-    if (membership) {
-      membership.role = role;
-      membership.permissions = permissions || DEFAULT_PERMISSIONS[role];
-      membership.isActive = true;
-      membership.leftAt = null;
-      membership.joinedAt = new Date();
-      if (invitedBy) membership.invitedBy = invitedBy;
-      return this.repo.save(membership);
+    const existing = await this.repo.findOne({ where: { userId, shopId } });
+    if (existing) {
+      existing.role = role;
+      existing.permissions = permissions ?? DEFAULT_PERMISSIONS[role];
+      existing.isActive = true;
+      existing.leftAt = null;
+      existing.joinedAt = new Date();
+      if (invitedBy) existing.invitedBy = invitedBy;
+      return this.repo.save(existing);
     }
-    membership = this.repo.create({
+
+    const membership = this.repo.create({
       userId,
       shopId,
       role,
-      permissions: permissions || DEFAULT_PERMISSIONS[role],
+      permissions: permissions ?? DEFAULT_PERMISSIONS[role],
       isActive: true,
       joinedAt: new Date(),
       invitedBy: invitedBy || null,
@@ -52,9 +53,6 @@ export class MembershipsService {
     return this.repo.save(membership);
   }
 
-  /**
-   * Rimuove un operatore (soft delete). Storia mantenuta + nota admin.
-   */
   async revokeAccess(
     userId: string,
     shopId: string,
@@ -65,9 +63,12 @@ export class MembershipsService {
     if (membership.role === 'FOUNDER') {
       throw new BadRequestException('Impossibile rimuovere il FOUNDER del negozio');
     }
+
     membership.isActive = false;
     membership.leftAt = new Date();
-    if (endOfRelationshipNote) membership.endOfRelationshipNote = endOfRelationshipNote;
+    if (endOfRelationshipNote) {
+      membership.endOfRelationshipNote = endOfRelationshipNote;
+    }
     return this.repo.save(membership);
   }
 
@@ -78,48 +79,87 @@ export class MembershipsService {
   ): Promise<UserShopMembership> {
     const membership = await this.repo.findOne({ where: { userId, shopId } });
     if (!membership) throw new NotFoundException('Membership non trovata');
-    membership.permissions = { ...membership.permissions, ...permissions };
-    return this.repo.save(membership);
+
+    // TypeORM non rileva sempre come dirty le mutazioni su campi jsonb.
+    // Usiamo update() esplicito per forzare la persistenza.
+    const merged: MembershipPermissions = {
+      ...(membership.permissions || {}),
+      ...permissions,
+    };
+    await this.repo.update({ userId, shopId }, { permissions: merged });
+
+    membership.permissions = merged;
+    return membership;
   }
 
-  async updateRole(userId: string, shopId: string, role: MembershipRole): Promise<UserShopMembership> {
+  async updateRole(
+    userId: string,
+    shopId: string,
+    role: MembershipRole,
+  ): Promise<UserShopMembership> {
     const membership = await this.repo.findOne({ where: { userId, shopId } });
     if (!membership) throw new NotFoundException('Membership non trovata');
+
     membership.role = role;
     return this.repo.save(membership);
   }
 
-  /** Shop a cui l'utente ha accesso attivo. */
-  async findActiveShopsForUser(userId: string): Promise<Array<{ membership: UserShopMembership; shop: Tenant }>> {
+  async findActiveShopsForUser(
+    userId: string,
+  ): Promise<Array<{ membership: UserShopMembership; shop: Tenant }>> {
     const memberships = await this.repo.find({
       where: { userId, isActive: true },
       relations: ['shop'],
       order: { joinedAt: 'DESC' },
     });
-    // Auto-heal: se un FOUNDER/ADMIN esistente ha permessi vuoti (da vecchia versione del codice),
-    // li ripristiniamo con i default. Questo risolve record legacy dove il membership
-    // è stato creato prima che i default fossero applicati.
-    for (const m of memberships) {
-      const isEmpty = !m.permissions || Object.keys(m.permissions).length === 0;
-      if (isEmpty && (m.role === 'FOUNDER' || m.role === 'ADMIN')) {
+
+    // Auto-heal batch: ripristina i default per FOUNDER/ADMIN con permessi vuoti (record legacy)
+    const toHeal = memberships.filter(
+      (m) => this.hasEmptyPermissions(m) && (m.role === 'FOUNDER' || m.role === 'ADMIN'),
+    );
+
+    if (toHeal.length > 0) {
+      for (const m of toHeal) {
         m.permissions = DEFAULT_PERMISSIONS[m.role];
-        await this.repo.save(m);
       }
+      await this.repo.save(toHeal);
     }
-    return memberships.map(m => ({ membership: m, shop: m.shop }));
+
+    return memberships.map((m) => ({ membership: m, shop: m.shop }));
   }
 
-  async findMembership(userId: string, shopId: string): Promise<UserShopMembership | null> {
+  async findMembership(
+    userId: string,
+    shopId: string,
+  ): Promise<UserShopMembership | null> {
     return this.repo.findOne({ where: { userId, shopId } });
   }
 
-  async findActiveForUserAndShop(userId: string, shopId: string): Promise<UserShopMembership | null> {
-    return this.repo.findOne({ where: { userId, shopId, isActive: true } });
+  async findActiveForUserAndShop(
+    userId: string,
+    shopId: string,
+  ): Promise<UserShopMembership | null> {
+    const membership = await this.repo.findOne({
+      where: { userId, shopId, isActive: true },
+    });
+    if (!membership) return null;
+
+    if (this.hasEmptyPermissions(membership) && (membership.role === 'FOUNDER' || membership.role === 'ADMIN')) {
+      membership.permissions = DEFAULT_PERMISSIONS[membership.role];
+      await this.repo.save(membership);
+    }
+
+    return membership;
   }
 
-  async listShopMembers(shopId: string, includeInactive = false): Promise<UserShopMembership[]> {
-    const where: any = { shopId };
-    if (!includeInactive) where.isActive = true;
+  async listShopMembers(
+    shopId: string,
+    includeInactive = false,
+  ): Promise<UserShopMembership[]> {
+    const where: FindOptionsWhere<UserShopMembership> = { shopId };
+    if (!includeInactive) {
+      where.isActive = true;
+    }
     return this.repo.find({
       where,
       relations: ['user'],
@@ -127,11 +167,17 @@ export class MembershipsService {
     });
   }
 
-  /** Storico membership dell'utente in uno shop (per mostrare \"ha già lavorato qui\"). */
-  async getHistoryInShop(userId: string, shopId: string): Promise<UserShopMembership | null> {
+  async getHistoryInShop(
+    userId: string,
+    shopId: string,
+  ): Promise<UserShopMembership | null> {
     return this.repo.findOne({
       where: { userId, shopId, isActive: false },
       order: { leftAt: 'DESC' },
     });
+  }
+
+  private hasEmptyPermissions(m: UserShopMembership): boolean {
+    return !m.permissions || Object.keys(m.permissions).length === 0;
   }
 }

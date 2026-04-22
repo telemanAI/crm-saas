@@ -1,3 +1,4 @@
+// backend/src/modules/practices/practices.controller.ts
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import {
@@ -5,7 +6,7 @@ import {
   Get,
   Post,
   Put,
-  Patch, // NUOVO
+  Patch,
   Delete,
   Body,
   Param,
@@ -57,6 +58,7 @@ export class PracticesController {
   }
 
   @Put(':id/step')
+  @RequirePermission('canEditPractices')
   async updateStep(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -66,8 +68,8 @@ export class PracticesController {
     return this.practicesService.updateStep(user.tenantId, user.userId, id, dto);
   }
 
-  // NUOVO: Endpoint per cambiare stato operativo (PENDING, IN_PROGRESS, ACTIVATED, REJECTED)
   @Put(':id/operational-status')
+  @RequirePermission('canEditPractices')
   async updateOperationalStatus(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -77,8 +79,8 @@ export class PracticesController {
     return this.practicesService.updateOperationalStatus(user.tenantId, id, status);
   }
 
-  // NUOVO: Endpoint per aggiornare solo il numero convergenza (inline edit dal dettaglio)
   @Patch(':id/convergence')
+  @RequirePermission('canEditPractices')
   async updateConvergence(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,

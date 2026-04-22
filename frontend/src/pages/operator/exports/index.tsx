@@ -1,3 +1,4 @@
+// frontend/src/pages/operator/exports/index.tsx
 import { useState } from 'react';
 import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
@@ -18,7 +19,7 @@ export default function ExportsPage() {
   const handleExport = async () => {
     setExporting(true);
     try {
-      const endpoint = exportType === 'practices' ? '/api/exports/practices' : '/api/exports/customers';
+      const endpoint = exportType === 'practices' ? '/exports/practices' : '/exports/customers';
       
       const response = await axios.post(
         endpoint,

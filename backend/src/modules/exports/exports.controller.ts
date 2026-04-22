@@ -1,3 +1,4 @@
+// backend/src/modules/exports/exports.controller.ts
 import { Controller, Post, Body, Res, UseGuards, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -6,7 +7,7 @@ import { ExportsService, ExportFilters } from './exports.service';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import * as fs from 'fs';
 
-@Controller('api/exports')
+@Controller('exports')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ExportsController {
   constructor(private readonly exportsService: ExportsService) {}

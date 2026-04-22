@@ -1,4 +1,4 @@
-
+// backend/src/modules/memberships/entities/user-shop-membership.entity.ts
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index, Unique } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
@@ -9,7 +9,9 @@ export interface MembershipPermissions {
   canViewAllCustomers?: boolean;
   canViewReports?: boolean;
   canCreatePractices?: boolean;
+  canEditPractices?: boolean;
   canDeletePractices?: boolean;
+  canEditCustomers?: boolean;
   canDeleteCustomers?: boolean;
   canExportData?: boolean;
   canImportData?: boolean;
@@ -25,7 +27,9 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canViewAllCustomers: true,
     canViewReports: true,
     canCreatePractices: true,
+    canEditPractices: true,
     canDeletePractices: true,
+    canEditCustomers: true,
     canDeleteCustomers: true,
     canExportData: true,
     canImportData: true,
@@ -36,7 +40,9 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canViewAllCustomers: true,
     canViewReports: true,
     canCreatePractices: true,
+    canEditPractices: true,
     canDeletePractices: true,
+    canEditCustomers: true,
     canDeleteCustomers: true,
     canExportData: true,
     canImportData: true,
@@ -47,7 +53,9 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canViewAllCustomers: true,
     canViewReports: true,
     canCreatePractices: true,
+    canEditPractices: true,
     canDeletePractices: false,
+    canEditCustomers: true,
     canDeleteCustomers: false,
     canExportData: false,
     canImportData: false,
@@ -77,7 +85,6 @@ export class UserShopMembership {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  // shopId riferisce a tenants.id (il Tenant legacy E' lo Shop nella nuova terminologia)
   @Column({ type: 'uuid', name: 'shop_id' })
   shopId: string;
 
@@ -107,8 +114,6 @@ export class UserShopMembership {
   @Column({ type: 'timestamp', name: 'left_at', nullable: true })
   leftAt: Date | null;
 
-  // Nota privata dell'admin quando rimuove l'operatore (motivo fine rapporto).
-  // Riappare al re-invito nello stesso shop.
   @Column({ type: 'text', name: 'end_of_relationship_note', nullable: true })
   endOfRelationshipNote: string | null;
 

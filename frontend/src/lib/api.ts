@@ -1,13 +1,21 @@
+// frontend/src/lib/api.ts
 // API Configuration - URL diretto del backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-// Legge il token dallo storage locale
+// Legge il token dallo storage, seguendo la stessa logica di adaptiveStorage
+// in authStore.ts: prima controlla authRememberMe, poi legge dallo storage giusto.
+// Fix bug: prima leggeva SEMPRE da localStorage → quando OPERATOR si logga in
+// sessionStorage (remember=false) e in localStorage restava token FOUNDER
+// stale, tutte le chiamate API autenticavano il FOUNDER → account swap.
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const storage = localStorage.getItem('auth-storage');
-  if (!storage) return null;
+  const remember = window.localStorage.getItem('authRememberMe') === 'true';
+  const primary = remember ? window.localStorage : window.sessionStorage;
+  const secondary = remember ? window.sessionStorage : window.localStorage;
+  const raw = primary.getItem('auth-storage') || secondary.getItem('auth-storage');
+  if (!raw) return null;
   try {
-    const parsed = JSON.parse(storage);
+    const parsed = JSON.parse(raw);
     return parsed.state?.token || null;
   } catch {
     return null;
@@ -44,14 +52,12 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
 }
 
 export const authApi = {
-  // Legacy login (email + password + subscriptionCode) - MANTENUTO per retrocompat
   login: (email: string, password: string, subscriptionCode?: string) =>
     apiClient('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, subscriptionCode }),
     }),
 
-  // ✨ NUOVO: Fast login (senza subscriptionCode per utenti normali)
   loginV2: (email: string, password: string, subscriptionCode?: string) =>
     apiClient('/auth/login-v2', {
       method: 'POST',
@@ -76,7 +82,6 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
-  // ✨ NUOVO: Registrazione negoziante con password
   registerShopOwner: (data: {
     email: string;
     password: string;
@@ -92,7 +97,6 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
-  // ✨ NUOVO: OTP
   requestOtp: (email: string) =>
     apiClient('/auth/otp/request', {
       method: 'POST',
@@ -104,7 +108,6 @@ export const authApi = {
       body: JSON.stringify({ email, code }),
     }),
 
-  // ✨ NUOVO: Completa registrazione social/OTP
   completeRegistration: (data: {
     pendingToken: string;
     role: 'shop_owner' | 'operator';
@@ -118,7 +121,6 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
-  // ✨ NUOVO: Shop switching
   myShops: () => apiClient('/auth/my-shops'),
   switchShop: (shopId: string) =>
     apiClient('/auth/switch-shop', {
@@ -126,7 +128,6 @@ export const authApi = {
       body: JSON.stringify({ shopId }),
     }),
 
-  // ✨ NUOVO: Aggiungi nuovo negozio (solo FOUNDER)
   addShop: (data: {
     name: string;
     mode: 'same-company' | 'new-company';
@@ -139,10 +140,8 @@ export const authApi = {
       body: JSON.stringify(data),
     }),
 
-  // ✨ NUOVO: Invite
   getInvite: (token: string) => apiClient(`/auth/invite/${token}`),
 
-  // URLs per redirect social login (usati con window.location.href)
   googleLoginUrl: () => `${API_BASE_URL}/auth/google`,
   facebookLoginUrl: () => `${API_BASE_URL}/auth/facebook`,
 };

@@ -1,3 +1,4 @@
+// frontend/src/hooks/usePermission.ts
 import { useAuthStore } from '@/stores/authStore';
 
 /**

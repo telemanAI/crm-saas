@@ -1,3 +1,4 @@
+// frontend/src/pages/operator/team.tsx
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,12 +13,14 @@ const PERMISSION_LABELS: Record<string, string> = {
   canViewAllCustomers: 'Vede clienti altrui',
   canViewReports: 'Visualizza report',
   canCreatePractices: 'Crea pratiche',
+  canEditPractices: 'Modifica pratiche',
   canDeletePractices: 'Elimina pratiche',
+  canEditCustomers: 'Modifica clienti',
   canDeleteCustomers: 'Elimina clienti',
   canExportData: 'Esporta dati',
   canImportData: 'Importa dati',
   canManageCashRegister: 'Gestisce cassa',
-  canChangeUserRoles: 'Cambia ruoli utenti',
+  canChangeUserRoles: 'Cambia ruoli utenti / crea operatori',
 };
 
 interface MemberCardProps {
@@ -351,7 +354,8 @@ function EditPermissionsDialog({ m, isSuperAdmin, onClose, onDone }: EditPermiss
       if (role !== m.role) await membershipsApi.updateRole(m.userId, role);
       await membershipsApi.updatePermissions(m.userId, perms);
       onDone();
-    } catch {
+    } catch (err: any) {
+      alert(`Errore salvataggio permessi: ${err?.message || 'sconosciuto'}`);
       setLoading(false);
     }
   };

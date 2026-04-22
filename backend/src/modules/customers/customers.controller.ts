@@ -1,3 +1,4 @@
+// backend/src/modules/customers/customers.controller.ts
 import { Controller, Get, Post, Put, Delete, Body, Param, Request, UseGuards, Query } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -49,6 +50,7 @@ export class CustomersController {
 
   @Put(':id')
   @Roles('ADMIN', 'OPERATOR', 'SUPER_ADMIN')
+  @RequirePermission('canEditCustomers')
   async update(@Param('id') id: string, @Body() data: any, @Request() req) {
     return this.customersService.update(req.user.tenantId, id, data, req.user.sub);
   }
@@ -59,7 +61,8 @@ export class CustomersController {
   async remove(@Param('id') id: string, @Request() req) {
     return this.customersService.remove(req.user.tenantId, id);
   }
-    @Post(':id/notes')
+
+  @Post(':id/notes')
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   async addNote(
     @Param('id') id: string,

@@ -1,3 +1,4 @@
+// frontend/src/stores/authStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
@@ -95,7 +96,11 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         if (typeof window !== 'undefined') {
+          // Pulizia completa: rimuove TUTTE le chiavi auth da entrambi gli storage,
+          // compresa authRememberMe, per evitare residui di altri account.
           window.localStorage.removeItem('authRememberMe');
+          window.localStorage.removeItem('auth-storage');
+          window.sessionStorage.removeItem('auth-storage');
         }
         set({
           user: null,

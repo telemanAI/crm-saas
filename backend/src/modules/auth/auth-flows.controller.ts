@@ -30,7 +30,6 @@ import {
 
 /**
  * Nuovo auth controller (flussi v2, additivo).
- * Non sostituisce auth.controller.ts esistente: aggiunge endpoint paralleli.
  */
 @Controller('auth')
 export class AuthFlowsController {
@@ -41,9 +40,6 @@ export class AuthFlowsController {
     private readonly invitesService: InvitesService,
   ) {}
 
-  // =====================================================
-  // Fast login (senza subscriptionCode per utenti normali)
-  // =====================================================
   @Public()
   @Post('login-v2')
   @HttpCode(HttpStatus.OK)
@@ -51,9 +47,6 @@ export class AuthFlowsController {
     return this.authService.fastLogin(dto);
   }
 
-  // =====================================================
-  // Registrazione negoziante con password
-  // =====================================================
   @Public()
   @Post('register-shop-owner')
   @HttpCode(HttpStatus.CREATED)
@@ -61,9 +54,6 @@ export class AuthFlowsController {
     return this.authService.registerShopOwner(dto);
   }
 
-  // =====================================================
-  // OTP
-  // =====================================================
   @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
@@ -83,9 +73,6 @@ export class AuthFlowsController {
     });
   }
 
-  // =====================================================
-  // Completa registrazione (dopo social login / OTP per NUOVO utente)
-  // =====================================================
   @Public()
   @Post('complete-registration')
   @HttpCode(HttpStatus.OK)
@@ -93,15 +80,26 @@ export class AuthFlowsController {
     return this.socialAuthService.completeRegistration(dto);
   }
 
-  // =====================================================
-  // Switch shop (per utenti multi-negozio)
-  // =====================================================
+  /**
+   * Switch shop attivo: ritorna token + user + shops aggiornati.
+   * Il frontend deve usare TUTTI i campi per mantenere lo store coerente
+   * (altrimenti activeShopId rimane disallineato dal JWT → account swap bug).
+   */
   @Post('switch-shop')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async switchShop(@Req() req: any, @Body() body: { shopId: string }) {
     if (!body?.shopId) throw new BadRequestException('shopId richiesto');
-    return this.socialAuthService.switchActiveShop(req.user.id, body.shopId);
+    const result = await this.socialAuthService.switchActiveShop(
+      req.user.id,
+      body.shopId,
+    );
+    return {
+      token: result.token,
+      access_token: result.token, // alias per compat frontend axios/fetch
+      user: result.user,
+      shops: result.shops,
+    };
   }
 
   @Get('my-shops')
@@ -110,10 +108,6 @@ export class AuthFlowsController {
     return this.authService.getUserShops(req.user.id);
   }
 
-  /**
-   * Aggiungi un nuovo negozio (solo FOUNDER autenticato).
-   * Il negozio viene creato sotto la Company esistente (se mode=same-company) o nuova.
-   */
   @Post('add-shop')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
@@ -144,50 +138,17 @@ export class AuthFlowsController {
   @Public()
   @Get('google')
   @UseGuards(GoogleAuthGuard)
-  async googleAuth(): Promise<void> {
-    // passport redirect, nothing to return
-  }
+  async googleAuth(): Promise<void> {}
 
   @Public()
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(@Req() req: Request, @Res() res: Response) {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl) {
-      throw new BadRequestException('FRONTEND_URL non configurato');
-    }
-    const profile: any = (req as any).user;
-    // Estrai eventuale invite token dallo state OAuth (format "invite:TOKEN")
-    const state = String((req.query as any)?.state || '');
-    const inviteToken = state.startsWith('invite:') ? state.slice(7) : null;
-
-    const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
-    if (result.status === 'logged_in') {
-      // Utente gia esistente: se c'e un invito, applicalo subito
-      if (inviteToken) {
-        try {
-          const userObj = result.user as any;
-          await this.invitesService.acceptInviteWithUserId(inviteToken, userObj.id);
-        } catch (e) {
-          console.error('[google/callback] accept invite failed:', e);
-        }
-      }
-      const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
-      const userEncoded = encodeURIComponent(JSON.stringify(result.user));
-      return res.redirect(
-        `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
-      );
-    }
-    // Utente nuovo: passa anche l'invite al complete-registration se presente
-    const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
-    return res.redirect(
-      `${frontendUrl}/auth/callback?token=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
-    );
+    return this.handleSocialCallback('google', req, res);
   }
 
   // =====================================================
-  // Facebook OAuth (attivo solo se credenziali presenti in env)
+  // Facebook OAuth
   // =====================================================
   @Public()
   @Get('facebook')
@@ -198,37 +159,73 @@ export class AuthFlowsController {
   @Get('facebook/callback')
   @UseGuards(FacebookAuthGuard)
   async facebookCallback(@Req() req: Request, @Res() res: Response) {
+    return this.handleSocialCallback('facebook', req, res);
+  }
+
+  /**
+   * Flusso callback OAuth comune a Google e Facebook.
+   *
+   * 1. Estrae invite token dallo "state" OAuth (format: "invite:TOKEN").
+   * 2. Se user già esiste: applica eventuale invito + redirect a /auth/callback con token+user+shops.
+   * 3. Se user nuovo: crea pending registration e redirect a /auth/complete-registration
+   *    passando pending token + dati profile + invite (se presente).
+   *
+   * Prima google e facebook usavano URL di redirect diversi per il caso pending
+   * (una differenza che rompeva il flusso invite via Google per utenti nuovi).
+   * Ora sono allineati.
+   */
+  private async handleSocialCallback(
+    providerLabel: 'google' | 'facebook',
+    req: Request,
+    res: Response,
+  ) {
     const frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl) throw new BadRequestException('FRONTEND_URL non configurato');
+    if (!frontendUrl) {
+      throw new BadRequestException('FRONTEND_URL non configurato');
+    }
     const profile: any = (req as any).user;
     const state = String((req.query as any)?.state || '');
     const inviteToken = state.startsWith('invite:') ? state.slice(7) : null;
 
     const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
+
     if (result.status === 'logged_in') {
+      // Applica invito se presente (user già loggato che clicca un link invite)
+      let finalToken = result.token;
+      let finalUser = result.user as any;
+      let finalShops = result.shops;
       if (inviteToken) {
         try {
-          const userObj = result.user as any;
-          await this.invitesService.acceptInviteWithUserId(inviteToken, userObj.id);
+          const session = await this.invitesService.acceptInviteAndBuildSession(
+            inviteToken,
+            finalUser.id,
+          );
+          // Dopo l'accept, il JWT è posizionato sul nuovo shop invitato.
+          finalToken = session.access_token;
+          finalUser = session.user;
+          finalShops = session.shops;
         } catch (e) {
-          console.error('[facebook/callback] accept invite failed:', e);
+          console.error(`[${providerLabel}/callback] accept invite failed:`, e);
         }
       }
-      const shopsEncoded = encodeURIComponent(JSON.stringify(result.shops));
-      const userEncoded = encodeURIComponent(JSON.stringify(result.user));
+      const shopsEncoded = encodeURIComponent(JSON.stringify(finalShops));
+      const userEncoded = encodeURIComponent(JSON.stringify(finalUser));
       return res.redirect(
-        `${frontendUrl}/auth/callback?token=${result.token}&user=${userEncoded}&shops=${shopsEncoded}`,
+        `${frontendUrl}/auth/callback?token=${finalToken}&user=${userEncoded}&shops=${shopsEncoded}`,
       );
     }
+
+    // Utente NUOVO: redirect a complete-registration con pending + eventuale invite
     const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
     return res.redirect(
-      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}&email=${encodeURIComponent(result.email)}&firstName=${encodeURIComponent(result.firstName || '')}&lastName=${encodeURIComponent(result.lastName || '')}${inviteParam}`,
+      `${frontendUrl}/auth/complete-registration?pending=${result.pendingToken}` +
+        `&email=${encodeURIComponent(result.email)}` +
+        `&firstName=${encodeURIComponent(result.firstName || '')}` +
+        `&lastName=${encodeURIComponent(result.lastName || '')}` +
+        inviteParam,
     );
   }
 
-  // =====================================================
-  // Invite public endpoints (non serve auth per leggerlo)
-  // =====================================================
   @Public()
   @Get('invite/:token')
   async getInvite(@Param('token') token: string) {

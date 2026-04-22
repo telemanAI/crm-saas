@@ -36,8 +36,13 @@ export default function SelectShop() {
   const choose = async (shopId: string) => {
     setLoading(shopId);
     try {
+      // Il backend ora ritorna token + user + shops aggiornati.
+      // Passiamo TUTTI i campi a setActiveShop così lo store rimane allineato
+      // a JWT.tenantId (nessun account swap).
       const res: any = await authApi.switchShop(shopId);
-      setActiveShop(shopId, res.token);
+      const freshToken = res.access_token || res.token;
+      const freshUser = res.user; // contiene role allineato alla membership
+      setActiveShop(shopId, freshToken, freshUser);
       const membership = shops.find((s) => s.shopId === shopId);
       if (membership?.role === 'OPERATOR') router.push('/operator/dashboard');
       else router.push('/operator/dashboard');

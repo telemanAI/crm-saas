@@ -13,27 +13,27 @@ import {
   Query,
   Request,
   UseGuards,
-  ParseUUIDPipe
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { PracticesService } from './practices.service';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { AuditLog } from '../audit/decorators/audit-log.decorator';
 
+// NB ordine guard: Jwt -> Permissions.
+// Non usiamo RolesGuard qui per non mascherare gli errori di permesso
+// granulare con un "ruolo non autorizzato" generico (UX confusa per il debug).
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('practices')
 export class PracticesController {
-  constructor(
-    private readonly practicesService: PracticesService,
-  ) {}
+  constructor(private readonly practicesService: PracticesService) {}
 
   @Post()
   @RequirePermission('canCreatePractices')
-  async create(
-    @Request() req,
-    @Body() dto: CreatePracticeDto,
-  ) {
+  @AuditLog({ action: 'CREATE', entityType: 'practice' })
+  async create(@Request() req, @Body() dto: CreatePracticeDto) {
     const user = req.user;
     return this.practicesService.create(user.tenantId, user.userId, dto);
   }
@@ -49,16 +49,14 @@ export class PracticesController {
   }
 
   @Get(':id')
-  async findOne(
-    @Request() req,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async findOne(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
     const user = req.user;
     return this.practicesService.getById(user.tenantId, id);
   }
 
   @Put(':id/step')
   @RequirePermission('canEditPractices')
+  @AuditLog({ action: 'UPDATE_STEP', entityType: 'practice' })
   async updateStep(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -70,6 +68,7 @@ export class PracticesController {
 
   @Put(':id/operational-status')
   @RequirePermission('canEditPractices')
+  @AuditLog({ action: 'UPDATE_OPERATIONAL_STATUS', entityType: 'practice' })
   async updateOperationalStatus(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -81,6 +80,7 @@ export class PracticesController {
 
   @Patch(':id/convergence')
   @RequirePermission('canEditPractices')
+  @AuditLog({ action: 'UPDATE_CONVERGENCE', entityType: 'practice' })
   async updateConvergence(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -90,30 +90,47 @@ export class PracticesController {
     return this.practicesService.updateConvergence(user.tenantId, id, numero);
   }
 
+  /**
+   * FORZA COMPLETAMENTO (azione distruttiva/di bypass):
+   * Richiede canEditPractices. Prima era protetto solo da @Roles generico
+   * quindi un OPERATOR con canEditPractices=false poteva completare forzatamente.
+   * Ora entrambi i check avvengono.
+   */
   @Post(':id/force-complete')
-  @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
+  @RequirePermission('canEditPractices')
+  @AuditLog({ action: 'FORCE_COMPLETE', entityType: 'practice' })
   async forceComplete(@Param('id') id: string, @Request() req) {
     return this.practicesService.forceComplete(req.user.tenantId, id);
   }
 
   @Delete(':id')
-  @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   @RequirePermission('canDeletePractices')
-  async remove(
-    @Request() req,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  @AuditLog({ action: 'DELETE', entityType: 'practice' })
+  async remove(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
     const user = req.user;
     return this.practicesService.delete(user.tenantId, id);
   }
 
+  /**
+   * DELETE NOTA:
+   * - Richiede canEditPractices (gate del permesso)
+   * - Il service controlla ulteriormente che sia l'autore della nota
+   *   (oppure si potrebbe estendere al FOUNDER/ADMIN: per ora regola stretta).
+   */
   @Delete(':id/notes/:noteIndex')
+  @RequirePermission('canEditPractices')
+  @AuditLog({ action: 'DELETE_NOTE', entityType: 'practice' })
   async deleteNote(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('noteIndex') noteIndex: string,
   ) {
     const user = req.user;
-    return this.practicesService.deleteNote(user.tenantId, id, parseInt(noteIndex), user.userId);
+    return this.practicesService.deleteNote(
+      user.tenantId,
+      id,
+      parseInt(noteIndex),
+      user.userId,
+    );
   }
 }

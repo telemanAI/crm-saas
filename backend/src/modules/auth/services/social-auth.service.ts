@@ -49,7 +49,6 @@ export class SocialAuthService {
     let user = await this.userRepo.findOne({ where: { email } });
 
     if (user) {
-      // Aggiorna provider se era 'local' e ha fatto primo social login (link account)
       let updated = false;
       if (profile.provider !== 'otp' && user.provider === 'local') {
         user.provider = profile.provider;
@@ -61,25 +60,29 @@ export class SocialAuthService {
         updated = true;
       }
       if (!user.emailVerified) {
-        // Social/OTP = email verificata per definizione
         user.emailVerified = true;
         updated = true;
       }
       user.lastLogin = new Date();
       if (updated || true) await this.userRepo.save(user);
 
-      const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+      const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+      const activeShopId = shopsData[0]?.shop.id || user.tenantId || null;
+      const activeRole = shopsData[0]?.membership.role || user.role;
+
+      // Il JWT deve SEMPRE contenere il tenantId dello shop attivo effettivo
+      // (non lo user.tenantId legacy, che può essere stantio).
       const token = this.signToken({
         sub: user.id,
         email: user.email,
-        role: user.role,
-        tenantId: shops[0]?.shop.id || user.tenantId || null,
+        role: activeRole,
+        tenantId: activeShopId,
       });
       return {
         status: 'logged_in',
         token,
-        user: this.sanitizeUser(user),
-        shops: shops.map(s => ({
+        user: { ...this.sanitizeUser(user), role: activeRole, tenantId: activeShopId },
+        shops: shopsData.map(s => ({
           shopId: s.shop.id,
           name: s.shop.name,
           subscriptionCode: s.shop.subscriptionCode,
@@ -127,22 +130,21 @@ export class SocialAuthService {
       throw new UnauthorizedException('Sessione di registrazione scaduta, ricomincia');
     }
 
-    // Verifica user non creato nel frattempo
     let user = await this.userRepo.findOne({ where: { email: pending.email } });
     if (user) {
-      // race condition → log him in con le membership
       await this.pendingRepo.delete({ id: pending.id });
-      const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+      const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+      const activeShopId = shopsData[0]?.shop.id || user.tenantId;
+      const activeRole = shopsData[0]?.membership.role || user.role;
       const token = this.signToken({
         sub: user.id,
         email: user.email,
-        role: user.role,
-        tenantId: shops[0]?.shop.id || user.tenantId,
+        role: activeRole,
+        tenantId: activeShopId,
       });
-      return { token, user: this.sanitizeUser(user), shops: this.serializeShops(shops) };
+      return { token, user: { ...this.sanitizeUser(user), role: activeRole, tenantId: activeShopId }, shops: this.serializeShops(shopsData) };
     }
 
-    // Crea user
     user = this.userRepo.create({
       email: pending.email,
       firstName: pending.firstName || '',
@@ -184,33 +186,54 @@ export class SocialAuthService {
     }
 
     await this.pendingRepo.delete({ id: pending.id });
-    const shops = await this.membershipsService.findActiveShopsForUser(user.id);
+    const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+    const activeShopId = shopsData[0]?.shop.id || user.tenantId;
+    const activeRole = shopsData[0]?.membership.role || user.role;
     const token = this.signToken({
       sub: user.id,
       email: user.email,
-      role: user.role,
-      tenantId: shops[0]?.shop.id || user.tenantId,
+      role: activeRole,
+      tenantId: activeShopId,
     });
-    return { token, user: this.sanitizeUser(user), shops: this.serializeShops(shops) };
+    return { token, user: { ...this.sanitizeUser(user), role: activeRole, tenantId: activeShopId }, shops: this.serializeShops(shopsData) };
   }
 
-  /** Cambia shop attivo: emette nuovo JWT con tenantId aggiornato. */
-  async switchActiveShop(userId: string, shopId: string): Promise<{ token: string }> {
+  /**
+   * Cambia shop attivo: ritorna JWT NUOVO + user aggiornato + shops aggiornata.
+   *
+   * Prima restituiva solo { token } e il frontend doveva "indovinare" il ruolo
+   * nello shop nuovo. Adesso diamo tutto così il client non ha mai uno stato
+   * incoerente fra activeShopId / user.role / permissions.
+   */
+  async switchActiveShop(
+    userId: string,
+    shopId: string,
+  ): Promise<{ token: string; user: any; shops: any[] }> {
     const membership = await this.membershipsService.findActiveForUserAndShop(userId, shopId);
     if (!membership) throw new UnauthorizedException('Non hai accesso a questo negozio');
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
+
     const token = this.signToken({
       sub: user.id,
       email: user.email,
       role: membership.role,
       tenantId: shopId,
     });
-    return { token };
+
+    const shopsData = await this.membershipsService.findActiveShopsForUser(userId);
+    return {
+      token,
+      user: {
+        ...this.sanitizeUser(user),
+        role: membership.role, // ruolo nello shop appena attivato
+        tenantId: shopId,
+      },
+      shops: this.serializeShops(shopsData),
+    };
   }
 
   private async createShopUnderCompany(params: { name: string; companyId: string; vatNumber?: string | null }): Promise<Tenant> {
-    // Genera subscriptionCode univoco (5 cifre)
     let code: string;
     let exists: Tenant | null;
     do {
@@ -218,7 +241,6 @@ export class SocialAuthService {
       exists = await this.shopRepo.findOne({ where: { subscriptionCode: code } });
     } while (exists);
 
-    // Genera slug univoco
     const baseSlug = params.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'shop';
     let slug = baseSlug;
     let suffix = 0;

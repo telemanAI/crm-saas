@@ -2,17 +2,27 @@
 // API Configuration - URL diretto del backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-// Legge il token dallo storage, seguendo la stessa logica di adaptiveStorage
-// in authStore.ts: prima controlla authRememberMe, poi legge dallo storage giusto.
-// Fix bug: prima leggeva SEMPRE da localStorage → quando OPERATOR si logga in
-// sessionStorage (remember=false) e in localStorage restava token FOUNDER
-// stale, tutte le chiamate API autenticavano il FOUNDER → account swap.
+/**
+ * Legge il token di autenticazione rispettando STRETTAMENTE lo storage scelto
+ * da adaptiveStorage in authStore.ts.
+ *
+ * Perché è importante leggere STRICT (no fallback verso l'altro storage):
+ *  - Se un FOUNDER si è loggato con remember=true in localStorage e poi fa
+ *    logout + login come OPERATOR con remember=false, la session attuale è in
+ *    sessionStorage. Se leggessimo da localStorage come fallback, in caso di
+ *    residui stale (bug precedente) avremmo un account swap che autentica le
+ *    chiamate API come l'utente sbagliato.
+ *  - clearAuth() rimuove da ENTRAMBI gli storage, ma se qualche tab legacy o
+ *    estensione popola localStorage, dobbiamo comunque ignorarlo.
+ *
+ * Il contratto è: la sessione viva si trova NEL SOLO storage selezionato da
+ * authRememberMe. Punto.
+ */
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   const remember = window.localStorage.getItem('authRememberMe') === 'true';
-  const primary = remember ? window.localStorage : window.sessionStorage;
-  const secondary = remember ? window.sessionStorage : window.localStorage;
-  const raw = primary.getItem('auth-storage') || secondary.getItem('auth-storage');
+  const store = remember ? window.localStorage : window.sessionStorage;
+  const raw = store.getItem('auth-storage');
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -142,6 +152,9 @@ export const authApi = {
 
   getInvite: (token: string) => apiClient(`/auth/invite/${token}`),
 
+  /** Endpoint diagnostico per SUPER_ADMIN e FOUNDER */
+  debug: () => apiClient('/auth/debug'),
+
   googleLoginUrl: () => `${API_BASE_URL}/auth/google`,
   facebookLoginUrl: () => `${API_BASE_URL}/auth/facebook`,
 };
@@ -200,6 +213,29 @@ export const usersAPI = {
   create: (data: any) => apiClient('/users', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any) => apiClient(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => apiClient(`/users/${id}`, { method: 'DELETE' }),
+};
+
+export const auditApi = {
+  list: (params?: {
+    tenantId?: string;
+    userId?: string;
+    entityType?: string;
+    entityId?: string;
+    action?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const qs = params
+      ? '?' +
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== null && v !== '')
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+          .join('&')
+      : '';
+    return apiClient(`/audit-logs${qs}`);
+  },
 };
 
 export default apiClient;

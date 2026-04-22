@@ -4,8 +4,13 @@ import { CircleNotch } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
- * Riceve il redirect dopo Google/Facebook callback con ?token & ?user & ?shops,
- * popola lo store e indirizza all'area corretta.
+ * Callback dopo OAuth/social login.
+ * Il backend ora UNIFICA Google e Facebook:
+ *  - Utente già esistente   → redirect qui con ?token&user&shops (+applica invito se presente).
+ *  - Utente nuovo             → redirect a /auth/complete-registration (non qui) con ?pending&email...
+ *
+ * Quindi questa pagina gestisce SOLO il caso logged_in. Se per qualche ragione
+ * legacy arriva un pending, facciamo fallback a complete-registration.
  */
 export default function AuthCallback() {
   const router = useRouter();
@@ -13,11 +18,27 @@ export default function AuthCallback() {
 
   useEffect(() => {
     if (!router.isReady) return;
-    const { token, user, shops, error } = router.query;
+    const { token, user, shops, error, pending, email, firstName, lastName, invite } =
+      router.query;
+
     if (error) {
       router.replace(`/login?error=${encodeURIComponent(String(error))}`);
       return;
     }
+
+    // Caso legacy: pending finisce qui invece che su complete-registration.
+    if (pending && !user) {
+      const qs = new URLSearchParams({
+        pending: String(pending),
+        email: String(email || ''),
+        firstName: String(firstName || ''),
+        lastName: String(lastName || ''),
+        ...(invite ? { invite: String(invite) } : {}),
+      }).toString();
+      router.replace(`/auth/complete-registration?${qs}`);
+      return;
+    }
+
     if (!token || !user) {
       router.replace('/login');
       return;

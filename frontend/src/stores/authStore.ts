@@ -3,8 +3,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 /**
- * Storage adattivo: se "authRememberMe" vale "true" usa localStorage (sessione persistente),
- * altrimenti sessionStorage (si cancella alla chiusura del browser/tab).
+ * Storage adattivo: se "authRememberMe" vale "true" usa localStorage
+ * (sessione persistente), altrimenti sessionStorage (si cancella alla
+ * chiusura del browser/tab). setItem scrive sul primario e pulisce il
+ * secondario per evitare residui che causavano account swap.
  */
 const adaptiveStorage = {
   getItem: (name: string) => {
@@ -59,7 +61,19 @@ interface AuthState {
   originalUser: User | null;
   originalToken: string | null;
   setAuth: (user: User, token: string, shops?: ShopMembership[]) => void;
-  setActiveShop: (shopId: string, newToken?: string) => void;
+  /**
+   * Cambia lo shop attivo.
+   *
+   * CONTRATTO FONDAMENTALE: il newToken è OBBLIGATORIO per mantenere
+   * JWT.tenantId === activeShopId. Se chiami questo metodo senza un
+   * token fresco rilasciato dal backend (endpoint /auth/switch-shop),
+   * il PermissionsGuard controllerà i permessi di un negozio diverso
+   * da quello che l'UI mostra → account swap.
+   *
+   * Il parametro è formalmente opzionale per retrocompat, ma se mancante
+   * logghiamo un warning e rifiutiamo il cambio.
+   */
+  setActiveShop: (shopId: string, newToken?: string, newUser?: User) => void;
   clearAuth: () => void;
   updateUser: (user: Partial<User>) => void;
   setImpersonate: (user: User, token: string) => void;
@@ -68,7 +82,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       token: null,
       shops: [],
@@ -78,26 +92,69 @@ export const useAuthStore = create<AuthState>()(
       originalUser: null,
       originalToken: null,
 
-      setAuth: (user, token, shops = []) =>
+      setAuth: (user, token, shops = []) => {
+        // Se il backend ha passato una lista shops, usiamo il primo (o
+        // l'attuale user.tenantId se incluso nei shops) come activeShopId.
+        // Questo allinea JWT.tenantId con il concetto di negozio attivo.
+        const activeShopId =
+          shops.find((s) => s.shopId === user.tenantId)?.shopId ||
+          user.tenantId ||
+          shops[0]?.shopId ||
+          null;
+
+        // Sincronizza user.role con il ruolo che ha nello shop attivo
+        // (per utenti multi-shop con ruoli diversi). SUPER_ADMIN resta invariato.
+        let effectiveUser = user;
+        if (user.role !== 'SUPER_ADMIN') {
+          const activeShop = shops.find((s) => s.shopId === activeShopId);
+          if (activeShop) {
+            effectiveUser = { ...user, role: activeShop.role, tenantId: activeShopId || undefined };
+          }
+        }
+
         set({
-          user,
+          user: effectiveUser,
           token,
           shops,
-          activeShopId: user.tenantId || shops[0]?.shopId || null,
+          activeShopId,
           isAuthenticated: true,
-        }),
+        });
+      },
 
-      setActiveShop: (shopId, newToken) =>
-        set((state) => ({
+      setActiveShop: (shopId, newToken, newUser) => {
+        const state = get();
+        if (!newToken) {
+          // Bloccante: cambiare shopId senza emettere un nuovo JWT porta
+          // inevitabilmente ad account swap. Meglio fallire esplicitamente.
+          console.warn(
+            '[authStore] setActiveShop chiamato senza newToken: rifiuto per sicurezza ' +
+              '(richiedi prima il nuovo JWT a /auth/switch-shop).',
+          );
+          return;
+        }
+
+        // Ricaviamo il ruolo dal membership dello shop selezionato così che
+        // user.role sia sempre coerente con la membership attiva.
+        const selected = state.shops.find((s) => s.shopId === shopId);
+        const nextRole = newUser?.role || selected?.role || state.user?.role;
+
+        set({
           activeShopId: shopId,
-          token: newToken || state.token,
-          user: state.user ? { ...state.user, tenantId: shopId } : null,
-        })),
+          token: newToken,
+          user: state.user
+            ? {
+                ...state.user,
+                ...(newUser || {}),
+                tenantId: shopId,
+                role: (nextRole as User['role']) || state.user.role,
+              }
+            : null,
+        });
+      },
 
       clearAuth: () => {
         if (typeof window !== 'undefined') {
-          // Pulizia completa: rimuove TUTTE le chiavi auth da entrambi gli storage,
-          // compresa authRememberMe, per evitare residui di altri account.
+          // Pulizia completa: entrambi gli storage + flag remember.
           window.localStorage.removeItem('authRememberMe');
           window.localStorage.removeItem('auth-storage');
           window.sessionStorage.removeItem('auth-storage');
@@ -152,6 +209,6 @@ export const useAuthStore = create<AuthState>()(
         originalUser: state.originalUser,
         originalToken: state.originalToken,
       }),
-    }
-  )
+    },
+  ),
 );

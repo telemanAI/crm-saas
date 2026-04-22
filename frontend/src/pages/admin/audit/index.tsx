@@ -1,115 +1,98 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import { Layout } from '../../../components/layout/Layout';
 import { Card } from '../../../components/ui/Card';
-import axios from '../../../lib/axios';
+import { auditApi } from '@/lib/api';
 import {
   Warning,
   Info,
-  CheckCircle,
-  XCircle,
   MagnifyingGlass,
   Calendar,
   FunnelSimple,
   ArrowClockwise,
+  User,
+  Buildings,
 } from 'phosphor-react';
+
+interface AuditItem {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  tenantId: string | null;
+  userId: string | null;
+  user: { id: string; email: string; firstName?: string; lastName?: string } | null;
+  tenant: { id: string; name: string; subscriptionCode?: string } | null;
+  oldValues: any;
+  newValues: any;
+  metadata: any;
+  createdAt: string;
+}
 
 export default function AuditLogsPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
-  
-  const [logs, setLogs] = useState([]);
+
+  const [items, setItems] = useState<AuditItem[]>([]);
+  const [total, setTotal] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
-    level: 'all',
+    entityType: '',
+    action: '',
     dateFrom: '',
     dateTo: '',
     tenantId: '',
   });
-  const [tenants, setTenants] = useState<any[]>([]); // ✅ FIX: Aggiunto tipo any[]
 
   useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'SUPER_ADMIN') {
+    if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-    loadInitialData();
+    // Solo SUPER_ADMIN e FOUNDER hanno accesso (enforcement anche server side).
+    if (user?.role !== 'SUPER_ADMIN' && user?.role !== 'FOUNDER') {
+      router.push('/operator/dashboard');
+      return;
+    }
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
 
-  const loadInitialData = async () => {
+  const load = async () => {
     setLoading(true);
     try {
-      const [logsRes, tenantsRes] = await Promise.all([
-        axios.get('/api/super-admin/audit').catch(() => ({ data: [] })),
-        axios.get('/api/tenants').catch(() => ({ data: [] })),
-      ]);
-      setLogs(logsRes.data || []);
-      setTenants(tenantsRes.data || []);
-    } catch (error) {
-      console.error('Errore caricamento logs:', error);
+      const res: any = await auditApi.list({
+        entityType: filters.entityType || undefined,
+        action: filters.action || undefined,
+        tenantId: filters.tenantId || undefined,
+        from: filters.dateFrom ? new Date(filters.dateFrom).toISOString() : undefined,
+        to: filters.dateTo ? new Date(filters.dateTo).toISOString() : undefined,
+        limit: 200,
+      });
+      setItems(res.items || []);
+      setTotal(res.total || 0);
+    } catch (err) {
+      console.error('[audit] load failed:', err);
+      setItems([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
   };
 
-  const refreshLogs = () => {
-    loadInitialData();
-  };
-
-  const getLevelIcon = (level: string) => {
-    switch (level?.toLowerCase()) {
-      case 'error':
-        return <XCircle className="w-5 h-5 text-red-600" weight="fill" />;
-      case 'warning':
-        return <Warning className="w-5 h-5 text-yellow-600" weight="fill" />;
-      case 'success':
-        return <CheckCircle className="w-5 h-5 text-green-600" weight="fill" />;
-      default:
-        return <Info className="w-5 h-5 text-blue-600" weight="fill" />;
-    }
-  };
-
-  const getLevelBadge = (level: string) => {
-    switch (level?.toLowerCase()) {
-      case 'error':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'warning':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'success':
-        return 'bg-green-100 text-green-800 border-green-300';
-      default:
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-    }
-  };
-
-  // Filtro logs
-  const filteredLogs = logs.filter((log: any) => {
-    const matchesSearch = 
-      !filters.search ||
-      log.message?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      log.action?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      log.user?.email?.toLowerCase().includes(filters.search.toLowerCase());
-    
-    const matchesLevel = 
-      filters.level === 'all' || 
-      log.level?.toLowerCase() === filters.level;
-
-    const matchesTenant = 
-      !filters.tenantId || 
-      log.tenantId === filters.tenantId;
-
-    const matchesDateFrom = 
-      !filters.dateFrom || 
-      new Date(log.timestamp) >= new Date(filters.dateFrom);
-
-    const matchesDateTo = 
-      !filters.dateTo || 
-      new Date(log.timestamp) <= new Date(filters.dateTo);
-
-    return matchesSearch && matchesLevel && matchesTenant && matchesDateFrom && matchesDateTo;
-  });
+  const filteredItems = useMemo(() => {
+    const q = filters.search.toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (l) =>
+        l.action.toLowerCase().includes(q) ||
+        l.entityType.toLowerCase().includes(q) ||
+        l.entityId?.toLowerCase().includes(q) ||
+        l.user?.email?.toLowerCase().includes(q),
+    );
+  }, [items, filters.search]);
 
   if (loading) {
     return (
@@ -124,20 +107,25 @@ export default function AuditLogsPage() {
     );
   }
 
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
               <Warning className="w-8 h-8 text-purple-600" weight="fill" />
-              Logs & Audit
+              Audit logs
             </h1>
-            <p className="text-gray-600 mt-1">Monitoraggio attività di sistema e utenti</p>
+            <p className="text-gray-600 mt-1">
+              Tracciamento attività utenti su pratiche, clienti e team.
+              {isSuperAdmin ? ' (Vista globale, tutti i negozi)' : ' (Solo il tuo negozio attivo)'}
+            </p>
           </div>
           <button
-            onClick={refreshLogs}
+            onClick={load}
+            data-testid="audit-refresh-btn"
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
           >
             <ArrowClockwise className="w-5 h-5" weight="bold" />
@@ -145,54 +133,38 @@ export default function AuditLogsPage() {
           </button>
         </div>
 
-        {/* Filtri */}
         <Card className="p-6 mb-6">
           <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
             <FunnelSimple className="w-5 h-5 text-indigo-600" weight="fill" />
             Filtri
           </h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Ricerca */}
             <div className="relative">
               <MagnifyingGlass className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Cerca..."
+                placeholder="Cerca (azione, utente, id)..."
                 value={filters.search}
                 onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                data-testid="audit-search"
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
               />
             </div>
 
-            {/* Livello */}
             <select
-              value={filters.level}
-              onChange={(e) => setFilters({ ...filters, level: e.target.value })}
+              value={filters.entityType}
+              onChange={(e) => setFilters({ ...filters, entityType: e.target.value })}
+              data-testid="audit-entity-type"
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="all">Tutti i livelli</option>
-              <option value="info">Info</option>
-              <option value="warning">Warning</option>
-              <option value="error">Error</option>
-              <option value="success">Success</option>
+              <option value="">Tutti i tipi</option>
+              <option value="practice">Pratiche</option>
+              <option value="customer">Clienti</option>
+              <option value="membership">Team</option>
+              <option value="invite">Inviti</option>
             </select>
 
-            {/* Tenant */}
-            <select
-              value={filters.tenantId}
-              onChange={(e) => setFilters({ ...filters, tenantId: e.target.value })}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">Tutti i negozi</option>
-              {tenants.map((tenant: any) => (
-                <option key={tenant.id} value={tenant.id}>
-                  {tenant.name}
-                </option>
-              ))}
-            </select>
-
-            {/* Data */}
             <div className="relative">
               <Calendar className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
               <input
@@ -203,77 +175,84 @@ export default function AuditLogsPage() {
                 placeholder="Da data"
               />
             </div>
+
+            <div className="relative">
+              <Calendar className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+              <input
+                type="date"
+                value={filters.dateTo}
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="A data"
+              />
+            </div>
           </div>
 
-          {/* Stats */}
-          <div className="mt-4 flex gap-4 text-sm">
+          <div className="mt-4 flex gap-4 text-sm justify-between items-center">
             <div className="text-gray-600">
-              <strong className="text-gray-900">{filteredLogs.length}</strong> log trovati
+              <strong className="text-gray-900">{filteredItems.length}</strong> di <strong>{total}</strong> eventi caricati
             </div>
-            <div className="text-red-600">
-              <strong>{filteredLogs.filter((l: any) => l.level === 'error').length}</strong> errori
-            </div>
-            <div className="text-yellow-600">
-              <strong>{filteredLogs.filter((l: any) => l.level === 'warning').length}</strong> warning
-            </div>
-            <div className="text-green-600">
-              <strong>{filteredLogs.filter((l: any) => l.level === 'success').length}</strong> successi
-            </div>
+            <button
+              onClick={load}
+              className="text-xs text-indigo-600 hover:text-indigo-700 underline"
+            >
+              Applica filtri server-side
+            </button>
           </div>
         </Card>
 
-        {/* Lista Logs */}
         <div className="space-y-3">
-          {filteredLogs.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <Card className="p-12 text-center">
               <Info className="w-12 h-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-600">
-                {logs.length === 0 
-                  ? 'Nessun log disponibile al momento' 
-                  : 'Nessun log trovato con i filtri selezionati'}
+                {total === 0 ? 'Nessun evento di audit presente.' : 'Nessun evento corrisponde ai filtri.'}
               </p>
             </Card>
           ) : (
-            filteredLogs.map((log: any, index: number) => (
-              <Card key={index} className={`p-4 border-l-4 ${
-                log.level === 'error' ? 'border-l-red-500' :
-                log.level === 'warning' ? 'border-l-yellow-500' :
-                log.level === 'success' ? 'border-l-green-500' :
-                'border-l-blue-500'
-              }`}>
+            filteredItems.map((log) => (
+              <Card key={log.id} className="p-4 border-l-4 border-l-indigo-500">
                 <div className="flex items-start gap-4">
                   <div className="flex-shrink-0 mt-1">
-                    {getLevelIcon(log.level)}
+                    <Info className="w-5 h-5 text-indigo-600" weight="fill" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border ${getLevelBadge(log.level)}`}>
-                        {log.level?.toUpperCase() || 'INFO'}
+                    <div className="flex flex-wrap items-center gap-3 mb-2">
+                      <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-indigo-100 text-indigo-800 border-indigo-300">
+                        {log.action}
+                      </span>
+                      <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                        {log.entityType}
                       </span>
                       <span className="text-sm text-gray-600">
-                        {log.timestamp ? new Date(log.timestamp).toLocaleString('it-IT') : '-'}
+                        {new Date(log.createdAt).toLocaleString('it-IT')}
                       </span>
-                      {log.tenantId && (
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                          {tenants.find((t: any) => t.id === log.tenantId)?.name || log.tenantId} // ✅ FIX: Ripristinata logica corretta
+                      {log.tenant && (
+                        <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                          <Buildings className="w-3 h-3" /> {log.tenant.name}
                         </span>
                       )}
                     </div>
                     <p className="text-sm font-medium text-gray-900 mb-1">
-                      {log.message || log.action || 'Nessun messaggio'}
+                      {log.action} · {log.entityType}
+                      {log.entityId ? <span className="text-gray-500 font-mono text-xs ml-2">#{log.entityId.slice(0, 8)}</span> : null}
                     </p>
                     {log.user && (
-                      <p className="text-xs text-gray-600">
-                        Utente: <span className="font-medium">{log.user.email || log.user.id}</span>
+                      <p className="text-xs text-gray-600 flex items-center gap-1">
+                        <User className="w-3 h-3" />
+                        <span className="font-medium">
+                          {log.user.firstName} {log.user.lastName}
+                        </span>
+                        <span className="text-gray-400">({log.user.email})</span>
                       </p>
                     )}
-                    {log.metadata && Object.keys(log.metadata).length > 0 && (
+                    {(log.newValues || log.oldValues || log.metadata) && (
                       <details className="mt-2">
                         <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
                           Dettagli tecnici
                         </summary>
                         <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
-                          {JSON.stringify(log.metadata, null, 2)}
+                          {JSON.stringify({ old: log.oldValues, new: log.newValues, meta: log.metadata }, null, 2)}
                         </pre>
                       </details>
                     )}
@@ -284,14 +263,13 @@ export default function AuditLogsPage() {
           )}
         </div>
 
-        {/* Info Box */}
         <div className="mt-6 bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
-          <h3 className="font-bold text-purple-900 mb-2">ℹ️ Informazioni sui Logs</h3>
+          <h3 className="font-bold text-purple-900 mb-2">Come funziona l&apos;audit trail</h3>
           <ul className="text-sm text-purple-800 space-y-1">
-            <li>• <strong>ERROR:</strong> Errori critici che richiedono intervento immediato</li>
-            <li>• <strong>WARNING:</strong> Situazioni anomale che potrebbero richiedere attenzione</li>
-            <li>• <strong>SUCCESS:</strong> Operazioni completate con successo</li>
-            <li>• <strong>INFO:</strong> Eventi informativi di sistema</li>
+            <li>• Ogni azione critica su pratiche, clienti e team viene registrata automaticamente</li>
+            <li>• Dati sensibili (password, token) vengono redatti</li>
+            <li>• I FOUNDER vedono solo il negozio attivo, i SUPER_ADMIN vedono tutto</li>
+            <li>• I log sono immutabili: non possono essere modificati o cancellati dal pannello</li>
           </ul>
         </div>
       </div>

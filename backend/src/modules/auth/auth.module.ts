@@ -44,6 +44,10 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
       signOptions: { expiresIn: '24h' },
     }),
     UsersModule,
+    // MembershipsModule esporta MembershipsService, necessario per:
+    //  - PermissionsGuard (guard globale auth)
+    //  - AuthController.debug (nuovo endpoint diagnostico)
+    //  - SocialAuthService.switchActiveShop
     MembershipsModule,
     CompaniesModule,
     InvitesModule,

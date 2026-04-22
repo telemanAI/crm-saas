@@ -1,21 +1,20 @@
 // frontend/src/lib/axios.ts
 import axios from 'axios';
-// API URL configurabile via environment variable
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-// Crea istanza axios pre-configurata
-const api = axios.create({
-  baseURL: API_BASE_URL,
-});
+const api = axios.create({ baseURL: API_BASE_URL });
 
-// Helper per ottenere il token - segue la stessa logica di adaptiveStorage
-// in authStore.ts (bug fix: prima leggeva solo localStorage causando swap di account).
+/**
+ * Lettura token STRETTAMENTE conforme a adaptiveStorage in authStore.ts.
+ * Niente fallback tra localStorage e sessionStorage: legge SOLO lo storage
+ * selezionato da authRememberMe. Questo previene il bug di account swap dove
+ * un token stale residuo nell'altro storage rubava la sessione.
+ */
 const getToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   const remember = window.localStorage.getItem('authRememberMe') === 'true';
-  const primary = remember ? window.localStorage : window.sessionStorage;
-  const secondary = remember ? window.sessionStorage : window.localStorage;
-  const raw = primary.getItem('auth-storage') || secondary.getItem('auth-storage');
+  const store = remember ? window.localStorage : window.sessionStorage;
+  const raw = store.getItem('auth-storage');
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -25,7 +24,6 @@ const getToken = (): string | null => {
   }
 };
 
-// Interceptor per aggiungere automaticamente il token
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {

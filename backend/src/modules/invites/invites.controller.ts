@@ -31,6 +31,12 @@ export class InvitesController {
   async create(@Req() req: any, @Body() dto: CreateInviteDto) {
     const shopId = req.user.tenantId;
     if (!shopId) throw new BadRequestException('Nessuno shop attivo nel token');
+
+    // ← VALIDAZIONE: l'utente deve essere identificato nel token
+    if (!req.user.id) {
+      throw new BadRequestException('Utente non identificato nel token JWT');
+    }
+
     const invite = await this.invitesService.createInvite(shopId, req.user.id, dto);
     return {
       id: invite.id,
@@ -82,14 +88,19 @@ export class InvitesController {
   }
 
   /**
-   * Accettazione invito per utente GIÃ€ LOGGATO (per social/OTP).
+   * Accettazione invito per utente GIÀ LOGGATO (per social/OTP).
    * Ritorna anche un access_token fresco con tenantId = negozio invitato
-   * cosÃ¬ il frontend puÃ² saltare il passaggio da /select-shop.
+   * così il frontend può saltare il passaggio da /select-shop.
    */
   @Post('accept/:token')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @HttpCode(HttpStatus.OK)
   async acceptAuthenticated(@Param('token') token: string, @Req() req: any) {
+    // ← VALIDAZIONE: l'utente deve essere identificato nel token
+    if (!req.user?.id) {
+      throw new BadRequestException('Utente non identificato nel token JWT');
+    }
+
     const result = await this.invitesService.acceptInviteAndBuildSession(
       token,
       req.user.id,

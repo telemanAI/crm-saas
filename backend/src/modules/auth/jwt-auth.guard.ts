@@ -17,6 +17,12 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const payload = this.jwtService.verify(token);
+
+      // ← VALIDAZIONE: il token deve contenere l'ID utente
+      if (!payload.sub) {
+        throw new UnauthorizedException('Token non contiene ID utente');
+      }
+
       request.user = {
         id: payload.sub,
         userId: payload.sub,

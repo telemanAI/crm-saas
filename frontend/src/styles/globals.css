@@ -347,3 +347,45 @@ html:not(.dark) [class*="bg-slate-900\\/50"] li {
   overflow: visible !important;
   white-space: normal !important;
 }
+/* =====================================================
+   Custom scrollbar per la sidebar operatore.
+   Sostituisce lo scrollbar bianco spesso del browser
+   con una barra sottile che si fonde con il tema dark.
+   (Fix bug "scroll sidebar anti-estetico e mal posizionato")
+   ===================================================== */
+.sidebar-scroll {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(100, 116, 139, 0.3) transparent; /* slate-500 @ 30% + trasparente */
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(100, 116, 139, 0.25); /* slate-500 @ 25% */
+  border-radius: 10px;
+  transition: background-color 0.2s;
+}
+
+.sidebar-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.5); /* slate-400 @ 50% al hover */
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.8);
+}
+
+/* Light mode: colori scrollbar leggermente più chiari */
+@media (prefers-color-scheme: light) {
+  .sidebar-scroll {
+    scrollbar-color: rgba(156, 163, 175, 0.4) transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background-color: rgba(156, 163, 175, 0.3);
+  }
+}

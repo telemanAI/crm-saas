@@ -1,4 +1,3 @@
-// backend/src/modules/practices/practices.controller.ts
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import {
@@ -21,10 +20,8 @@ import { UpdateStepDto } from './dto/update-step.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { AuditLog } from '../audit/decorators/audit-log.decorator';
+import { PracticeCategory } from './entities/practice.entity';
 
-// NB ordine guard: Jwt -> Permissions.
-// Non usiamo RolesGuard qui per non mascherare gli errori di permesso
-// granulare con un "ruolo non autorizzato" generico (UX confusa per il debug).
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('practices')
 export class PracticesController {
@@ -38,14 +35,27 @@ export class PracticesController {
     return this.practicesService.create(user.tenantId, user.userId, dto);
   }
 
+  /**
+   * Lista pratiche. Filtri supportati:
+   *   ?category=FIXED_LINE|MOBILE|ENERGY
+   *   ?type=TIM_FIBRA|VODAFONE|...
+   *   ?status=draft|in_progress|completed|cancelled
+   *
+   * Nessun filtro ritorna TUTTE le pratiche (retrocompat UI legacy).
+   */
   @Get()
   async findAll(
     @Request() req,
+    @Query('category') category?: string,
     @Query('type') type?: string,
     @Query('status') status?: string,
   ) {
     const user = req.user;
-    return this.practicesService.findAll(user.tenantId, { type, status });
+    return this.practicesService.findAll(user.tenantId, {
+      type,
+      status,
+      category: category as PracticeCategory,
+    });
   }
 
   @Get(':id')
@@ -90,12 +100,6 @@ export class PracticesController {
     return this.practicesService.updateConvergence(user.tenantId, id, numero);
   }
 
-  /**
-   * FORZA COMPLETAMENTO (azione distruttiva/di bypass):
-   * Richiede canEditPractices. Prima era protetto solo da @Roles generico
-   * quindi un OPERATOR con canEditPractices=false poteva completare forzatamente.
-   * Ora entrambi i check avvengono.
-   */
   @Post(':id/force-complete')
   @RequirePermission('canEditPractices')
   @AuditLog({ action: 'FORCE_COMPLETE', entityType: 'practice' })
@@ -111,12 +115,6 @@ export class PracticesController {
     return this.practicesService.delete(user.tenantId, id);
   }
 
-  /**
-   * DELETE NOTA:
-   * - Richiede canEditPractices (gate del permesso)
-   * - Il service controlla ulteriormente che sia l'autore della nota
-   *   (oppure si potrebbe estendere al FOUNDER/ADMIN: per ora regola stretta).
-   */
   @Delete(':id/notes/:noteIndex')
   @RequirePermission('canEditPractices')
   @AuditLog({ action: 'DELETE_NOTE', entityType: 'practice' })

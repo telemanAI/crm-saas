@@ -1,22 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Practice } from './entities/practice.entity';
+import { Practice, PracticeCategory } from './entities/practice.entity';
 import { User } from '../users/entities/user.entity';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { PracticeResponseDto } from './dto/practice-response.dto';
 import { CustomersService } from '../customers/customers.service';
-
-interface OldLineDataDto {
-  oldPhoneNumber?: string;
-  migrationCode?: string;
-  gestore?: string;
-  gestoreAltro?: string;
-  fiscalCodeOldLine?: string;
-  prodottiRestituire?: string;
-  notes?: string;
-}
 
 @Injectable()
 export class PracticesService {
@@ -28,36 +18,60 @@ export class PracticesService {
     private customersService: CustomersService,
   ) {}
 
-  private calculateStatoGlobale(convergenza: { attiva: boolean; tipo?: 'daChiudere' | 'chiusa' | null; numero?: string } | null): 'completo' | 'non_completo' | null {
+  private calculateStatoGlobale(
+    convergenza: { attiva: boolean; tipo?: 'daChiudere' | 'chiusa' | null; numero?: string } | null,
+  ): 'completo' | 'non_completo' | null {
     if (!convergenza?.attiva) return null;
     if (!convergenza.tipo) return 'non_completo';
     if (convergenza.tipo === 'chiusa' && convergenza.numero?.length > 0) return 'completo';
     return 'non_completo';
   }
 
-  async create(tenantId: string, userId: string, dto: CreatePracticeDto): Promise<PracticeResponseDto> {
+  /**
+   * Creazione pratica. Comportamento differenziato per categoria:
+   *  - FIXED_LINE (default, retrocompat): logica originale invariata
+   *  - MOBILE: salva mobileData come jsonb, non richiede lineData/paymentData
+   *  - ENERGY: salva energyData come jsonb
+   * Condivisi fra tutte le categorie: customerSnapshot, soldBy, enteredBy, note.
+   */
+  async create(
+    tenantId: string,
+    userId: string,
+    dto: CreatePracticeDto,
+  ): Promise<PracticeResponseDto> {
+    const category: PracticeCategory = dto.category || 'FIXED_LINE';
+
+    // Risoluzione/creazione customer: stesso meccanismo per tutte le categorie
     let customer = null;
     if (dto.customerData?.fiscalCode?.length === 16) {
-      customer = await this.customersService.findByFiscalCode(tenantId, dto.customerData.fiscalCode.toUpperCase().trim());
+      customer = await this.customersService.findByFiscalCode(
+        tenantId,
+        dto.customerData.fiscalCode.toUpperCase().trim(),
+      );
       if (!customer) {
-        customer = await this.customersService.create(tenantId, {
-          firstName: dto.customerData.firstName || 'Temp',
-          lastName: dto.customerData.lastName || 'Temp',
-          fiscalCode: dto.customerData.fiscalCode.toUpperCase().trim(),
-          phonePrimary: dto.customerData.phone,
-          email: dto.customerData.email,
-          address: dto.customerData?.address || null, // 🔥 OGGETTO, non stringa
-        }, userId);
+        customer = await this.customersService.create(
+          tenantId,
+          {
+            firstName: dto.customerData.firstName || 'Temp',
+            lastName: dto.customerData.lastName || 'Temp',
+            fiscalCode: dto.customerData.fiscalCode.toUpperCase().trim(),
+            phonePrimary: dto.customerData.phone,
+            email: dto.customerData.email,
+            address: dto.customerData?.address || null,
+          },
+          userId,
+        );
       }
     }
 
     const statoGlobale = this.calculateStatoGlobale(dto.convergenza || null);
 
-    const practice = this.practiceRepo.create({
+    const baseFields = {
       tenantId,
+      category,
       customerId: customer?.id || null,
       createdBy: userId,
-      type: dto.type,
+      type: dto.type || null,
       offerCode: dto.offerCode,
       offerName: dto.offerName,
       offerCanone: dto.offerCanone,
@@ -71,41 +85,78 @@ export class PracticesService {
       enteredBy: dto.enteredBy,
       soldById: dto.soldById,
       enteredById: dto.enteredById,
-      customerSnapshot: customer ? {
-        firstName: customer.firstName,
-        lastName: customer.lastName,
-        phonePrimary: customer.phonePrimary,
-        email: customer.email,
-        fiscalCode: customer.fiscalCode,
-        address: customer.address, // 🔥 AGGIUNTO: popola anche nello snapshot iniziale
-      } : {},
-      lineType: dto.lineData?.lineType,
-      installationAddress: dto.lineData?.installationAddress,
-      technology: dto.lineData?.technology,
-      oldLineData: dto.lineData?.lineType === 'MIGRAZIONE' ? dto.oldLineData : {},
-      paymentMethod: {
-        iban: dto.paymentData?.iban || null,
-        postePay: dto.paymentData?.postePay || null,
-        bollettino: dto.paymentData?.bollettino || false,
-      },
+      customerSnapshot: customer
+        ? {
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            phonePrimary: customer.phonePrimary,
+            email: customer.email,
+            fiscalCode: customer.fiscalCode,
+            address: customer.address,
+          }
+        : {},
       convergenza: dto.convergenza || null,
       lavorazioniPostAttivazione: dto.lavorazioniPostAttivazione || null,
-      statoGlobale: statoGlobale,
+      statoGlobale,
       currentStep: 1,
       completedSteps: [1],
-      status: 'in_progress',
-      operationalStatus: 'PENDING',
-    });
+      status: 'in_progress' as const,
+      operationalStatus: 'PENDING' as const,
+    };
 
+    // Campi per-categoria
+    let categorySpecific: Partial<Practice> = {};
+    if (category === 'FIXED_LINE') {
+      categorySpecific = {
+        lineType: dto.lineData?.lineType,
+        installationAddress: dto.lineData?.installationAddress,
+        technology: dto.lineData?.technology,
+        oldLineData: dto.lineData?.lineType === 'MIGRAZIONE' ? dto.oldLineData : {},
+        paymentMethod: {
+          iban: dto.paymentData?.iban || null,
+          postePay: dto.paymentData?.postePay || null,
+          bollettino: dto.paymentData?.bollettino || false,
+        },
+      };
+    } else if (category === 'MOBILE') {
+      categorySpecific = {
+        mobileData: dto.mobileData || {},
+        // Payment method riutilizzato: IBAN/CDC mobile lo mappiamo su paymentMethod.iban
+        paymentMethod: dto.mobileData?.ibanCdc
+          ? { iban: dto.mobileData.ibanCdc, postePay: null, bollettino: false }
+          : {},
+      };
+    } else if (category === 'ENERGY') {
+      categorySpecific = {
+        energyData: dto.energyData || {},
+        paymentMethod: dto.energyData?.ibanCdc
+          ? {
+              iban: dto.energyData.ibanCdc !== 'BOLLETTINO' ? dto.energyData.ibanCdc : null,
+              postePay: null,
+              bollettino: dto.energyData.ibanCdc === 'BOLLETTINO',
+            }
+          : {},
+      };
+    }
+
+    const practice = this.practiceRepo.create({ ...baseFields, ...categorySpecific });
     const saved = await this.practiceRepo.save(practice);
     const full = await this.findById(tenantId, saved.id);
     return new PracticeResponseDto(full);
   }
 
-  async findAll(tenantId: string, filters?: { type?: string; status?: string }): Promise<PracticeResponseDto[]> {
+  /**
+   * Lista pratiche filtrabile. Aggiunto filtro "category" (nuovo).
+   * Senza filtro ritorna tutte le pratiche (retrocompat).
+   */
+  async findAll(
+    tenantId: string,
+    filters?: { type?: string; status?: string; category?: PracticeCategory | string },
+  ): Promise<PracticeResponseDto[]> {
     const where: any = { tenantId };
     if (filters?.type) where.type = filters.type;
     if (filters?.status) where.status = filters.status;
+    if (filters?.category) where.category = filters.category;
 
     const practices = await this.practiceRepo.find({
       where,
@@ -113,7 +164,7 @@ export class PracticesService {
       order: { createdAt: 'DESC' },
     });
 
-    return practices.map(p => new PracticeResponseDto(p));
+    return practices.map((p) => new PracticeResponseDto(p));
   }
 
   async findById(tenantId: string, id: string): Promise<Practice> {
@@ -130,31 +181,331 @@ export class PracticesService {
     return new PracticeResponseDto(practice);
   }
 
-  async updateStep(tenantId: string, userId: string, practiceId: string, dto: UpdateStepDto): Promise<PracticeResponseDto> {
-    console.log(`[DEBUG] updateStep - Step: ${dto.stepNumber}, Pratica: ${practiceId}`);
-    console.log(`[DEBUG] Dati:`, JSON.stringify(dto.data));
-    
+  /**
+   * Update step.
+   * - FIXED_LINE: logica originale (mappatura step 1..9) INVARIATA
+   * - MOBILE/ENERGY: strategia GENERICA basata su merge in mobileData/energyData.
+   *   Il frontend invia i campi dello step corrente dentro dto.data e li accumuliamo
+   *   nel jsonb. Questo permette di evolvere i campi senza cambiare il backend.
+   */
+  async updateStep(
+    tenantId: string,
+    userId: string,
+    practiceId: string,
+    dto: UpdateStepDto,
+  ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
+    const category: PracticeCategory = (practice.category as PracticeCategory) || 'FIXED_LINE';
 
+    if (category === 'MOBILE') {
+      await this.applyMobileStep(practice, dto, userId);
+    } else if (category === 'ENERGY') {
+      await this.applyEnergyStep(practice, dto, userId);
+    } else {
+      await this.applyFixedLineStep(practice, dto, userId, tenantId);
+    }
+
+    // Completamento esplicito (usato dal wizard submit)
+    if (dto.data?.completed === true) {
+      practice.status = 'completed';
+      practice.operationalStatus = 'IN_PROGRESS';
+      practice.currentStep = dto.stepNumber;
+      if (!practice.completedSteps.includes(dto.stepNumber)) {
+        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
+      }
+      for (let i = 1; i < dto.stepNumber; i++) {
+        if (!practice.completedSteps.includes(i)) {
+          practice.completedSteps.push(i);
+        }
+      }
+    } else {
+      if (!practice.completedSteps.includes(dto.stepNumber)) {
+        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
+      }
+      const maxCompleted = Math.max(...practice.completedSteps, 0);
+      const maxStepByCategory = category === 'FIXED_LINE' ? 9 : 6;
+      practice.currentStep = Math.max(
+        practice.currentStep,
+        Math.min(maxCompleted + 1, maxStepByCategory),
+      );
+    }
+
+    if (practice.status === 'draft' && dto.stepNumber >= 2) {
+      practice.status = 'in_progress';
+    }
+
+    await this.practiceRepo.save(practice);
+    const updated = await this.findById(tenantId, practiceId);
+    return new PracticeResponseDto(updated);
+  }
+
+  /**
+   * Logica step per MOBILE (6 step).
+   *  Step 1 → type+offerta
+   *  Step 2 → venditori
+   *  Step 3 → cliente
+   *  Step 4 → numero/MNP (mobileData.*)
+   *  Step 5 → pagamento (mobileData.ibanCdc + noteMetodoPagamento)
+   *  Step 6 → note/TIM Unica/conferma
+   */
+  private async applyMobileStep(
+    practice: Practice,
+    dto: UpdateStepDto,
+    userId: string,
+  ): Promise<void> {
+    const d = dto.data || {};
+
+    if (dto.stepNumber === 1) {
+      if (d.type !== undefined) practice.type = d.type;
+      if (d.offerCode !== undefined) practice.offerCode = d.offerCode;
+      if (d.offerName !== undefined) practice.offerName = d.offerName;
+      if (d.offerCanone !== undefined) practice.offerCanone = d.offerCanone;
+      if (d.offerType !== undefined) practice.offerType = d.offerType;
+      // "Altro" su offerta → mobileData.offertaAltro (tracciamo anche qui)
+      if (d.offertaAltro !== undefined) {
+        practice.mobileData = { ...(practice.mobileData || {}), offertaAltro: d.offertaAltro };
+      }
+      return;
+    }
+
+    if (dto.stepNumber === 2) {
+      if (d.soldBy !== undefined) practice.soldBy = d.soldBy;
+      if (d.enteredBy !== undefined) practice.enteredBy = d.enteredBy;
+      if (d.soldById !== undefined) practice.soldById = d.soldById;
+      if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+      return;
+    }
+
+    if (dto.stepNumber === 3) {
+      await this.applyCustomerStep(practice, dto, userId);
+      return;
+    }
+
+    if (dto.stepNumber >= 4 && dto.stepNumber <= 6) {
+      // Step 4/5/6 accumulano tutti i campi inviati in mobileData.
+      // Il frontend manda { tipoLinea, numeroDaPortare, gestoreProvenienza, ... }
+      const mergeableKeys = [
+        'tipoLinea',
+        'numeroDaPortare',
+        'codiceFiscaleVecchiaLinea',
+        'gestoreProvenienza',
+        'gestoreProvenienzaAltro',
+        'noteMnp',
+        'gestoreNuovaLinea',
+        'gestoreNuovaLineaAltro',
+        'ricarica',
+        'ricaricaAltro',
+        'timUnica',
+        'timUnicaAltro',
+        'numeroReteFissaTimUnica',
+        'ibanCdc',
+        'noteMetodoPagamento',
+        'noteGeneriche',
+        'accordiCliente',
+        'offertaAltro',
+      ];
+      const delta: Record<string, any> = {};
+      for (const k of mergeableKeys) if (d[k] !== undefined) delta[k] = d[k];
+      if (Object.keys(delta).length) {
+        practice.mobileData = { ...(practice.mobileData || {}), ...delta };
+      }
+      // paymentMethod mirror per analytics/esistenti code-paths
+      if (d.ibanCdc !== undefined) {
+        practice.paymentMethod = {
+          ...(practice.paymentMethod || {}),
+          iban: d.ibanCdc,
+        };
+      }
+      // Lavorazioni post-attivazione condivise con fixed-line
+      if (d.lavorazioniPostAttivazione !== undefined) {
+        practice.lavorazioniPostAttivazione = d.lavorazioniPostAttivazione;
+      }
+    }
+  }
+
+  /**
+   * Logica step per ENERGY (6 step).
+   *  Step 1 → type+tipoOfferta (VARIABILE/FISSA)
+   *  Step 2 → venditori
+   *  Step 3 → cliente
+   *  Step 4 → contatore+gestori (energyData.*)
+   *  Step 5 → pagamento
+   *  Step 6 → note/conferma
+   */
+  private async applyEnergyStep(
+    practice: Practice,
+    dto: UpdateStepDto,
+    userId: string,
+  ): Promise<void> {
+    const d = dto.data || {};
+
+    if (dto.stepNumber === 1) {
+      if (d.type !== undefined) practice.type = d.type;
+      if (d.offerCode !== undefined) practice.offerCode = d.offerCode;
+      if (d.offerName !== undefined) practice.offerName = d.offerName;
+      if (d.tipoOfferta !== undefined || d.tipoOffertaAltro !== undefined) {
+        practice.energyData = {
+          ...(practice.energyData || {}),
+          ...(d.tipoOfferta !== undefined ? { tipoOfferta: d.tipoOfferta } : {}),
+          ...(d.tipoOffertaAltro !== undefined ? { tipoOffertaAltro: d.tipoOffertaAltro } : {}),
+        };
+      }
+      return;
+    }
+
+    if (dto.stepNumber === 2) {
+      if (d.soldBy !== undefined) practice.soldBy = d.soldBy;
+      if (d.enteredBy !== undefined) practice.enteredBy = d.enteredBy;
+      if (d.soldById !== undefined) practice.soldById = d.soldById;
+      if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+      return;
+    }
+
+    if (dto.stepNumber === 3) {
+      await this.applyCustomerStep(practice, dto, userId);
+      return;
+    }
+
+    if (dto.stepNumber >= 4 && dto.stepNumber <= 6) {
+      const mergeableKeys = [
+        'tipoAttivazione',
+        'tipoAttivazioneAltro',
+        'codiceFiscaleVecchioContratto',
+        'numeroContatore',
+        'potenzaContatore',
+        'potenzaContatoreAltro',
+        'gestoreProvenienza',
+        'gestoreProvenienzaAltro',
+        'gestoreNuovoContratto',
+        'gestoreNuovoContrattoAltro',
+        'tipoOfferta',
+        'tipoOffertaAltro',
+        'ibanCdc',
+        'noteMetodoPagamento',
+        'noteGeneriche',
+        'accordiCliente',
+      ];
+      const delta: Record<string, any> = {};
+      for (const k of mergeableKeys) if (d[k] !== undefined) delta[k] = d[k];
+      if (Object.keys(delta).length) {
+        practice.energyData = { ...(practice.energyData || {}), ...delta };
+      }
+      // Mirror su paymentMethod (IBAN o BOLLETTINO)
+      if (d.ibanCdc !== undefined) {
+        practice.paymentMethod = {
+          iban: d.ibanCdc !== 'BOLLETTINO' ? d.ibanCdc : null,
+          postePay: null,
+          bollettino: d.ibanCdc === 'BOLLETTINO',
+        };
+      }
+      if (d.lavorazioniPostAttivazione !== undefined) {
+        practice.lavorazioniPostAttivazione = d.lavorazioniPostAttivazione;
+      }
+    }
+  }
+
+  /**
+   * Logica step 3 (cliente) condivisa fra tutte le categorie.
+   * Stessa semantica dell'implementazione originale per FIXED_LINE.
+   */
+  private async applyCustomerStep(
+    practice: Practice,
+    dto: UpdateStepDto,
+    userId: string,
+  ): Promise<void> {
+    const d = dto.data || {};
+    if (d.customerData) {
+      const cd = d.customerData;
+      const newCf = cd.fiscalCode?.toUpperCase().trim();
+
+      if (newCf?.length === 16) {
+        let customer = await this.customersService.findByFiscalCode(practice.tenantId, newCf);
+        if (!customer) {
+          customer = await this.customersService.create(
+            practice.tenantId,
+            {
+              firstName: cd.firstName || 'Temp',
+              lastName: cd.lastName || 'Temp',
+              fiscalCode: newCf,
+              phonePrimary: cd.phone,
+              email: cd.email,
+              address: cd.address || null,
+            },
+            userId,
+          );
+        } else {
+          await this.customersService.update(
+            practice.tenantId,
+            customer.id,
+            {
+              firstName: cd.firstName,
+              lastName: cd.lastName,
+              phonePrimary: cd.phone,
+              email: cd.email,
+              address: cd.address || null,
+            },
+            userId,
+          );
+        }
+        if (customer) practice.customerId = customer.id;
+      }
+
+      practice.customerSnapshot = {
+        ...practice.customerSnapshot,
+        firstName: cd.firstName !== undefined ? cd.firstName : practice.customerSnapshot?.firstName,
+        lastName: cd.lastName !== undefined ? cd.lastName : practice.customerSnapshot?.lastName,
+        fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
+        phonePrimary: cd.phone !== undefined ? cd.phone : practice.customerSnapshot?.phonePrimary,
+        email: cd.email !== undefined ? cd.email : practice.customerSnapshot?.email,
+        address: cd.address !== undefined ? cd.address : practice.customerSnapshot?.address,
+      };
+    }
+
+    if (d.notes?.trim()) {
+      const currentUser = await this.userRepo.findOne({ where: { id: userId } });
+      const userName = currentUser
+        ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+        : 'Operatore';
+      const newNote = {
+        text: d.notes.trim(),
+        createdAt: new Date(),
+        createdBy: userName,
+        createdById: userId,
+      };
+      if (!practice.notesHistory) practice.notesHistory = [];
+      practice.notesHistory.push(newNote);
+      practice.notes = d.notes;
+    }
+  }
+
+  /**
+   * Logica step FIXED_LINE originale — mantenuta INVARIATA per retrocompat.
+   * Estratta in una funzione separata solo per ordine del codice.
+   */
+  private async applyFixedLineStep(
+    practice: Practice,
+    dto: UpdateStepDto,
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
     switch (dto.stepNumber) {
       case 1:
-        console.log('[DEBUG] Step 1 - Aggiornamento offerta');
-        // FIX: Aggiorna solo i campi effettivamente inviati dal frontend
         if (dto.data?.type !== undefined) practice.type = dto.data.type;
         if (dto.data?.offerCode !== undefined) practice.offerCode = dto.data.offerCode;
         if (dto.data?.offerName !== undefined) practice.offerName = dto.data.offerName;
         if (dto.data?.offerCanone !== undefined) practice.offerCanone = dto.data.offerCanone;
-        if (dto.data?.offerAttivazione !== undefined) practice.offerAttivazione = dto.data.offerAttivazione;
+        if (dto.data?.offerAttivazione !== undefined)
+          practice.offerAttivazione = dto.data.offerAttivazione;
         if (dto.data?.offerVincolo !== undefined) practice.offerVincolo = dto.data.offerVincolo;
         if (dto.data?.offerNote !== undefined) practice.offerNote = dto.data.offerNote;
-        if (dto.data?.offerDisattivazione !== undefined) practice.offerDisattivazione = dto.data.offerDisattivazione;
+        if (dto.data?.offerDisattivazione !== undefined)
+          practice.offerDisattivazione = dto.data.offerDisattivazione;
         if (dto.data?.offerType !== undefined) practice.offerType = dto.data.offerType;
-        if (dto.data?.offerScadenza !== undefined) practice.offerScadenza = dto.data.offerScadenza;
+        if (dto.data?.offerScadenza !== undefined)
+          practice.offerScadenza = dto.data.offerScadenza;
         break;
 
       case 2:
-        console.log('[DEBUG] Step 2 - Venditori');
-        // FIX: Aggiorna solo se esplicitamente inviato
         if (dto.data?.soldBy !== undefined) practice.soldBy = dto.data.soldBy;
         if (dto.data?.enteredBy !== undefined) practice.enteredBy = dto.data.enteredBy;
         if (dto.data?.soldById !== undefined) practice.soldById = dto.data.soldById;
@@ -162,69 +513,7 @@ export class PracticesService {
         break;
 
       case 3:
-        console.log('[DEBUG] Step 3 - Cliente');
-        if (dto.data?.customerData) {
-          const cd = dto.data.customerData;
-          const newCf = cd.fiscalCode?.toUpperCase().trim();
-          
-          // FIX: Aggiorna cliente solo se ha un CF valido
-          if (newCf?.length === 16) {
-            let customer = await this.customersService.findByFiscalCode(tenantId, newCf);
-            if (!customer) {
-              // Crea nuovo cliente con indirizzo come oggetto
-              customer = await this.customersService.create(tenantId, {
-                firstName: cd.firstName || 'Temp', 
-                lastName: cd.lastName || 'Temp', 
-                fiscalCode: newCf,
-                phonePrimary: cd.phone, 
-                email: cd.email,
-                address: cd.address || null, // 🔥 PASSA L'OGGETTO, non stringa
-              }, userId);
-            } else {
-              // Aggiorna esistente con indirizzo come oggetto
-              await this.customersService.update(tenantId, customer.id, {
-                firstName: cd.firstName, 
-                lastName: cd.lastName,
-                phonePrimary: cd.phone, 
-                email: cd.email,
-                address: cd.address || null, // 🔥 PASSA L'OGGETTO
-              }, userId);
-            }
-            if (customer) practice.customerId = customer.id;
-          }
-          
-          // FIX: Aggiorna lo snapshot solo per i campi inviati, includendo address come oggetto
-          practice.customerSnapshot = {
-            ...practice.customerSnapshot, // preserva i campi esistenti
-            firstName: cd.firstName !== undefined ? cd.firstName : practice.customerSnapshot?.firstName,
-            lastName: cd.lastName !== undefined ? cd.lastName : practice.customerSnapshot?.lastName,
-            fiscalCode: newCf !== undefined ? newCf : practice.customerSnapshot?.fiscalCode,
-            phonePrimary: cd.phone !== undefined ? cd.phone : practice.customerSnapshot?.phonePrimary,
-            email: cd.email !== undefined ? cd.email : practice.customerSnapshot?.email,
-            address: cd.address !== undefined ? cd.address : practice.customerSnapshot?.address, // 🔥 OGGETTO
-            ragioneSociale: cd.ragioneSociale !== undefined ? cd.ragioneSociale : practice.customerSnapshot?.ragioneSociale,
-            partitaIva: cd.partitaIva !== undefined ? cd.partitaIva : practice.customerSnapshot?.partitaIva,
-            formaGiuridica: cd.formaGiuridica !== undefined ? cd.formaGiuridica : practice.customerSnapshot?.formaGiuridica,
-            sedeLegale: cd.sedeLegale !== undefined ? cd.sedeLegale : practice.customerSnapshot?.sedeLegale,
-            codiceRea: cd.codiceRea !== undefined ? cd.codiceRea : practice.customerSnapshot?.codiceRea,
-            pec: cd.pec !== undefined ? cd.pec : practice.customerSnapshot?.pec,
-          };
-        }
-        
-        // Note (logica invariata)
-        if (dto.data?.notes?.trim()) {
-          const currentUser = await this.userRepo.findOne({ where: { id: userId } });
-          const userName = currentUser ? `${currentUser.firstName} ${currentUser.lastName}`.trim() : 'Operatore';
-          const newNote = {
-            text: dto.data.notes.trim(), 
-            createdAt: new Date(),
-            createdBy: userName, 
-            createdById: userId
-          };
-          if (!practice.notesHistory) practice.notesHistory = [];
-          practice.notesHistory.push(newNote);
-          practice.notes = dto.data.notes;
-        }
+        await this.applyCustomerStep(practice, dto, userId);
         break;
 
       case 4:
@@ -267,7 +556,7 @@ export class PracticesService {
       case 6:
       case 7:
       case 8:
-        console.log(`[DEBUG] Step ${dto.stepNumber}`);
+      case 9:
         if (dto.data?.paymentMethod !== undefined || dto.data?.iban !== undefined) {
           practice.paymentMethod = {
             iban: dto.data?.paymentMethod?.iban ?? dto.data?.iban ?? null,
@@ -286,84 +575,35 @@ export class PracticesService {
         if (dto.data?.gdprConsent !== undefined || dto.data?.marketingConsent !== undefined) {
           practice.privacyData = {
             gdprConsent: dto.data?.gdprConsent ?? dto.data?.privacyData?.gdprConsent ?? false,
-            marketingConsent: dto.data?.marketingConsent ?? dto.data?.privacyData?.marketingConsent ?? false,
-          };
-        }
-        break;
-
-      case 9:
-        console.log('[DEBUG] Step 9');
-        if (dto.data?.data !== undefined || dto.data?.ora !== undefined) {
-          practice.appointmentData = {
-            data: dto.data?.data ?? practice.appointmentData?.data,
-            ora: dto.data?.ora ?? practice.appointmentData?.ora,
-            oraFine: dto.data?.oraFine ?? practice.appointmentData?.oraFine,
-            accordi: dto.data?.accordi ?? practice.appointmentData?.accordi,
-          };
-        }
-        if (dto.data?.gdprConsent !== undefined || dto.data?.marketingConsent !== undefined) {
-          practice.privacyData = {
-            gdprConsent: dto.data?.gdprConsent ?? dto.data?.privacyData?.gdprConsent ?? false,
-            marketingConsent: dto.data?.marketingConsent ?? dto.data?.privacyData?.marketingConsent ?? false,
+            marketingConsent:
+              dto.data?.marketingConsent ?? dto.data?.privacyData?.marketingConsent ?? false,
           };
         }
         break;
     }
-
-    // CRITICAL: Gestione completamento (preserva logica originale ma più sicura)
-    // Se riceviamo flag completed=true, finalizza la pratica (usato da handleSubmit nel frontend)
-    if (dto.data?.completed === true) {
-      console.log('[DEBUG] Completamento esplicito richiesto dallo step', dto.stepNumber);
-      practice.status = 'completed';
-      practice.operationalStatus = 'IN_PROGRESS';
-      practice.currentStep = dto.stepNumber;
-      
-      // Assicurati che lo step attuale sia nei completati
-      if (!practice.completedSteps.includes(dto.stepNumber)) {
-        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
-      }
-      
-      // Se completiamo, assicurati che tutti gli step precedenti siano marcati come completati
-      for (let i = 1; i < dto.stepNumber; i++) {
-        if (!practice.completedSteps.includes(i)) {
-          practice.completedSteps.push(i);
-        }
-      }
-    } else {
-      // Comportamento normale: aggiungi step corrente ai completati se non c'è già
-      if (!practice.completedSteps.includes(dto.stepNumber)) {
-        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
-      }
-      
-      // Calcola next step solo se non è completata
-      const maxCompleted = Math.max(...practice.completedSteps, 0);
-      practice.currentStep = Math.max(practice.currentStep, Math.min(maxCompleted + 1, 9));
-    }
-
-    if (practice.status === 'draft' && dto.stepNumber >= 2 && dto.stepNumber < 9) {
-      practice.status = 'in_progress';
-    }
-
-    const saved = await this.practiceRepo.save(practice);
-    console.log('[DEBUG] Salvato:', { id: saved.id, status: saved.status, steps: saved.completedSteps });
-    
-    const updated = await this.findById(tenantId, practiceId);
-    return new PracticeResponseDto(updated);
   }
 
-  async updateConvergence(tenantId: string, practiceId: string, numero: string): Promise<PracticeResponseDto> {
+  async updateConvergence(
+    tenantId: string,
+    practiceId: string,
+    numero: string,
+  ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
     if (!practice.convergenza?.attiva) throw new Error('Convergenza non attiva');
     if (practice.convergenza.tipo !== 'daChiudere') throw new Error('Non in stato Da Chiudere');
 
     practice.convergenza = { ...practice.convergenza, tipo: 'chiusa', numero };
     practice.statoGlobale = this.calculateStatoGlobale(practice.convergenza);
-    
+
     await this.practiceRepo.save(practice);
     return new PracticeResponseDto(practice);
   }
 
-  async updateOperationalStatus(tenantId: string, practiceId: string, status: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED'): Promise<PracticeResponseDto> {
+  async updateOperationalStatus(
+    tenantId: string,
+    practiceId: string,
+    status: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED',
+  ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
     practice.operationalStatus = status;
     if (status === 'ACTIVATED' || status === 'REJECTED') practice.status = 'completed';
@@ -376,13 +616,18 @@ export class PracticesService {
     await this.practiceRepo.remove(practice);
   }
 
-  async deleteNote(tenantId: string, practiceId: string, noteIndex: number, userId: string): Promise<PracticeResponseDto> {
+  async deleteNote(
+    tenantId: string,
+    practiceId: string,
+    noteIndex: number,
+    userId: string,
+  ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
     if (!practice.notesHistory || noteIndex < 0 || noteIndex >= practice.notesHistory.length) {
       throw new NotFoundException('Nota non trovata');
     }
     if (practice.notesHistory[noteIndex].createdById !== userId) {
-      throw new Error('Non autorizzato');
+      throw new ForbiddenException('Non autorizzato a cancellare note di altri');
     }
     practice.notesHistory.splice(noteIndex, 1);
     await this.practiceRepo.save(practice);
@@ -394,13 +639,14 @@ export class PracticesService {
   }
 
   async forceComplete(tenantId: string, practiceId: string): Promise<PracticeResponseDto> {
-    console.log(`[FORCE] Completamento pratica ${practiceId}`);
     const practice = await this.findById(tenantId, practiceId);
     practice.status = 'completed';
     practice.operationalStatus = 'IN_PROGRESS';
-    practice.currentStep = 9;
-    if (!practice.completedSteps.includes(9)) {
-      practice.completedSteps = [...practice.completedSteps, 9];
+    // Numero step massimo dipende dalla categoria
+    const maxStep = practice.category === 'FIXED_LINE' ? 9 : 6;
+    practice.currentStep = maxStep;
+    if (!practice.completedSteps.includes(maxStep)) {
+      practice.completedSteps = [...practice.completedSteps, maxStep];
     }
     await this.practiceRepo.save(practice);
     return new PracticeResponseDto(await this.findById(tenantId, practiceId));

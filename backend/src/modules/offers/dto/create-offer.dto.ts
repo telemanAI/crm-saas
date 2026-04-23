@@ -1,6 +1,14 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsEnum } from 'class-validator';
 
 export class CreateOfferDto {
+  /**
+   * Categoria offerta. Default FIXED_LINE (retrocompat per chi chiama
+   * il vecchio endpoint senza il parametro).
+   */
+  @IsEnum(['FIXED_LINE', 'MOBILE', 'ENERGY'])
+  @IsOptional()
+  category?: 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
+
   @IsString()
   provider: string;
 

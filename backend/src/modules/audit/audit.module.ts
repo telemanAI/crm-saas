@@ -1,22 +1,36 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_FILTER, HttpAdapterHost } from '@nestjs/core';
 import { AuditLog } from './entities/audit-log.entity';
+import { SystemError } from './entities/system-error.entity';
 import { AuditService } from './audit.service';
 import { AuditController } from './audit.controller';
 import { AuditInterceptor } from './audit.interceptor';
+import { SystemErrorsService } from './system-errors.service';
+import { SystemErrorsController } from './system-errors.controller';
+import { AllExceptionsFilter } from './all-exceptions.filter';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([AuditLog])],
-  controllers: [AuditController],
+  imports: [TypeOrmModule.forFeature([AuditLog, SystemError])],
+  controllers: [AuditController, SystemErrorsController],
   providers: [
     AuditService,
-    // Interceptor globale: qualunque handler marcato @AuditLog(...) viene tracciato.
+    SystemErrorsService,
+    // Interceptor globale per l'audit trail (chi ha fatto cosa)
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
+    // Exception filter globale per registrare errori di sistema per tenant
+    {
+      provide: APP_FILTER,
+      useFactory: (
+        httpAdapterHost: HttpAdapterHost,
+        systemErrorsService: SystemErrorsService,
+      ) => new AllExceptionsFilter(httpAdapterHost, systemErrorsService),
+      inject: [HttpAdapterHost, SystemErrorsService],
+    },
   ],
-  exports: [AuditService, TypeOrmModule],
+  exports: [AuditService, SystemErrorsService, TypeOrmModule],
 })
 export class AuditModule {}

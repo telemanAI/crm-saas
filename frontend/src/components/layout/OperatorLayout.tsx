@@ -14,6 +14,13 @@ import {
   UploadSimple,
   DownloadSimple,
   UsersThree,
+  CaretDown,
+  CaretRight,
+  Globe,
+  DeviceMobile,
+  Lightning,
+  ShieldWarning,
+  ClipboardText,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -30,15 +37,23 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
   const { user, shops, activeShopId, isImpersonating, clearAuth, exitImpersonate, originalUser } = useAuthStore();
   const { isDark } = useThemeStore();
   
-  // Stato per mostrare/nascondere Report WASH
   const [showWashReport, setShowWashReport] = useState(false);
 
-  // Ruolo effettivo dell'utente nel negozio attivo (può differire dal ruolo globale)
+  // Sidebar: il menu "Pratiche" è collassabile.
+  // Apriamo automaticamente se siamo in una pagina pratiche.
+  const isOnPracticesRoute = router.pathname.startsWith('/operator/practices');
+  const [practicesMenuOpen, setPracticesMenuOpen] = useState(isOnPracticesRoute);
+
+  useEffect(() => {
+    if (isOnPracticesRoute) setPracticesMenuOpen(true);
+  }, [isOnPracticesRoute]);
+
   const activeMembership = shops.find((s) => s.shopId === activeShopId);
   const effectiveRole = activeMembership?.role || user?.role;
   const canManageTeam = effectiveRole === 'FOUNDER' || effectiveRole === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const isFounder = effectiveRole === 'FOUNDER';
 
-  // Carica config WASH dal tenant
   useEffect(() => {
     const loadConfig = async () => {
       try {
@@ -47,11 +62,9 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
           setShowWashReport(res.data.enableWashStep === true);
         }
       } catch (err) {
-        console.error('Errore caricamento config:', err);
         setShowWashReport(false);
       }
     };
-    
     loadConfig();
   }, [user?.tenantId]);
 
@@ -65,16 +78,30 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
     router.push('/admin/dashboard');
   };
 
+  // Sotto-voci del menu Pratiche. Il primo link è la rete fissa (esistente),
+  // gli altri due sono le nuove categorie.
+  const practicesSubmenu = [
+    { href: '/operator/practices', icon: Globe, label: 'Rete fissa' },
+    { href: '/operator/practices/mobile', icon: DeviceMobile, label: 'Rete mobile' },
+    { href: '/operator/practices/energy', icon: Lightning, label: 'Luce e Gas' },
+  ];
+
+  // Voci sidebar "piatte" (fuori dal menu Pratiche)
   const navItems = [
     { href: '/operator/dashboard', icon: ChartLine, label: 'Dashboard' },
     { href: '/operator/customers', icon: Users, label: 'Clienti' },
-    { href: '/operator/practices', icon: ShoppingCart, label: 'Pratiche' },
+  ];
+
+  const afterPracticesItems = [
     { href: '/operator/reports', icon: ChartLine, label: 'Report' },
     ...(canManageTeam ? [{ href: '/operator/team', icon: UsersThree, label: 'Team' }] : []),
     { href: '/operator/imports', icon: UploadSimple, label: 'Import' },
     { href: '/operator/exports', icon: DownloadSimple, label: 'Export' },
     { href: '/operator/settings', icon: Buildings, label: 'Impostazioni' },
   ];
+
+  const isActive = (href: string, exact = false) =>
+    exact ? router.pathname === href : router.pathname === href || router.pathname.startsWith(href + '/');
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-slate-950' : 'bg-gray-50'}`}>
@@ -96,7 +123,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         </div>
       )}
 
-      <aside className={`fixed left-0 top-0 h-full w-64 border-r z-40 transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+      <aside className={`fixed left-0 top-0 h-full w-64 border-r z-40 overflow-y-auto transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
         <div className={`p-6 border-b ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
           <Link href="/operator/dashboard" className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
@@ -104,31 +131,103 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             </div>
             <div>
               <h1 className={`font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>CRM</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>{user?.role === 'ADMIN' ? 'Admin' : 'Operatore'}</p>
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+                {user?.role === 'SUPER_ADMIN' ? 'Super Admin' : effectiveRole === 'FOUNDER' ? 'Founder' : effectiveRole === 'ADMIN' ? 'Admin' : 'Operatore'}
+              </p>
             </div>
           </Link>
         </div>
 
-        <nav className="p-4 space-y-1">
+        <nav className="p-4 space-y-1 pb-28">
+          {/* Voci principali (Dashboard, Clienti) */}
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = router.pathname === item.href || router.pathname.startsWith(item.href + '/');
-            
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  active
+                    ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
+                    : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                }`}
+              >
+                <Icon className="w-5 h-5" weight={active ? 'fill' : 'regular'} />
+                {item.label}
+              </Link>
+            );
+          })}
+
+          {/* Menu collassabile "Pratiche" con 3 sotto-voci */}
+          <div>
+            <button
+              onClick={() => setPracticesMenuOpen((v) => !v)}
+              className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                isOnPracticesRoute
+                  ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
+                  : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+              }`}
+              data-testid="sidebar-practices-toggle"
+            >
+              <span className="flex items-center gap-3">
+                <ShoppingCart className="w-5 h-5" weight={isOnPracticesRoute ? 'fill' : 'regular'} />
+                Pratiche
+              </span>
+              {practicesMenuOpen ? <CaretDown className="w-4 h-4" /> : <CaretRight className="w-4 h-4" />}
+            </button>
+
+            {practicesMenuOpen && (
+              <div className="mt-1 space-y-1">
+                {practicesSubmenu.map((sub) => {
+                  const Icon = sub.icon;
+                  // "Rete fissa" è attiva SOLO su /practices ed /practices/[id]/new etc,
+                  // NON quando siamo nei sotto-segmenti /mobile o /energy.
+                  const active =
+                    sub.href === '/operator/practices'
+                      ? router.pathname === '/operator/practices' ||
+                        (router.pathname.startsWith('/operator/practices/') &&
+                          !router.pathname.startsWith('/operator/practices/mobile') &&
+                          !router.pathname.startsWith('/operator/practices/energy'))
+                      : router.pathname === sub.href || router.pathname.startsWith(sub.href + '/');
+                  return (
+                    <Link
+                      key={sub.href}
+                      href={sub.href}
+                      className={`ml-4 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
+                        active
+                          ? (isDark ? 'bg-violet-500/15 text-violet-300 border border-violet-500/30' : 'bg-indigo-100 text-indigo-700 border border-indigo-300')
+                          : (isDark ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50')
+                      }`}
+                      data-testid={`sidebar-practices-${sub.label.toLowerCase().replace(/\s/g, '-')}`}
+                    >
+                      <Icon className="w-4 h-4" weight={active ? 'fill' : 'regular'} />
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Voci dopo Pratiche */}
+          {afterPracticesItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
             return (
               <div key={item.href}>
                 <Link
                   href={item.href}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    isActive
+                    active
                       ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
                       : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
                   }`}
                 >
-                  <Icon className="w-5 h-5" weight={isActive ? 'fill' : 'regular'} />
+                  <Icon className="w-5 h-5" weight={active ? 'fill' : 'regular'} />
                   {item.label}
                 </Link>
 
-                {/* 🔥 REPORT WASH - Appare SOLO se toggle è attivo */}
                 {item.label === 'Report' && showWashReport && (
                   <Link
                     href="/operator/reports/wash"
@@ -146,9 +245,40 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
               </div>
             );
           })}
+
+          {/* Sezione amministrativa: Audit + Shop Health */}
+          {(isSuperAdmin || isFounder) && (
+            <div className={`mt-4 pt-4 border-t ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+              <p className={`px-3 text-[11px] uppercase tracking-wider mb-2 ${isDark ? 'text-slate-600' : 'text-gray-400'}`}>Amministrazione</p>
+              <Link
+                href="/admin/audit"
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isActive('/admin/audit')
+                    ? (isDark ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-indigo-50 text-indigo-600 border border-indigo-200')
+                    : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                }`}
+              >
+                <ClipboardText className="w-5 h-5" weight={isActive('/admin/audit') ? 'fill' : 'regular'} />
+                Audit logs
+              </Link>
+              {isSuperAdmin && (
+                <Link
+                  href="/admin/shop-health"
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    isActive('/admin/shop-health')
+                      ? (isDark ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-rose-50 text-rose-600 border border-rose-200')
+                      : (isDark ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
+                  }`}
+                >
+                  <ShieldWarning className="w-5 h-5" weight={isActive('/admin/shop-health') ? 'fill' : 'regular'} />
+                  Salute Negozi
+                </Link>
+              )}
+            </div>
+          )}
         </nav>
 
-        <div className={`absolute bottom-0 left-0 right-0 p-4 border-t ${isDark ? 'border-slate-800' : 'border-gray-200'}`}>
+        <div className={`absolute bottom-0 left-0 right-0 p-4 border-t ${isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'}`}>
           <div className="flex items-center gap-3 mb-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isDark ? 'bg-violet-500/20' : 'bg-indigo-100'}`}>
               <Users className={`w-5 h-5 ${isDark ? 'text-violet-400' : 'text-indigo-600'}`} />

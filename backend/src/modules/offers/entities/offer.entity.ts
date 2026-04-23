@@ -1,13 +1,33 @@
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+/**
+ * Categoria offerta. Discrimina fra offerte di rete fissa, rete mobile e
+ * energia (luce/gas). Per retrocompat le offerte preesistenti ricevono
+ * 'FIXED_LINE' come default.
+ */
+export type OfferCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
 
 @Entity('offers')
+@Index(['category', 'provider'])
 export class Offer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  /**
+   * Categoria offerta:
+   *  - FIXED_LINE: rete fissa (TIM, Vodafone, WindTre, Iliad, Optima, Iren, SKY)
+   *  - MOBILE: rete mobile (TIM, Vodafone, WindTre, Iliad, Kena, Ho, Very, SKY Mobile ecc.)
+   *  - ENERGY: luce e gas (Enel, Eni, Edison, A2A, Iren, ecc.)
+   */
+  @Column({
+    type: 'enum',
+    enum: ['FIXED_LINE', 'MOBILE', 'ENERGY'],
+    default: 'FIXED_LINE',
+  })
+  category: OfferCategory;
+
   @Column({ length: 50 })
-  provider: string; // TIM, Vodafone, WindTre, Iliad, Optima, Iren, SKY
+  provider: string;
 
   @Column({ length: 255 })
   name: string;
@@ -28,7 +48,7 @@ export class Offer {
   disattivazione: string;
 
   @Column({ length: 20, default: 'consumer' })
-  type: string; // consumer | business
+  type: string;
 
   @Column({ length: 50, nullable: true })
   scadenza: string;

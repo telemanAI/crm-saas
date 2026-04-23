@@ -238,4 +238,29 @@ export const auditApi = {
   },
 };
 
+export const systemErrorsApi = {
+  list: (params?: {
+    tenantId?: string;
+    userId?: string;
+    statusCode?: number;
+    severity?: 'error' | 'warning' | 'info';
+    endpoint?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const qs = params
+      ? '?' +
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== null && v !== '')
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+          .join('&')
+      : '';
+    return apiClient(`/system-errors${qs}`);
+  },
+  /** Riepilogo salute per tenant - SUPER_ADMIN ONLY */
+  health: () => apiClient('/system-errors/health'),
+};
+
 export default apiClient;

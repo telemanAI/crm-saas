@@ -346,13 +346,27 @@ function EditPermissionsDialog({ m, isSuperAdmin, onClose, onDone }: EditPermiss
   const [role, setRole] = useState<string>(m.role);
   const [loading, setLoading] = useState<boolean>(false);
 
-  const toggle = (k: string) => setPerms((p) => ({ ...p, [k]: !p[k] }));
+  // FOUNDER: lock totale. I permessi sono tutti true per design, non modificabili
+  // da questa UI. Se qualcuno vuole cambiarli, deve prima cambiare il ruolo
+  // (cosa possibile solo per SUPER_ADMIN).
+  const isFounder = role === 'FOUNDER';
+  const FOUNDER_PERMS_ALL_TRUE = Object.fromEntries(
+    Object.keys(PERMISSION_LABELS).map((k) => [k, true]),
+  );
+
+  const toggle = (k: string) => {
+    if (isFounder) return; // lock
+    setPerms((p) => ({ ...p, [k]: !p[k] }));
+  };
 
   const submit = async () => {
     setLoading(true);
     try {
       if (role !== m.role) await membershipsApi.updateRole(m.userId, role);
-      await membershipsApi.updatePermissions(m.userId, perms);
+      // Per FOUNDER il backend forzerà tutti true, ma mandiamo lo stato giusto
+      // anche dal client per evitare confusione nel payload.
+      const payload = isFounder ? FOUNDER_PERMS_ALL_TRUE : perms;
+      await membershipsApi.updatePermissions(m.userId, payload);
       onDone();
     } catch (err: any) {
       alert(`Errore salvataggio permessi: ${err?.message || 'sconosciuto'}`);
@@ -373,15 +387,35 @@ function EditPermissionsDialog({ m, isSuperAdmin, onClose, onDone }: EditPermiss
             <option value="ADMIN">Amministratore</option>
             {isSuperAdmin ? <option value="FOUNDER">Founder (proprietario)</option> : null}
           </select>
+          {isFounder && (
+            <p className="mt-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded p-2 flex items-start gap-2">
+              <Warning className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              Il FOUNDER del negozio ha SEMPRE tutti i permessi attivi. Non sono modificabili da qui (sicurezza).
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          {Object.entries(PERMISSION_LABELS).map(([k, label]) => (
-            <label key={k} className="flex items-center gap-3 p-3 bg-slate-950/40 border border-slate-800 rounded-xl cursor-pointer hover:border-indigo-500/40">
-              <input type="checkbox" checked={!!perms[k]} onChange={() => toggle(k)} data-testid={`perm-${k}`} className="w-4 h-4 accent-indigo-500" />
-              <span className="text-sm text-slate-200 flex-1">{label}</span>
-            </label>
-          ))}
+          {Object.entries(PERMISSION_LABELS).map(([k, label]) => {
+            const checked = isFounder ? true : !!perms[k];
+            return (
+              <label
+                key={k}
+                className={`flex items-center gap-3 p-3 bg-slate-950/40 border border-slate-800 rounded-xl ${isFounder ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:border-indigo-500/40'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={isFounder}
+                  onChange={() => toggle(k)}
+                  data-testid={`perm-${k}`}
+                  className="w-4 h-4 accent-indigo-500 disabled:accent-amber-500"
+                />
+                <span className="text-sm text-slate-200 flex-1">{label}</span>
+                {isFounder && <span className="text-[10px] text-amber-400 font-bold">FOUNDER</span>}
+              </label>
+            );
+          })}
         </div>
 
         <div className="flex gap-2 mt-5">

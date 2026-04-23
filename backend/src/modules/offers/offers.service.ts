@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Offer } from './entities/offer.entity';
+import { Repository, FindOptionsWhere } from 'typeorm';
+import { Offer, OfferCategory } from './entities/offer.entity';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 
@@ -13,26 +13,45 @@ export class OffersService {
   ) {}
 
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
-    const offer = this.offersRepository.create(createOfferDto);
+    const offer = this.offersRepository.create({
+      ...createOfferDto,
+      category: createOfferDto.category || 'FIXED_LINE',
+    });
     return this.offersRepository.save(offer);
   }
 
-  async findAll(): Promise<Offer[]> {
+  /**
+   * Lista offerte ATTIVE, filtrabile per categoria.
+   * Senza filtro ritorna SOLO FIXED_LINE (retrocompat: il vecchio frontend
+   * chiamava /offers senza specificare category).
+   */
+  async findAll(category?: OfferCategory): Promise<Offer[]> {
+    const where: FindOptionsWhere<Offer> = { is_active: true };
+    where.category = category || 'FIXED_LINE';
     return this.offersRepository.find({
-      where: { is_active: true },
+      where,
       order: { provider: 'ASC', sort_order: 'ASC', name: 'ASC' },
     });
   }
 
-  async findAllAdmin(): Promise<Offer[]> {
+  /**
+   * Lista offerte ADMIN (attive + disattivate), filtrabile per categoria.
+   * Senza filtro ritorna FIXED_LINE per non rompere /admin/offers legacy.
+   */
+  async findAllAdmin(category?: OfferCategory): Promise<Offer[]> {
+    const where: FindOptionsWhere<Offer> = {};
+    where.category = category || 'FIXED_LINE';
     return this.offersRepository.find({
+      where,
       order: { provider: 'ASC', sort_order: 'ASC', name: 'ASC' },
     });
   }
 
-  async findByProvider(provider: string): Promise<Offer[]> {
+  async findByProvider(provider: string, category?: OfferCategory): Promise<Offer[]> {
+    const where: FindOptionsWhere<Offer> = { provider, is_active: true };
+    if (category) where.category = category;
     return this.offersRepository.find({
-      where: { provider, is_active: true },
+      where,
       order: { sort_order: 'ASC', name: 'ASC' },
     });
   }
@@ -62,9 +81,12 @@ export class OffersService {
     return this.offersRepository.save(offer);
   }
 
-  // Raggruppa offerte per provider (per il frontend)
-  async findAllGrouped(): Promise<Record<string, Offer[]>> {
-    const offers = await this.findAll();
+  /**
+   * Offerte raggruppate per provider, filtrabili per categoria.
+   * Default FIXED_LINE per retrocompat.
+   */
+  async findAllGrouped(category?: OfferCategory): Promise<Record<string, Offer[]>> {
+    const offers = await this.findAll(category);
     return offers.reduce((acc, offer) => {
       if (!acc[offer.provider]) {
         acc[offer.provider] = [];

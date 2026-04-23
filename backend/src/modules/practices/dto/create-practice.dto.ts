@@ -1,4 +1,12 @@
-import { IsEnum, IsOptional, IsString, ValidateNested, IsUUID, IsBoolean } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  IsUUID,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class CustomerDataDto {
@@ -18,7 +26,6 @@ class CustomerDataDto {
   @IsString()
   email?: string;
 
-  // 🔥 CORRETTO: Address come oggetto strutturato, non stringa
   @IsOptional()
   @ValidateNested()
   @Type(() => Object)
@@ -87,7 +94,6 @@ class OldLineDataDto {
   notes?: string;
 }
 
-// 🔥 NUOVO: DTO per Convergenza
 class ConvergenzaDto {
   @IsBoolean()
   attiva: boolean;
@@ -102,8 +108,23 @@ class ConvergenzaDto {
 }
 
 export class CreatePracticeDto {
-  @IsEnum(['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY'])
-  type: 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
+  /**
+   * Categoria della pratica. Default FIXED_LINE per compat.
+   * - FIXED_LINE: flusso rete fissa (9 step, richiede lineData + paymentData)
+   * - MOBILE: flusso rete mobile (usa mobileData)
+   * - ENERGY: flusso luce/gas (usa energyData)
+   */
+  @IsOptional()
+  @IsEnum(['FIXED_LINE', 'MOBILE', 'ENERGY'])
+  category?: 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
+
+  // Per FIXED_LINE l'enum è ristretto. Per MOBILE e ENERGY il "type" rappresenta
+  // il provider (TIM, VODAFONE, ILIAD, ENEL, ENI...) come stringa libera.
+  // Lato DTO accettiamo stringa opzionale: la validazione runtime sul provider
+  // è gestita nel service in base alla categoria.
+  @IsOptional()
+  @IsString()
+  type?: string;
 
   @IsOptional()
   @IsString()
@@ -113,7 +134,6 @@ export class CreatePracticeDto {
   @IsString()
   offerName?: string;
 
-  // Dettagli economici offerta
   @IsOptional()
   @IsString()
   offerCanone?: string;
@@ -142,7 +162,6 @@ export class CreatePracticeDto {
   @IsString()
   offerScadenza?: string;
 
-  // Step 2: Operatori (ID UUID) - ORA OPZIONALI per permettere creazione allo Step 1
   @IsOptional()
   @IsUUID()
   soldById?: string;
@@ -159,7 +178,6 @@ export class CreatePracticeDto {
   @IsOptional()
   enteredBy?: string;
 
-  // Step 3: Anagrafica + Note
   @IsOptional()
   @ValidateNested()
   @Type(() => CustomerDataDto)
@@ -169,20 +187,23 @@ export class CreatePracticeDto {
   @IsString()
   notes?: string;
 
+  // Dati specifici FIXED_LINE: lineData + paymentData + oldLineData
+  // Li teniamo OPZIONALI (anche per rete fissa sono popolati solo dallo step 4+).
+  @IsOptional()
   @ValidateNested()
   @Type(() => LineDataDto)
-  lineData: LineDataDto;
+  lineData?: LineDataDto;
 
   @IsOptional()
   @ValidateNested()
   @Type(() => OldLineDataDto)
   oldLineData?: OldLineDataDto;
 
+  @IsOptional()
   @ValidateNested()
   @Type(() => PaymentDataDto)
-  paymentData: PaymentDataDto;
+  paymentData?: PaymentDataDto;
 
-  // Pacchetti aggiuntivi e WASH (popolati negli step successivi)
   @IsOptional()
   @ValidateNested()
   @Type(() => Object)
@@ -204,7 +225,6 @@ export class CreatePracticeDto {
     timestamp?: Date;
   };
 
-  // 🔥 NUOVI CAMPI
   @IsOptional()
   @ValidateNested()
   @Type(() => ConvergenzaDto)
@@ -217,16 +237,20 @@ export class CreatePracticeDto {
   @IsOptional()
   @IsEnum(['completo', 'non_completo'])
   statoGlobale?: 'completo' | 'non_completo' | null;
-  
-  // 🔥 RIMOSSO: Il campo address duplicato a livello principale che creava conflitto
-  // @IsOptional()
-  // @ValidateNested()
-  // @Type(() => Object)
-  // address?: {
-  //   street?: string;
-  //   number?: string;
-  //   city?: string;
-  //   zip?: string;
-  //   province?: string;
-  // };
+
+  /**
+   * Dati specifici categoria MOBILE. Struttura aperta (jsonb lato DB).
+   * La validazione di dettaglio è lato frontend per mantenere flessibilità
+   * su campi futuri ("Altro" con testo libero, nuove opzioni, ecc).
+   */
+  @IsOptional()
+  @IsObject()
+  mobileData?: Record<string, any>;
+
+  /**
+   * Dati specifici categoria ENERGY (luce/gas). Stessa filosofia.
+   */
+  @IsOptional()
+  @IsObject()
+  energyData?: Record<string, any>;
 }

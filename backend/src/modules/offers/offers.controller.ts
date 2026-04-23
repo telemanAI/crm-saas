@@ -1,4 +1,3 @@
-
 import {
   Controller,
   Get,
@@ -11,10 +10,12 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { UpdateOfferDto } from './dto/update-offer.dto';
+import { OfferCategory } from './entities/offer.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -23,28 +24,31 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class OffersController {
   constructor(private readonly offersService: OffersService) {}
 
-  // GET /api/offers - Lista offerte attive (per operatori)
+  /**
+   * Lista offerte attive (per operatori durante wizard).
+   * Filtro ?category=FIXED_LINE|MOBILE|ENERGY. Default FIXED_LINE (retrocompat).
+   */
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll() {
-    return this.offersService.findAll();
+  findAll(@Query('category') category?: string) {
+    return this.offersService.findAll(category as OfferCategory);
   }
 
-  // GET /api/offers/grouped - Lista offerte raggruppate per provider
   @Get('grouped')
   @UseGuards(JwtAuthGuard)
-  findAllGrouped() {
-    return this.offersService.findAllGrouped();
+  findAllGrouped(@Query('category') category?: string) {
+    return this.offersService.findAllGrouped(category as OfferCategory);
   }
 
-  // GET /api/offers/provider/:provider - Offerte per provider specifico
   @Get('provider/:provider')
   @UseGuards(JwtAuthGuard)
-  findByProvider(@Param('provider') provider: string) {
-    return this.offersService.findByProvider(provider);
+  findByProvider(
+    @Param('provider') provider: string,
+    @Query('category') category?: string,
+  ) {
+    return this.offersService.findByProvider(provider, category as OfferCategory);
   }
 
-  // GET /api/offers/:id - Dettaglio singola offerta
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   findOne(@Param('id', ParseUUIDPipe) id: string) {
@@ -52,27 +56,27 @@ export class OffersController {
   }
 }
 
-// Controller separato per admin
 @Controller('admin/offers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('SUPER_ADMIN')
 export class AdminOffersController {
   constructor(private readonly offersService: OffersService) {}
 
-  // GET /api/admin/offers - Lista tutte le offerte (anche disattivate)
+  /**
+   * Lista offerte ADMIN (tutte, anche disattivate).
+   * Filtro ?category=FIXED_LINE|MOBILE|ENERGY. Default FIXED_LINE.
+   */
   @Get()
-  findAllAdmin() {
-    return this.offersService.findAllAdmin();
+  findAllAdmin(@Query('category') category?: string) {
+    return this.offersService.findAllAdmin(category as OfferCategory);
   }
 
-  // POST /api/admin/offers - Crea nuova offerta
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() createOfferDto: CreateOfferDto) {
     return this.offersService.create(createOfferDto);
   }
 
-  // PATCH /api/admin/offers/:id - Aggiorna offerta
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -81,13 +85,11 @@ export class AdminOffersController {
     return this.offersService.update(id, updateOfferDto);
   }
 
-  // PATCH /api/admin/offers/:id/toggle - Attiva/Disattiva offerta
   @Patch(':id/toggle')
   toggleActive(@Param('id', ParseUUIDPipe) id: string) {
     return this.offersService.toggleActive(id);
   }
 
-  // DELETE /api/admin/offers/:id - Elimina offerta
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string) {

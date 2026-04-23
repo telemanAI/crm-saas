@@ -7,12 +7,16 @@ export type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPT
 export type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
 export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED';
 
-// 🔥 NUOVO: Tipo per Stato Globale
+// Categoria pratica - distingue rete fissa, mobile e energia (luce/gas).
+// Tutte le pratiche esistenti diventano FIXED_LINE di default.
+export type PracticeCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
+
 export type StatoGlobale = 'completo' | 'non_completo' | null;
 
 @Entity('practices')
 @Index(['tenantId', 'createdAt'])
 @Index(['customerId'])
+@Index(['tenantId', 'category'])
 export class Practice {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -23,6 +27,18 @@ export class Practice {
   @ManyToOne(() => Tenant)
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
+
+  /**
+   * Categoria pratica. Discriminator per separare i 3 flussi nel frontend
+   * e in lista, pur riusando la stessa tabella (nessuna duplicazione di
+   * customer snapshot, audit, operational status, notes history, ecc).
+   */
+  @Column({
+    type: 'enum',
+    enum: ['FIXED_LINE', 'MOBILE', 'ENERGY'],
+    default: 'FIXED_LINE',
+  })
+  category: PracticeCategory;
 
   @Column({ name: 'customer_id', nullable: true })
   customerId: string;
@@ -45,8 +61,13 @@ export class Practice {
   @JoinColumn({ name: 'assigned_to' })
   assignedUser: User;
 
-  @Column({ type: 'enum', enum: ['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY'] })
-  type: PracticeType;
+  // Per FIXED_LINE il type è un enum ristretto; per MOBILE e ENERGY teniamo
+  // il campo come stringa libera (il provider viene deciso dal wizard)
+  // ma continuiamo a usare lo stesso campo per compatibilità con le query
+  // esistenti (lista, export, report). Lato DB l'enum resta per backward
+  // compat; validazione runtime deferita a service/DTO.
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  type: PracticeType | string;
 
   @Column({ type: 'enum', enum: ['draft', 'in_progress', 'completed', 'cancelled'], default: 'draft' })
   status: PracticeStatus;
@@ -54,20 +75,18 @@ export class Practice {
   @Column({ type: 'enum', enum: ['PENDING', 'IN_PROGRESS', 'ACTIVATED', 'REJECTED'], default: 'PENDING', name: 'operational_status' })
   operationalStatus: OperationalStatus;
 
-  // 🔥 NUOVO: Stato Globale (completo/non_completo basato su convergenza)
-  @Column({ 
-    type: 'enum', 
-    enum: ['completo', 'non_completo'], 
-    nullable: true, 
-    name: 'stato_globale' 
+  @Column({
+    type: 'enum',
+    enum: ['completo', 'non_completo'],
+    nullable: true,
+    name: 'stato_globale',
   })
   statoGlobale: StatoGlobale;
 
-  // 🔥 NUOVO: Configurazione Convergenza
-  @Column({ 
-    name: 'convergenza', 
-    type: 'jsonb', 
-    nullable: true 
+  @Column({
+    name: 'convergenza',
+    type: 'jsonb',
+    nullable: true,
   })
   convergenza: {
     attiva: boolean;
@@ -75,11 +94,10 @@ export class Practice {
     numero?: string;
   } | null;
 
-  // 🔥 NUOVO: Lavorazioni Post Attivazione (spostate da appointmentData)
-  @Column({ 
-    name: 'lavorazioni_post_attivazione', 
-    type: 'text', 
-    nullable: true 
+  @Column({
+    name: 'lavorazioni_post_attivazione',
+    type: 'text',
+    nullable: true,
   })
   lavorazioniPostAttivazione: string | null;
 
@@ -153,31 +171,30 @@ export class Practice {
 
   @Column({ name: 'payment_method', type: 'jsonb', default: {} })
   paymentMethod: any;
-  
+
   @Column({ name: 'privacy_data', type: 'jsonb', default: {} })
   privacyData: { gdprConsent?: boolean; marketingConsent?: boolean };
 
   @Column({ name: 'appointment_data', type: 'jsonb', nullable: true })
-  appointmentData: { 
-    data?: string; 
-    ora?: string; 
+  appointmentData: {
+    data?: string;
+    ora?: string;
     oraFine?: string;
-    accordi?: string; 
-    // 🔥 RIMOSSO: lavorazioniPost spostato in campo dedicato
+    accordi?: string;
   };
 
   @Column({ name: 'additional_packages', type: 'jsonb', nullable: true })
-  additionalPackages?: { 
-    selectedIds: string[]; 
-    totalPrice: number; 
+  additionalPackages?: {
+    selectedIds: string[];
+    totalPrice: number;
   };
 
   @Column({ nullable: true })
-  createdByName: string; 
-  
+  createdByName: string;
+
   @Column({ nullable: true })
-  assignedToName: string; 
-  
+  assignedToName: string;
+
   @Column({ name: 'wash_config', type: 'jsonb', nullable: true })
   washConfig?: {
     enabled: boolean;
@@ -200,7 +217,7 @@ export class Practice {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-  
+
   @Column({ name: 'source_import_job_id', type: 'uuid', nullable: true })
   sourceImportJobId: string;
 
@@ -213,4 +230,68 @@ export class Practice {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  /**
+   * Dati specifici per pratiche MOBILE.
+   * Campi principali: tipoLinea (MNP/DOPPIA_MNP/NUOVO_NUMERO),
+   * numeroDaPortare, codiceFiscaleVecchiaLinea, gestoreProvenienza,
+   * noteMnp, ricarica, timUnica, numeroReteFissaTimUnica, ibanCdc,
+   * noteMetodoPagamento, noteGeneriche, accordiCliente.
+   * Struttura aperta per evolvere senza migration pesanti.
+   */
+  @Column({ name: 'mobile_data', type: 'jsonb', nullable: true })
+  mobileData?: {
+    tipoLinea?: 'MNP' | 'DOPPIA_MNP' | 'NUOVO_NUMERO';
+    numeroDaPortare?: string;
+    codiceFiscaleVecchiaLinea?: string;
+    gestoreProvenienza?: string;
+    gestoreProvenienzaAltro?: string;
+    noteMnp?: string;
+    gestoreNuovaLinea?: string;
+    gestoreNuovaLineaAltro?: string;
+    ricarica?: 'DA_FARE' | 'DA_NON_FARE' | 'ALTRO';
+    ricaricaAltro?: string;
+    timUnica?: 'AGGANCIATA' | 'DA_AGGANCIARE' | 'NON_AGGANCIARE' | 'ALTRO';
+    timUnicaAltro?: string;
+    numeroReteFissaTimUnica?: string;
+    ibanCdc?: string;
+    noteMetodoPagamento?: string;
+    noteGeneriche?: string;
+    accordiCliente?: string;
+    offertaAltro?: string;
+  };
+
+  /**
+   * Dati specifici per pratiche ENERGY (luce/gas).
+   * Campi principali: tipoAttivazione, numeroContatore (POD/PDR),
+   * potenzaContatore, gestoreProvenienza, gestoreNuovoContratto,
+   * tipoOfferta (VARIABILE/FISSA), ibanCdc, ecc.
+   */
+  @Column({ name: 'energy_data', type: 'jsonb', nullable: true })
+  energyData?: {
+    tipoAttivazione?:
+      | 'LUCE_SWITCH'
+      | 'LUCE_GAS_SWITCH'
+      | 'LUCE_VOLTURA'
+      | 'LUCE_SUBENTRO'
+      | 'LUCE_POSA_NUOVO_CONTATORE'
+      | 'GAS_SWITCH'
+      | 'GAS_POSA_NUOVO_CONTATORE'
+      | 'ALTRO';
+    tipoAttivazioneAltro?: string;
+    codiceFiscaleVecchioContratto?: string;
+    numeroContatore?: string; // POD per LUCE, PDR per GAS
+    potenzaContatore?: '1.5_KW' | '3_KW' | '4.5_KW' | '6_KW' | 'GAS' | 'ALTRO';
+    potenzaContatoreAltro?: string;
+    gestoreProvenienza?: string;
+    gestoreProvenienzaAltro?: string;
+    gestoreNuovoContratto?: string;
+    gestoreNuovoContrattoAltro?: string;
+    tipoOfferta?: 'VARIABILE' | 'FISSA' | 'ALTRO';
+    tipoOffertaAltro?: string;
+    ibanCdc?: string; // o "BOLLETTINO"
+    noteMetodoPagamento?: string;
+    noteGeneriche?: string;
+    accordiCliente?: string;
+  };
 }

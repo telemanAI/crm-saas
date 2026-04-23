@@ -42,8 +42,8 @@ export class FixPracticesTypeColumn1716000000000 implements MigrationInterface {
       );
     `);
 
-    /* Converte indietro (i valori non nell'enum che sono stati inseriti
-       dopo la migration up causeranno errore nel down; questa è una limitazione nota) */
+    // Converte indietro (i valori non nell'enum che sono stati inseriti
+    -- dopo la migration up causeranno errore nel down; questa è una limitazione nota)
     await queryRunner.query(`
       ALTER TABLE practices
       ALTER COLUMN type TYPE practices_type_enum

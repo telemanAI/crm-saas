@@ -60,7 +60,7 @@ interface EnergyWizardData {
   phone?: string;
   email?: string;
   codiceFiscaleVecchioContratto?: string;
-  // Step 4: attivazione + contatore + gestori
+  // Step 4: attivazione + contatore
   tipoAttivazione?: string;
   tipoAttivazioneAltro?: string;
   numeroContatore?: string;
@@ -68,8 +68,6 @@ interface EnergyWizardData {
   potenzaContatoreAltro?: string;
   gestoreProvenienza?: string;
   gestoreProvenienzaAltro?: string;
-  gestoreNuovoContratto?: string;
-  gestoreNuovoContrattoAltro?: string;
   // Step 5: pagamento
   ibanCdc?: string;
   noteMetodoPagamento?: string;

@@ -68,8 +68,6 @@ interface MobileWizardData {
   gestoreProvenienza?: string;
   gestoreProvenienzaAltro?: string;
   noteMnp?: string;
-  gestoreNuovaLinea?: string;
-  gestoreNuovaLineaAltro?: string;
   // Step 5: pagamento
   ibanCdc?: string;
   ricarica?: string;

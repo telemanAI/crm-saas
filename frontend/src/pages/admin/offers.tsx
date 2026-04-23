@@ -156,7 +156,7 @@ export default function OffersManagementPage() {
     if (!editingOffer) return;
     try {
       // Rimuove id vuoto per POST e normalizza category
-      const { id, ...rest } = editingOffer;
+      const { id, created_at, updated_at, ...rest } = editingOffer as any;
       const payload = { ...rest, category };
       if (isCreating) {
         await api.post('/admin/offers', payload);

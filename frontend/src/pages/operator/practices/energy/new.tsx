@@ -125,36 +125,37 @@ export default function NewEnergyPractice() {
   const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
 
   // Filtro offerte per gestore (DEVE essere DOPO offerteList)
+  // Filtro offerte per gestore — match ESATTO sul provider per evitare falsi positivi
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
+    // 1. Offerte dal backend: match ESATTO sul campo provider
     const backendNames = allOffers
       .filter((o: any) => {
-        const name = (typeof o === 'string' ? o : o.name || '').toUpperCase();
-        const prov = (typeof o === 'string' ? '' : (o.provider || '')).toUpperCase();
-        return name.includes(provUpper) || prov.includes(provUpper);
+        if (typeof o === 'string') return false;
+        const prov = (o.provider || '').toUpperCase();
+        return prov === provUpper || prov.replace(/_/g, ' ') === provUpper;
       })
-      .map((o: any) => (typeof o === 'string' ? o : o.name || ''));
+      .map((o: any) => o.name || '');
 
+    // 2. Offerte hardcoded: match preciso per nome (inizia con PROVIDER + spazio)
     const hardcodedNames = offerteList
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
-        return name.includes(provUpper);
+        return name.startsWith(provUpper + ' ');
       })
-      .map((o: any) => (typeof o === 'string' ? o : o.value || o.label || o || ''));
+      .map((o: any) => typeof o === 'string' ? o : o.value || o.label || o || '');
 
-    // Merge: backend + hardcoded mancanti
+    // 3. Merge senza duplicati
     const merged = [...backendNames];
     hardcodedNames.forEach((h: string) => {
-      if (!merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
+      if (h && !merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
         merged.push(h);
       }
     });
 
-    // Se il merge è vuoto, ritorna [] (non offerteList altrimenti mostra TUTTE le offerte)
-    // L'utente userà "Altro" per scrivere manualmente
-    return merged.length > 0 ? merged : [];
+    return merged;
   }, [allOffers, offerteList]);
 
   // Carica offerte dal backend (una sola volta)
@@ -269,7 +270,7 @@ export default function NewEnergyPractice() {
         offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email, address: '' }
           : undefined,
         energyData: {
           gestoreNuovoContratto: data.gestoreNuovoContratto,

@@ -164,7 +164,7 @@ export const ENERGY_PROVIDER_CARDS = [
   { key: 'A2A', name: 'A2A', color: '#0072BC', initials: 'A2', textColor: '#fff', logo: '/logos/a2a.png' },
   { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff', logo: '/logos/italia-power.png' },
   { key: 'SORGENIA BOLLETTA EXPRESS', name: 'Sorgenia', color: '#FF6600', initials: 'SR', textColor: '#fff', logo: '/logos/sorgenia.png' },
-  { key: 'SINERGY BOLLETTA EXPRESS', name: 'Sinergy', color: '#0066CC', initials: 'SN', textColor: '#fff' },
+  { key: 'SINERGY BOLLETTA EXPRESS', name: 'Sinergy', color: '#0066CC', initials: 'SN', textColor: '#fff', logo: '' },
   { key: 'ENEL AB CONTACT', name: 'Enel', color: '#FF8000', initials: 'EN', textColor: '#fff', logo: '/logos/enel.png' },
   { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff', logo: '/logos/optima.png' },
   { key: 'ACEA WIND3', name: 'Acea Wind3', color: '#6B35A0', initials: 'AW', textColor: '#fff', logo: '/logos/acea.png' },

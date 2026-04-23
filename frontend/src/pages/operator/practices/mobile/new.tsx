@@ -106,6 +106,38 @@ export default function NewMobilePractice() {
   // backend risponde con array di stringhe oppure array di oggetti
   const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=MOBILE');
+        // Il backend potrebbe ritornare stringhe o oggetti
+        setAllOffers(res.data || []);
+      } catch {
+        setAllOffers([]);
+      }
+    })();
+  }, []);
+
+  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=MOBILE).
+  // Se il backend è vuoto o risponde con errore, facciamo fallback sulla lista hardcoded
+  // in constants/practiceCategories.ts così il wizard non si blocca mai.
+  const [offerteBackend, setOfferteBackend] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=MOBILE');
+        const names = (res.data || []).map((o: any) => o.name).filter(Boolean);
+        setOfferteBackend(names.length > 0 ? names : null);
+      } catch {
+        setOfferteBackend(null);
+      }
+    })();
+  }, []);
+
+  const offerteList = offerteBackend && offerteBackend.length > 0 ? offerteBackend : (OFFERTE_MOBILE as any);
+
+  // Filtro offerte per gestore (dopo offerteList per evitare use-before-declare)
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
@@ -137,37 +169,6 @@ export default function NewMobilePractice() {
 
     return merged.length > 0 ? merged : offerteList;
   }, [allOffers, offerteList]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=MOBILE');
-        // Il backend potrebbe ritornare stringhe o oggetti
-        setAllOffers(res.data || []);
-      } catch {
-        setAllOffers([]);
-      }
-    })();
-  }, []);
-
-  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=MOBILE).
-  // Se il backend è vuoto o risponde con errore, facciamo fallback sulla lista hardcoded
-  // in constants/practiceCategories.ts così il wizard non si blocca mai.
-  const [offerteBackend, setOfferteBackend] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=MOBILE');
-        const names = (res.data || []).map((o: any) => o.name).filter(Boolean);
-        setOfferteBackend(names.length > 0 ? names : null);
-      } catch {
-        setOfferteBackend(null);
-      }
-    })();
-  }, []);
-
-  const offerteList = offerteBackend && offerteBackend.length > 0 ? offerteBackend : (OFFERTE_MOBILE as any);
 
   const patch = (p: Partial<MobileWizardData>) => setData((prev) => ({ ...prev, ...p }));
 

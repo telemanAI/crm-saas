@@ -100,6 +100,38 @@ export default function NewEnergyPractice() {
   // ====== Offerte dinamiche + filtro per gestore (come rete fissa) ======
   const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=ENERGY');
+        setAllOffers(res.data || []);
+      } catch {
+        setAllOffers([]);
+      }
+    })();
+  }, []);
+
+  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=ENERGY).
+  // Se vuote/errore -> fallback su TIPI_OFFERTA_ENERGY (VARIABILE/FISSA/ALTRO).
+  const [offerteBackend, setOfferteBackend] = useState<Array<{ value: string; label: string }> | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=ENERGY');
+        const items = (res.data || [])
+          .filter((o: any) => o.name)
+          .map((o: any) => ({ value: o.name, label: o.name }));
+        setOfferteBackend(items.length > 0 ? items : null);
+      } catch {
+        setOfferteBackend(null);
+      }
+    })();
+  }, []);
+
+  const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
+
+  // Filtro offerte per gestore (dopo offerteList per evitare use-before-declare)
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
@@ -131,37 +163,6 @@ export default function NewEnergyPractice() {
 
     return merged.length > 0 ? merged : offerteList;
   }, [allOffers, offerteList]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=ENERGY');
-        setAllOffers(res.data || []);
-      } catch {
-        setAllOffers([]);
-      }
-    })();
-  }, []);
-
-  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=ENERGY).
-  // Se vuote/errore -> fallback su TIPI_OFFERTA_ENERGY (VARIABILE/FISSA/ALTRO).
-  const [offerteBackend, setOfferteBackend] = useState<Array<{ value: string; label: string }> | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=ENERGY');
-        const items = (res.data || [])
-          .filter((o: any) => o.name)
-          .map((o: any) => ({ value: o.name, label: o.name }));
-        setOfferteBackend(items.length > 0 ? items : null);
-      } catch {
-        setOfferteBackend(null);
-      }
-    })();
-  }, []);
-
-  const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
 
   const patch = (p: Partial<EnergyWizardData>) => setData((prev) => ({ ...prev, ...p }));
 

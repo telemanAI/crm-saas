@@ -41,6 +41,27 @@ const validateFiscalCode = (cf: string): boolean => {
   return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
 };
 
+// Helper per renderizzare l'icona del provider evitando il type narrowing TS
+function ProviderIcon({ provider, isSelected }: { provider: any; isSelected: boolean }) {
+  if (provider.logo && provider.logo.length > 0) {
+    return (
+      <img
+        src={provider.logo}
+        alt={provider.name}
+        className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
+      />
+    );
+  }
+  return (
+    <div
+      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+      style={{ backgroundColor: provider.color, color: provider.textColor }}
+    >
+      {provider.initials}
+    </div>
+  );
+}
+
 interface EnergyWizardData {
   // Step 1: gestore + offerta
   gestoreNuovoContratto?: string;
@@ -97,46 +118,17 @@ export default function NewEnergyPractice() {
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // ====== Offerte dinamiche + filtro per gestore (come rete fissa) ======
-  const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=ENERGY');
-        setAllOffers(res.data || []);
-      } catch {
-        setAllOffers([]);
-      }
-    })();
-  }, []);
-
-  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=ENERGY).
-  // Se vuote/errore -> fallback su TIPI_OFFERTA_ENERGY (VARIABILE/FISSA/ALTRO).
-  const [offerteBackend, setOfferteBackend] = useState<Array<{ value: string; label: string }> | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=ENERGY');
-        const items = (res.data || [])
-          .filter((o: any) => o.name)
-          .map((o: any) => ({ value: o.name, label: o.name }));
-        setOfferteBackend(items.length > 0 ? items : null);
-      } catch {
-        setOfferteBackend(null);
-      }
-    })();
-  }, []);
+  // Offerte dinamiche caricate dal backend
+  const [allOffers, setAllOffers] = useState<any[]>([]);
+  const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
   const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
 
-  // Filtro offerte per gestore (dopo offerteList per evitare use-before-declare)
+  // Filtro offerte per gestore (DEVE essere DOPO offerteList)
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
-    // 1. Offerte dal backend filtrate per gestore
     const backendNames = allOffers
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.name || '').toUpperCase();
@@ -145,7 +137,6 @@ export default function NewEnergyPractice() {
       })
       .map((o: any) => (typeof o === 'string' ? o : o.name || ''));
 
-    // 2. Offerte hardcoded filtrate per gestore
     const hardcodedNames = offerteList
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
@@ -153,7 +144,7 @@ export default function NewEnergyPractice() {
       })
       .map((o: any) => (typeof o === 'string' ? o : o.value || o.label || o || ''));
 
-    // 3. Merge: backend + hardcoded mancanti (cosi se nel DB manca un'offerta, la prende dall'hardcoded)
+    // Merge: backend + hardcoded mancanti
     const merged = [...backendNames];
     hardcodedNames.forEach((h: string) => {
       if (!merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
@@ -164,8 +155,27 @@ export default function NewEnergyPractice() {
     return merged.length > 0 ? merged : offerteList;
   }, [allOffers, offerteList]);
 
+  // Carica offerte dal backend (una sola volta)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=ENERGY');
+        setAllOffers(res.data || []);
+        // Formatta per SelectWithOther
+        const items = (res.data || [])
+          .filter((o: any) => o.name)
+          .map((o: any) => ({ value: o.name, label: o.name }));
+        setOfferteBackend(items.length > 0 ? items : null);
+      } catch {
+        setAllOffers([]);
+        setOfferteBackend(null);
+      }
+    })();
+  }, []);
+
   const patch = (p: Partial<EnergyWizardData>) => setData((prev) => ({ ...prev, ...p }));
 
+  // Carica in modalita edit
   useEffect(() => {
     if (!router.isReady) return;
     if (!edit || typeof edit !== 'string') {
@@ -177,7 +187,7 @@ export default function NewEnergyPractice() {
         const res = await api.get(`/practices/${edit}`);
         const p = res.data;
         if (p.category !== 'ENERGY') {
-          alert('Questa pratica non è di tipo luce/gas');
+          alert('Questa pratica non e di tipo luce/gas');
           router.replace('/operator/practices/energy');
           return;
         }
@@ -186,6 +196,7 @@ export default function NewEnergyPractice() {
         setCompletedSteps(cs);
         setExpandedStep(Math.min(Math.max(...cs, 0) + 1, TOTAL_STEPS));
         setData({
+          gestoreNuovoContratto: p.type || p.energyData?.gestoreNuovoContratto,
           soldById: p.soldById,
           soldBy: p.soldBy,
           enteredById: p.enteredById,
@@ -195,6 +206,7 @@ export default function NewEnergyPractice() {
           fiscalCode: p.customerSnapshot?.fiscalCode,
           phone: p.customerSnapshot?.phonePrimary || p.customerSnapshot?.phone,
           email: p.customerSnapshot?.email,
+          codiceFiscaleVecchioContratto: p.energyData?.codiceFiscaleVecchioContratto,
           ...(p.energyData || {}),
           lavorazioniPostAttivazione: p.lavorazioniPostAttivazione,
         });
@@ -238,7 +250,7 @@ export default function NewEnergyPractice() {
           (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim())
         );
       case 5:
-        return !!data.ibanCdc?.trim(); // IBAN oppure stringa "BOLLETTINO"
+        return !!data.ibanCdc?.trim();
       case 6:
         return true;
       default:
@@ -251,20 +263,12 @@ export default function NewEnergyPractice() {
       const gestore = data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto;
       const res = await api.post('/practices', {
         category: 'ENERGY',
-        type: gestore, // gestore selezionato dalle card
-        offerName:
-          data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
-        offerCode:
-          data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
+        type: gestore,
+        offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
+        offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         activationDate: data.dataAttivazione,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? {
-              firstName: data.firstName,
-              lastName: data.lastName,
-              fiscalCode: data.fiscalCode,
-              phone: data.phone || '',
-              email: data.email,
-            }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email }
           : undefined,
         energyData: {
           gestoreNuovoContratto: data.gestoreNuovoContratto,
@@ -281,10 +285,8 @@ export default function NewEnergyPractice() {
 
     const stepPayloads: Record<number, any> = {
       1: {
-        offerName:
-          data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
-        offerCode:
-          data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
+        offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
+        offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         tipoOfferta: data.tipoOfferta,
         tipoOffertaAltro: data.tipoOffertaAltro,
         activationDate: data.dataAttivazione,
@@ -293,20 +295,9 @@ export default function NewEnergyPractice() {
         noteGeneriche: data.noteGeneriche,
         type: data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto,
       },
-      2: {
-        soldById: data.soldById,
-        soldBy: data.soldBy,
-        enteredById: data.enteredById,
-        enteredBy: data.enteredBy,
-      },
+      2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          fiscalCode: data.fiscalCode,
-          phone: data.phone,
-          email: data.email,
-        },
+        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email },
         codiceFiscaleVecchioContratto: data.codiceFiscaleVecchioContratto,
       },
       4: {
@@ -318,21 +309,11 @@ export default function NewEnergyPractice() {
         gestoreProvenienza: data.gestoreProvenienza,
         gestoreProvenienzaAltro: data.gestoreProvenienzaAltro,
       },
-      5: {
-        ibanCdc: data.ibanCdc,
-        noteMetodoPagamento: data.noteMetodoPagamento,
-      },
-      6: {
-        noteGeneriche: data.noteGeneriche,
-        accordiCliente: data.accordiCliente,
-        lavorazioniPostAttivazione: data.lavorazioniPostAttivazione,
-      },
+      5: { ibanCdc: data.ibanCdc, noteMetodoPagamento: data.noteMetodoPagamento },
+      6: { noteGeneriche: data.noteGeneriche, accordiCliente: data.accordiCliente, lavorazioniPostAttivazione: data.lavorazioniPostAttivazione },
     };
 
-    await api.put(`/practices/${practiceId}/step`, {
-      stepNumber,
-      data: stepPayloads[stepNumber],
-    });
+    await api.put(`/practices/${practiceId}/step`, { stepNumber, data: stepPayloads[stepNumber] });
     return practiceId;
   };
 
@@ -354,10 +335,7 @@ export default function NewEnergyPractice() {
     setLoading(true);
     try {
       await saveStep(TOTAL_STEPS);
-      await api.put(`/practices/${practiceId}/step`, {
-        stepNumber: TOTAL_STEPS,
-        data: { completed: true },
-      });
+      await api.put(`/practices/${practiceId}/step`, { stepNumber: TOTAL_STEPS, data: { completed: true } });
       await api.post(`/practices/${practiceId}/force-complete`, {});
       alert('Pratica luce/gas completata con successo!');
       router.push('/operator/practices/energy');
@@ -426,7 +404,7 @@ export default function NewEnergyPractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
-                {/* STEP 1: GESTORE + OFFERTA + DATA (come rete fissa) */}
+                {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
                     {/* Card gestore */}
@@ -456,20 +434,7 @@ export default function NewEnergyPractice() {
                               }`}
                               data-testid={`energy-card-${provider.key}`}
                             >
-                              {provider.logo ? (
-                                <img
-                                  src={provider.logo}
-                                  alt={provider.name}
-                                  className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
-                                />
-                              ) : (
-                                <div
-                                  className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
-                                  style={{ backgroundColor: provider.color, color: provider.textColor }}
-                                >
-                                  {provider.initials}
-                                </div>
-                              )}
+                              <ProviderIcon provider={provider} isSelected={isSelected} />
                               <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>
                                 {provider.name}
                               </span>
@@ -552,55 +517,25 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
+                {/* STEP 2: VENDITORI */}
                 {s.id === 2 && (
                   <div className="space-y-4">
-                    <OperatorsDropdown
-                      label="Venduto da *"
-                      value={data.soldById}
-                      onChange={(id, name) => patch({ soldById: id, soldBy: name })}
-                      testId="energy-soldby"
-                    />
-                    <OperatorsDropdown
-                      label="Inserito da *"
-                      value={data.enteredById}
-                      onChange={(id, name) => patch({ enteredById: id, enteredBy: name })}
-                      testId="energy-enteredby"
-                    />
-                    <WizardStepNav
-                      canAdvance={stepValid(2)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(1)}
-                      onAdvance={() => advance(2)}
-                      loading={loading}
-                    />
+                    <OperatorsDropdown label="Venduto da *" value={data.soldById} onChange={(id, name) => patch({ soldById: id, soldBy: name })} testId="energy-soldby" />
+                    <OperatorsDropdown label="Inserito da *" value={data.enteredById} onChange={(id, name) => patch({ enteredById: id, enteredBy: name })} testId="energy-enteredby" />
+                    <WizardStepNav canAdvance={stepValid(2)} isLast={false} onBack={() => setExpandedStep(1)} onAdvance={() => advance(2)} loading={loading} />
                   </div>
                 )}
 
+                {/* STEP 3: CLIENTE */}
                 {s.id === 3 && (
                   <div className="space-y-4">
                     <CustomerAutocomplete
-                      value={{
-                        firstName: data.firstName,
-                        lastName: data.lastName,
-                        fiscalCode: data.fiscalCode,
-                        phone: data.phone,
-                        email: data.email,
-                      }}
+                      value={{ firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email }}
                       onPatch={(p) => patch(p)}
-                      onPick={(c: CustomerLite) =>
-                        patch({
-                          firstName: c.firstName,
-                          lastName: c.lastName,
-                          fiscalCode: c.fiscalCode,
-                          phone: c.phonePrimary || c.phone || '',
-                          email: c.email || '',
-                        })
-                      }
+                      onPick={(c: CustomerLite) => patch({ firstName: c.firstName, lastName: c.lastName, fiscalCode: c.fiscalCode, phone: c.phonePrimary || c.phone || '', email: c.email || '' })}
                     />
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Codice fiscale vecchio contratto <span className="text-rose-400">*</span>
-                      </label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchio contratto <span className="text-rose-400">*</span></label>
                       <input
                         type="text"
                         value={data.codiceFiscaleVecchioContratto || ''}
@@ -612,32 +547,16 @@ export default function NewEnergyPractice() {
                     {data.fiscalCode && !validateFiscalCode(data.fiscalCode) && (
                       <p className="text-rose-400 text-sm">Codice fiscale non valido</p>
                     )}
-                    <WizardStepNav
-                      canAdvance={stepValid(3)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(2)}
-                      onAdvance={() => advance(3)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(3)} isLast={false} onBack={() => setExpandedStep(2)} onAdvance={() => advance(3)} loading={loading} />
                   </div>
                 )}
 
+                {/* STEP 4: ATTIVAZIONE & CONTATORE */}
                 {s.id === 4 && (
                   <div className="space-y-4">
-                    <SelectWithOther
-                      label="Tipo di attivazione"
-                      required
-                      value={data.tipoAttivazione}
-                      otherValue={data.tipoAttivazioneAltro}
-                      onChange={(v) => patch({ tipoAttivazione: v })}
-                      onOtherChange={(v) => patch({ tipoAttivazioneAltro: v })}
-                      options={TIPI_ATTIVAZIONE_ENERGY}
-                      testId="energy-tipo-attivazione"
-                    />
+                    <SelectWithOther label="Tipo di attivazione" required value={data.tipoAttivazione} otherValue={data.tipoAttivazioneAltro} onChange={(v) => patch({ tipoAttivazione: v })} onOtherChange={(v) => patch({ tipoAttivazioneAltro: v })} options={TIPI_ATTIVAZIONE_ENERGY} testId="energy-tipo-attivazione" />
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Numero contatore <span className="text-rose-400">*</span>
-                      </label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Numero contatore <span className="text-rose-400">*</span></label>
                       <p className="text-xs text-slate-500 mb-2">LUCE = POD, GAS = PDR</p>
                       <input
                         type="text"
@@ -647,28 +566,10 @@ export default function NewEnergyPractice() {
                         data-testid="energy-numero-contatore"
                       />
                     </div>
-                    <SelectWithOther
-                      label="Potenza contatore"
-                      required
-                      value={data.potenzaContatore}
-                      otherValue={data.potenzaContatoreAltro}
-                      onChange={(v) => patch({ potenzaContatore: v })}
-                      onOtherChange={(v) => patch({ potenzaContatoreAltro: v })}
-                      options={POTENZE_CONTATORE}
-                      testId="energy-potenza"
-                    />
-                    <SelectWithOther
-                      label="Gestore di provenienza"
-                      required
-                      value={data.gestoreProvenienza}
-                      otherValue={data.gestoreProvenienzaAltro}
-                      onChange={(v) => patch({ gestoreProvenienza: v })}
-                      onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })}
-                      options={GESTORI_ENERGY_PROVENIENZA as any}
-                      testId="energy-gestore-provenienza"
-                    />
+                    <SelectWithOther label="Potenza contatore" required value={data.potenzaContatore} otherValue={data.potenzaContatoreAltro} onChange={(v) => patch({ potenzaContatore: v })} onOtherChange={(v) => patch({ potenzaContatoreAltro: v })} options={POTENZE_CONTATORE} testId="energy-potenza" />
+                    <SelectWithOther label="Gestore di provenienza" required value={data.gestoreProvenienza} otherValue={data.gestoreProvenienzaAltro} onChange={(v) => patch({ gestoreProvenienza: v })} onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })} options={GESTORI_ENERGY_PROVENIENZA as any} testId="energy-gestore-provenienza" />
 
-                    {/* Riepilogo gestore scelto allo step 1 (read-only) */}
+                    {/* Riepilogo gestore scelto allo step 1 */}
                     <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
                       <CheckCircle className="w-5 h-5 text-amber-400" />
                       <div>
@@ -679,23 +580,16 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    <WizardStepNav
-                      canAdvance={stepValid(4)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(3)}
-                      onAdvance={() => advance(4)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(4)} isLast={false} onBack={() => setExpandedStep(3)} onAdvance={() => advance(4)} loading={loading} />
                   </div>
                 )}
 
+                {/* STEP 5: PAGAMENTO */}
                 {s.id === 5 && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        IBAN / CDC <span className="text-rose-400">*</span>
-                      </label>
-                      <p className="text-xs text-slate-500 mb-2">Se bollettino scrivere "BOLLETTINO"</p>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">IBAN / CDC <span className="text-rose-400">*</span></label>
+                      <p className="text-xs text-slate-500 mb-2">Se bollettino scrivere &quot;BOLLETTINO&quot;</p>
                       <input
                         type="text"
                         value={data.ibanCdc || ''}
@@ -706,71 +600,40 @@ export default function NewEnergyPractice() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note metodo di pagamento</label>
-                      <textarea
-                        value={data.noteMetodoPagamento || ''}
-                        onChange={(e) => patch({ noteMetodoPagamento: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.noteMetodoPagamento || ''} onChange={(e) => patch({ noteMetodoPagamento: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
-                    <WizardStepNav
-                      canAdvance={stepValid(5)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(4)}
-                      onAdvance={() => advance(5)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(5)} isLast={false} onBack={() => setExpandedStep(4)} onAdvance={() => advance(5)} loading={loading} />
                   </div>
                 )}
 
+                {/* STEP 6: NOTE & CONFERMA */}
                 {s.id === 6 && (
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note generiche</label>
-                      <textarea
-                        value={data.noteGeneriche || ''}
-                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.noteGeneriche || ''} onChange={(e) => patch({ noteGeneriche: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Accordi con cliente</label>
-                      <textarea
-                        value={data.accordiCliente || ''}
-                        onChange={(e) => patch({ accordiCliente: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.accordiCliente || ''} onChange={(e) => patch({ accordiCliente: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Lavorazioni post-attivazione</label>
-                      <textarea
-                        value={data.lavorazioniPostAttivazione || ''}
-                        onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.lavorazioniPostAttivazione || ''} onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
 
                     <div className="rounded-xl p-4 bg-slate-950 border border-slate-800 flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5" />
                       <div className="text-sm text-slate-300 space-y-1">
-                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} · {data.fiscalCode}</p>
+                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} &middot; {data.fiscalCode}</p>
                         <p><span className="text-slate-500">Attivazione:</span> {data.tipoAttivazione === 'ALTRO' ? data.tipoAttivazioneAltro : data.tipoAttivazione}</p>
-                        <p><span className="text-slate-500">Contatore:</span> {data.numeroContatore} · {data.potenzaContatore === 'ALTRO' ? data.potenzaContatoreAltro : data.potenzaContatore}</p>
-                        <p><span className="text-slate-500">Gestore nuovo:</span> {data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}</p>
+                        <p><span className="text-slate-500">Contatore:</span> {data.numeroContatore} &middot; {data.potenzaContatore === 'ALTRO' ? data.potenzaContatoreAltro : data.potenzaContatore}</p>
+                        <p><span className="text-slate-500">Gestore:</span> {data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}</p>
                         <p><span className="text-slate-500">Pagamento:</span> {data.ibanCdc}</p>
                       </div>
                     </div>
 
-                    <WizardStepNav
-                      canAdvance={stepValid(6)}
-                      isLast
-                      onBack={() => setExpandedStep(5)}
-                      onAdvance={submit}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(6)} isLast onBack={() => setExpandedStep(5)} onAdvance={submit} loading={loading} />
                   </div>
                 )}
               </PracticeStepCard>

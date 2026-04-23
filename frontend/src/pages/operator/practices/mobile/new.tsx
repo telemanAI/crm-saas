@@ -25,13 +25,7 @@ import {
 } from '@/constants/practiceCategories';
 import api from '@/lib/axios';
 
-// Validazione CF condivisa (stessa del wizard fisso).
-const validateFiscalCode = (cf: string): boolean => {
-  if (!cf || cf.length !== 16) return false;
-  return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
-};
-
-// Helpers dal wizard rete fissa
+// Helpers (come wizard rete fissa)
 const formatDateToItalian = (d: string | undefined) => {
   if (!d) return '';
   const [y, m, day] = d.split('-');
@@ -42,6 +36,32 @@ const parseItalianDate = (s: string | undefined) => {
   const [d, m, y] = s.split('/');
   return `${y}-${m}-${d}`;
 };
+
+const validateFiscalCode = (cf: string): boolean => {
+  if (!cf || cf.length !== 16) return false;
+  return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
+};
+
+// Helper per renderizzare l'icona del provider evitando il type narrowing TS
+function ProviderIcon({ provider, isSelected }: { provider: any; isSelected: boolean }) {
+  if (provider.logo && provider.logo.length > 0) {
+    return (
+      <img
+        src={provider.logo}
+        alt={provider.name}
+        className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
+      />
+    );
+  }
+  return (
+    <div
+      className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+      style={{ backgroundColor: provider.color, color: provider.textColor }}
+    >
+      {provider.initials}
+    </div>
+  );
+}
 
 interface MobileWizardData {
   // Step 1: gestore + offerta
@@ -102,47 +122,17 @@ export default function NewMobilePractice() {
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // ====== Offerte dinamiche + filtro per gestore (come rete fissa) ======
-  // backend risponde con array di stringhe oppure array di oggetti
-  const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=MOBILE');
-        // Il backend potrebbe ritornare stringhe o oggetti
-        setAllOffers(res.data || []);
-      } catch {
-        setAllOffers([]);
-      }
-    })();
-  }, []);
-
-  // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=MOBILE).
-  // Se il backend è vuoto o risponde con errore, facciamo fallback sulla lista hardcoded
-  // in constants/practiceCategories.ts così il wizard non si blocca mai.
-  const [offerteBackend, setOfferteBackend] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.get('/offers?category=MOBILE');
-        const names = (res.data || []).map((o: any) => o.name).filter(Boolean);
-        setOfferteBackend(names.length > 0 ? names : null);
-      } catch {
-        setOfferteBackend(null);
-      }
-    })();
-  }, []);
+  // Offerte dinamiche caricate dal backend
+  const [allOffers, setAllOffers] = useState<any[]>([]);
+  const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
   const offerteList = offerteBackend && offerteBackend.length > 0 ? offerteBackend : (OFFERTE_MOBILE as any);
 
-  // Filtro offerte per gestore (dopo offerteList per evitare use-before-declare)
+  // Filtro offerte per gestore (DEVE essere DOPO offerteList)
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
-    // 1. Offerte dal backend filtrate per gestore
     const backendNames = allOffers
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.name || '').toUpperCase();
@@ -151,7 +141,6 @@ export default function NewMobilePractice() {
       })
       .map((o: any) => (typeof o === 'string' ? o : o.name || ''));
 
-    // 2. Offerte hardcoded filtrate per gestore
     const hardcodedNames = offerteList
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
@@ -159,7 +148,7 @@ export default function NewMobilePractice() {
       })
       .map((o: any) => (typeof o === 'string' ? o : o.value || o.label || o || ''));
 
-    // 3. Merge: backend + hardcoded mancanti (cosi se nel DB manca un'offerta, la prende dall'hardcoded)
+    // Merge: backend + hardcoded mancanti
     const merged = [...backendNames];
     hardcodedNames.forEach((h: string) => {
       if (!merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
@@ -170,9 +159,24 @@ export default function NewMobilePractice() {
     return merged.length > 0 ? merged : offerteList;
   }, [allOffers, offerteList]);
 
+  // Carica offerte dal backend
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=MOBILE');
+        setAllOffers(res.data || []);
+        const names = (res.data || []).map((o: any) => o.name).filter(Boolean);
+        setOfferteBackend(names.length > 0 ? names : null);
+      } catch {
+        setAllOffers([]);
+        setOfferteBackend(null);
+      }
+    })();
+  }, []);
+
   const patch = (p: Partial<MobileWizardData>) => setData((prev) => ({ ...prev, ...p }));
 
-  // Carica in modalità edit
+  // Carica in modalita edit
   useEffect(() => {
     if (!router.isReady) return;
     if (!edit || typeof edit !== 'string') {
@@ -184,7 +188,7 @@ export default function NewMobilePractice() {
         const res = await api.get(`/practices/${edit}`);
         const p = res.data;
         if (p.category !== 'MOBILE') {
-          alert('Questa pratica non è di tipo mobile');
+          alert('Questa pratica non e di tipo mobile');
           router.replace('/operator/practices/mobile');
           return;
         }
@@ -193,8 +197,8 @@ export default function NewMobilePractice() {
         setCompletedSteps(cs);
         setExpandedStep(Math.min(Math.max(...cs, 0) + 1, TOTAL_STEPS));
         setData({
+          gestoreNuovaLinea: p.type || p.mobileData?.gestoreNuovaLinea,
           offerName: p.offerName,
-          offertaAltro: p.mobileData?.offertaAltro,
           soldById: p.soldById,
           soldBy: p.soldBy,
           enteredById: p.enteredById,
@@ -228,13 +232,7 @@ export default function NewMobilePractice() {
         case 2:
           return !!(data.soldById && data.enteredById);
         case 3: {
-          const baseOk =
-            data.firstName?.trim() &&
-            data.lastName?.trim() &&
-            data.fiscalCode &&
-            validateFiscalCode(data.fiscalCode) &&
-            data.phone?.trim() &&
-            data.email?.trim();
+          const baseOk = data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone?.trim() && data.email?.trim();
           return !!baseOk;
         }
         case 4:
@@ -246,14 +244,9 @@ export default function NewMobilePractice() {
             (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim())
           );
         case 5:
-          return !!(
-            data.ricarica &&
-            (data.ricarica !== 'ALTRO' || data.ricaricaAltro?.trim())
-          );
+          return !!(data.ricarica && (data.ricarica !== 'ALTRO' || data.ricaricaAltro?.trim()));
         case 6:
-          return !!(
-            data.timUnica && (data.timUnica !== 'ALTRO' || data.timUnicaAltro?.trim())
-          );
+          return !!(data.timUnica && (data.timUnica !== 'ALTRO' || data.timUnicaAltro?.trim()));
         default:
           return false;
       }
@@ -262,22 +255,15 @@ export default function NewMobilePractice() {
 
   const saveStep = async (stepNumber: number): Promise<string | null> => {
     if (stepNumber === 1 && !practiceId) {
-      // Creiamo la pratica al primo step (come la rete fissa)
       const gestore = data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea;
       const res = await api.post('/practices', {
         category: 'MOBILE',
-        type: gestore, // gestore selezionato dalle card
+        type: gestore,
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         activationDate: data.dataAttivazione,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? {
-              firstName: data.firstName,
-              lastName: data.lastName,
-              fiscalCode: data.fiscalCode,
-              phone: data.phone || '',
-              email: data.email,
-            }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email }
           : undefined,
         mobileData: {
           gestoreNuovaLinea: data.gestoreNuovaLinea,
@@ -291,7 +277,6 @@ export default function NewMobilePractice() {
     }
     if (!practiceId) return null;
 
-    // Prepara il payload per lo step corrente
     const stepPayloads: Record<number, any> = {
       1: {
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
@@ -303,20 +288,9 @@ export default function NewMobilePractice() {
         noteGeneriche: data.noteGeneriche,
         type: data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea,
       },
-      2: {
-        soldById: data.soldById,
-        soldBy: data.soldBy,
-        enteredById: data.enteredById,
-        enteredBy: data.enteredBy,
-      },
+      2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          fiscalCode: data.fiscalCode,
-          phone: data.phone,
-          email: data.email,
-        },
+        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email },
       },
       4: {
         codiceFiscaleVecchiaLinea: data.codiceFiscaleVecchiaLinea,
@@ -342,10 +316,7 @@ export default function NewMobilePractice() {
       },
     };
 
-    await api.put(`/practices/${practiceId}/step`, {
-      stepNumber,
-      data: stepPayloads[stepNumber],
-    });
+    await api.put(`/practices/${practiceId}/step`, { stepNumber, data: stepPayloads[stepNumber] });
     return practiceId;
   };
 
@@ -368,10 +339,7 @@ export default function NewMobilePractice() {
     setLoading(true);
     try {
       await saveStep(TOTAL_STEPS);
-      await api.put(`/practices/${practiceId}/step`, {
-        stepNumber: TOTAL_STEPS,
-        data: { completed: true },
-      });
+      await api.put(`/practices/${practiceId}/step`, { stepNumber: TOTAL_STEPS, data: { completed: true } });
       await api.post(`/practices/${practiceId}/force-complete`, {});
       alert('Pratica mobile completata con successo!');
       router.push('/operator/practices/mobile');
@@ -440,7 +408,7 @@ export default function NewMobilePractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
-                {/* STEP 1: GESTORE + OFFERTA + DATA (come rete fissa) */}
+                {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
                     {/* Card gestore */}
@@ -470,20 +438,7 @@ export default function NewMobilePractice() {
                               }`}
                               data-testid={`mobile-card-${provider.key}`}
                             >
-                              {provider.logo ? (
-                                <img
-                                  src={provider.logo}
-                                  alt={provider.name}
-                                  className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
-                                />
-                              ) : (
-                                <div
-                                  className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
-                                  style={{ backgroundColor: provider.color, color: provider.textColor }}
-                                >
-                                  {provider.initials}
-                                </div>
-                              )}
+                              <ProviderIcon provider={provider} isSelected={isSelected} />
                               <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
                                 {provider.name}
                               </span>
@@ -544,15 +499,13 @@ export default function NewMobilePractice() {
                       <input
                         type="date"
                         value={parseItalianDate(data.dataAttivazione)}
-                        onChange={(e) =>
-                          patch({ dataAttivazione: formatDateToItalian(e.target.value) })
-                        }
+                        onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })}
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
                         data-testid="mobile-data-attivazione"
                       />
                     </div>
 
-                    {/* Note generiche step 1 */}
+                    {/* Note */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note</label>
                       <textarea
@@ -564,38 +517,17 @@ export default function NewMobilePractice() {
                       />
                     </div>
 
-                    <WizardStepNav
-                      canAdvance={stepValid(1)}
-                      isLast={false}
-                      onAdvance={() => advance(1)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(1)} isLast={false} onAdvance={() => advance(1)} loading={loading} />
                   </div>
                 )}
 
                 {/* STEP 2: VENDITORI */}
                 {s.id === 2 && (
                   <div className="space-y-4">
-                    <OperatorsDropdown
-                      label="Venduto da *"
-                      value={data.soldById}
-                      onChange={(id, name) => patch({ soldById: id, soldBy: name })}
-                      testId="mobile-soldby"
-                    />
-                    <OperatorsDropdown
-                      label="Inserito da *"
-                      value={data.enteredById}
-                      onChange={(id, name) => patch({ enteredById: id, enteredBy: name })}
-                      testId="mobile-enteredby"
-                    />
-                    <p className="text-xs text-slate-500">Se il nome non è presente nell'elenco, contatta il responsabile per aggiungere l'operatore in Team.</p>
-                    <WizardStepNav
-                      canAdvance={stepValid(2)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(1)}
-                      onAdvance={() => advance(2)}
-                      loading={loading}
-                    />
+                    <OperatorsDropdown label="Venduto da *" value={data.soldById} onChange={(id, name) => patch({ soldById: id, soldBy: name })} testId="mobile-soldby" />
+                    <OperatorsDropdown label="Inserito da *" value={data.enteredById} onChange={(id, name) => patch({ enteredById: id, enteredBy: name })} testId="mobile-enteredby" />
+                    <p className="text-xs text-slate-500">Se il nome non e presente nell&apos;elenco, contatta il responsabile per aggiungere l&apos;operatore in Team.</p>
+                    <WizardStepNav canAdvance={stepValid(2)} isLast={false} onBack={() => setExpandedStep(1)} onAdvance={() => advance(2)} loading={loading} />
                   </div>
                 )}
 
@@ -603,34 +535,14 @@ export default function NewMobilePractice() {
                 {s.id === 3 && (
                   <div className="space-y-4">
                     <CustomerAutocomplete
-                      value={{
-                        firstName: data.firstName,
-                        lastName: data.lastName,
-                        fiscalCode: data.fiscalCode,
-                        phone: data.phone,
-                        email: data.email,
-                      }}
+                      value={{ firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email }}
                       onPatch={(p) => patch(p)}
-                      onPick={(c: CustomerLite) =>
-                        patch({
-                          firstName: c.firstName,
-                          lastName: c.lastName,
-                          fiscalCode: c.fiscalCode,
-                          phone: c.phonePrimary || c.phone || '',
-                          email: c.email || '',
-                        })
-                      }
+                      onPick={(c: CustomerLite) => patch({ firstName: c.firstName, lastName: c.lastName, fiscalCode: c.fiscalCode, phone: c.phonePrimary || c.phone || '', email: c.email || '' })}
                     />
                     {data.fiscalCode && !validateFiscalCode(data.fiscalCode) && (
                       <p className="text-rose-400 text-sm">Codice fiscale non valido</p>
                     )}
-                    <WizardStepNav
-                      canAdvance={stepValid(3)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(2)}
-                      onAdvance={() => advance(3)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(3)} isLast={false} onBack={() => setExpandedStep(2)} onAdvance={() => advance(3)} loading={loading} />
                   </div>
                 )}
 
@@ -638,9 +550,7 @@ export default function NewMobilePractice() {
                 {s.id === 4 && (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Codice fiscale vecchia linea <span className="text-rose-400">*</span>
-                      </label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchia linea <span className="text-rose-400">*</span></label>
                       <input
                         type="text"
                         value={data.codiceFiscaleVecchiaLinea || ''}
@@ -650,9 +560,7 @@ export default function NewMobilePractice() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-2">
-                        Numero da portare <span className="text-rose-400">*</span>
-                      </label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Numero da portare <span className="text-rose-400">*</span></label>
                       <p className="text-xs text-slate-500 mb-2">Se nuovo numero scrivere 0</p>
                       <input
                         type="text"
@@ -662,38 +570,14 @@ export default function NewMobilePractice() {
                         data-testid="mobile-numero-portare"
                       />
                     </div>
-                    <SelectWithOther
-                      label="Tipo di linea"
-                      required
-                      value={data.tipoLinea}
-                      otherValue=""
-                      onChange={(v) => patch({ tipoLinea: v })}
-                      onOtherChange={() => {}}
-                      options={TIPI_LINEA_MOBILE}
-                      testId="mobile-tipo-linea"
-                    />
-                    <SelectWithOther
-                      label="Gestore di provenienza"
-                      required
-                      value={data.gestoreProvenienza}
-                      otherValue={data.gestoreProvenienzaAltro}
-                      onChange={(v) => patch({ gestoreProvenienza: v })}
-                      onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })}
-                      options={GESTORI_MOBILE_PROVENIENZA as any}
-                      testId="mobile-gestore-provenienza"
-                    />
+                    <SelectWithOther label="Tipo di linea" required value={data.tipoLinea} otherValue="" onChange={(v) => patch({ tipoLinea: v })} onOtherChange={() => {}} options={TIPI_LINEA_MOBILE} testId="mobile-tipo-linea" />
+                    <SelectWithOther label="Gestore di provenienza" required value={data.gestoreProvenienza} otherValue={data.gestoreProvenienzaAltro} onChange={(v) => patch({ gestoreProvenienza: v })} onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })} options={GESTORI_MOBILE_PROVENIENZA as any} testId="mobile-gestore-provenienza" />
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note MNP</label>
-                      <p className="text-xs text-slate-500 mb-2">Informazioni utili per la gestione della vecchia linea</p>
-                      <textarea
-                        value={data.noteMnp || ''}
-                        onChange={(e) => patch({ noteMnp: e.target.value })}
-                        rows={3}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.noteMnp || ''} onChange={(e) => patch({ noteMnp: e.target.value })} rows={3} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
 
-                    {/* Riepilogo gestore scelto allo step 1 (read-only) */}
+                    {/* Riepilogo gestore scelto allo step 1 */}
                     <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
                       <CheckCircle className="w-5 h-5 text-cyan-400" />
                       <div>
@@ -704,29 +588,14 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    <WizardStepNav
-                      canAdvance={stepValid(4)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(3)}
-                      onAdvance={() => advance(4)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(4)} isLast={false} onBack={() => setExpandedStep(3)} onAdvance={() => advance(4)} loading={loading} />
                   </div>
                 )}
 
                 {/* STEP 5: PAGAMENTO / RICARICA */}
                 {s.id === 5 && (
                   <div className="space-y-4">
-                    <SelectWithOther
-                      label="Ricarica"
-                      required
-                      value={data.ricarica}
-                      otherValue={data.ricaricaAltro}
-                      onChange={(v) => patch({ ricarica: v })}
-                      onOtherChange={(v) => patch({ ricaricaAltro: v })}
-                      options={RICARICA_OPTIONS}
-                      testId="mobile-ricarica"
-                    />
+                    <SelectWithOther label="Ricarica" required value={data.ricarica} otherValue={data.ricaricaAltro} onChange={(v) => patch({ ricarica: v })} onOtherChange={(v) => patch({ ricaricaAltro: v })} options={RICARICA_OPTIONS} testId="mobile-ricarica" />
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">IBAN / CDC</label>
                       <p className="text-xs text-slate-500 mb-2">Se ricaricabile non compilare</p>
@@ -740,42 +609,19 @@ export default function NewMobilePractice() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note metodo di pagamento</label>
-                      <p className="text-xs text-slate-500 mb-2">Es. postepay, conti correnti o prepagate particolari</p>
-                      <textarea
-                        value={data.noteMetodoPagamento || ''}
-                        onChange={(e) => patch({ noteMetodoPagamento: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.noteMetodoPagamento || ''} onChange={(e) => patch({ noteMetodoPagamento: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
-                    <WizardStepNav
-                      canAdvance={stepValid(5)}
-                      isLast={false}
-                      onBack={() => setExpandedStep(4)}
-                      onAdvance={() => advance(5)}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(5)} isLast={false} onBack={() => setExpandedStep(4)} onAdvance={() => advance(5)} loading={loading} />
                   </div>
                 )}
 
                 {/* STEP 6: TIM UNICA + NOTE + CONFERMA */}
                 {s.id === 6 && (
                   <div className="space-y-4">
-                    <SelectWithOther
-                      label="TIM Unica"
-                      required
-                      value={data.timUnica}
-                      otherValue={data.timUnicaAltro}
-                      onChange={(v) => patch({ timUnica: v })}
-                      onOtherChange={(v) => patch({ timUnicaAltro: v })}
-                      options={TIM_UNICA_OPTIONS}
-                      testId="mobile-tim-unica"
-                    />
+                    <SelectWithOther label="TIM Unica" required value={data.timUnica} otherValue={data.timUnicaAltro} onChange={(v) => patch({ timUnica: v })} onOtherChange={(v) => patch({ timUnicaAltro: v })} options={TIM_UNICA_OPTIONS} testId="mobile-tim-unica" />
                     {(data.timUnica === 'AGGANCIATA' || data.timUnica === 'DA_AGGANCIARE') && (
                       <div>
-                        <label className="block text-sm font-medium text-slate-300 mb-2">
-                          Numero rete fissa TIM Unica
-                        </label>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Numero rete fissa TIM Unica</label>
                         <input
                           type="text"
                           value={data.numeroReteFissaTimUnica || ''}
@@ -786,53 +632,28 @@ export default function NewMobilePractice() {
                     )}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note generiche</label>
-                      <p className="text-xs text-slate-500 mb-2">Offerte non in elenco o info aggiuntive</p>
-                      <textarea
-                        value={data.noteGeneriche || ''}
-                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.noteGeneriche || ''} onChange={(e) => patch({ noteGeneriche: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Accordi con il cliente</label>
-                      <p className="text-xs text-slate-500 mb-2">Es. MNP in omaggio, rimborsi, accordi presi</p>
-                      <textarea
-                        value={data.accordiCliente || ''}
-                        onChange={(e) => patch({ accordiCliente: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.accordiCliente || ''} onChange={(e) => patch({ accordiCliente: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Lavorazioni post-attivazione</label>
-                      <p className="text-xs text-slate-500 mb-2">Es. SIM da agganciare in convergenza</p>
-                      <textarea
-                        value={data.lavorazioniPostAttivazione || ''}
-                        onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                      />
+                      <textarea value={data.lavorazioniPostAttivazione || ''} onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
 
-                    {/* Riepilogo minimo */}
                     <div className="rounded-xl p-4 bg-slate-950 border border-slate-800 flex items-start gap-3">
                       <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5" />
                       <div className="text-sm text-slate-300 space-y-1">
                         <p><span className="text-slate-500">Offerta:</span> {data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}</p>
-                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} · {data.fiscalCode}</p>
-                        <p><span className="text-slate-500">Gestore nuovo:</span> {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
+                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} &middot; {data.fiscalCode}</p>
+                        <p><span className="text-slate-500">Gestore:</span> {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
                         <p><span className="text-slate-500">TIM Unica:</span> {data.timUnica === 'ALTRO' ? data.timUnicaAltro : data.timUnica}</p>
                       </div>
                     </div>
 
-                    <WizardStepNav
-                      canAdvance={stepValid(6)}
-                      isLast
-                      onBack={() => setExpandedStep(5)}
-                      onAdvance={submit}
-                      loading={loading}
-                    />
+                    <WizardStepNav canAdvance={stepValid(6)} isLast onBack={() => setExpandedStep(5)} onAdvance={submit} loading={loading} />
                   </div>
                 )}
               </PracticeStepCard>

@@ -156,7 +156,9 @@ export default function NewMobilePractice() {
       }
     });
 
-    return merged.length > 0 ? merged : offerteList;
+    // Se il merge è vuoto, ritorna [] (non offerteList altrimenti mostra TUTTE le offerte)
+    // L'utente userà "Altro" per scrivere manualmente
+    return merged.length > 0 ? merged : [];
   }, [allOffers, offerteList]);
 
   // Carica offerte dal backend
@@ -261,7 +263,6 @@ export default function NewMobilePractice() {
         type: gestore,
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
-        activationDate: data.dataAttivazione,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
           ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email }
           : undefined,
@@ -270,6 +271,7 @@ export default function NewMobilePractice() {
           gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
           offertaAltro: data.offertaAltro,
           noteGeneriche: data.noteGeneriche,
+          dataAttivazione: data.dataAttivazione,
         },
       });
       setPracticeId(res.data.id);
@@ -281,11 +283,11 @@ export default function NewMobilePractice() {
       1: {
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
-        activationDate: data.dataAttivazione,
         gestoreNuovaLinea: data.gestoreNuovaLinea,
         gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
         offertaAltro: data.offertaAltro,
         noteGeneriche: data.noteGeneriche,
+        dataAttivazione: data.dataAttivazione,
         type: data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea,
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },

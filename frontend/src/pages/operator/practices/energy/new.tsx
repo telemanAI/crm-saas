@@ -152,7 +152,9 @@ export default function NewEnergyPractice() {
       }
     });
 
-    return merged.length > 0 ? merged : offerteList;
+    // Se il merge è vuoto, ritorna [] (non offerteList altrimenti mostra TUTTE le offerte)
+    // L'utente userà "Altro" per scrivere manualmente
+    return merged.length > 0 ? merged : [];
   }, [allOffers, offerteList]);
 
   // Carica offerte dal backend (una sola volta)
@@ -266,7 +268,6 @@ export default function NewEnergyPractice() {
         type: gestore,
         offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
-        activationDate: data.dataAttivazione,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
           ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email }
           : undefined,
@@ -276,6 +277,7 @@ export default function NewEnergyPractice() {
           tipoOfferta: data.tipoOfferta,
           tipoOffertaAltro: data.tipoOffertaAltro,
           noteGeneriche: data.noteGeneriche,
+          dataAttivazione: data.dataAttivazione,
         },
       });
       setPracticeId(res.data.id);
@@ -289,10 +291,10 @@ export default function NewEnergyPractice() {
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         tipoOfferta: data.tipoOfferta,
         tipoOffertaAltro: data.tipoOffertaAltro,
-        activationDate: data.dataAttivazione,
         gestoreNuovoContratto: data.gestoreNuovoContratto,
         gestoreNuovoContrattoAltro: data.gestoreNuovoContrattoAltro,
         noteGeneriche: data.noteGeneriche,
+        dataAttivazione: data.dataAttivazione,
         type: data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto,
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },

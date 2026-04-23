@@ -1,3 +1,4 @@
+// backend/src/modules/practices/practices.controller.ts
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import {
@@ -12,61 +13,52 @@ import {
   Query,
   Request,
   UseGuards,
-  ParseUUIDPipe,
+  ParseUUIDPipe
 } from '@nestjs/common';
 import { PracticesService } from './practices.service';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
-import { AuditLog } from '../audit/decorators/audit-log.decorator';
-import { PracticeCategory } from './entities/practice.entity';
 
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('practices')
 export class PracticesController {
-  constructor(private readonly practicesService: PracticesService) {}
+  constructor(
+    private readonly practicesService: PracticesService,
+  ) {}
 
   @Post()
   @RequirePermission('canCreatePractices')
-  @AuditLog({ action: 'CREATE', entityType: 'practice' })
-  async create(@Request() req, @Body() dto: CreatePracticeDto) {
+  async create(
+    @Request() req,
+    @Body() dto: CreatePracticeDto,
+  ) {
     const user = req.user;
     return this.practicesService.create(user.tenantId, user.userId, dto);
   }
 
-  /**
-   * Lista pratiche. Filtri supportati:
-   *   ?category=FIXED_LINE|MOBILE|ENERGY
-   *   ?type=TIM_FIBRA|VODAFONE|...
-   *   ?status=draft|in_progress|completed|cancelled
-   *
-   * Nessun filtro ritorna TUTTE le pratiche (retrocompat UI legacy).
-   */
   @Get()
   async findAll(
     @Request() req,
-    @Query('category') category?: string,
     @Query('type') type?: string,
     @Query('status') status?: string,
   ) {
     const user = req.user;
-    return this.practicesService.findAll(user.tenantId, {
-      type,
-      status,
-      category: category as PracticeCategory,
-    });
+    return this.practicesService.findAll(user.tenantId, { type, status });
   }
 
   @Get(':id')
-  async findOne(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
+  async findOne(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     const user = req.user;
     return this.practicesService.getById(user.tenantId, id);
   }
 
   @Put(':id/step')
   @RequirePermission('canEditPractices')
-  @AuditLog({ action: 'UPDATE_STEP', entityType: 'practice' })
   async updateStep(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -78,7 +70,6 @@ export class PracticesController {
 
   @Put(':id/operational-status')
   @RequirePermission('canEditPractices')
-  @AuditLog({ action: 'UPDATE_OPERATIONAL_STATUS', entityType: 'practice' })
   async updateOperationalStatus(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -90,7 +81,6 @@ export class PracticesController {
 
   @Patch(':id/convergence')
   @RequirePermission('canEditPractices')
-  @AuditLog({ action: 'UPDATE_CONVERGENCE', entityType: 'practice' })
   async updateConvergence(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
@@ -101,34 +91,29 @@ export class PracticesController {
   }
 
   @Post(':id/force-complete')
-  @RequirePermission('canEditPractices')
-  @AuditLog({ action: 'FORCE_COMPLETE', entityType: 'practice' })
+  @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   async forceComplete(@Param('id') id: string, @Request() req) {
     return this.practicesService.forceComplete(req.user.tenantId, id);
   }
 
   @Delete(':id')
+  @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   @RequirePermission('canDeletePractices')
-  @AuditLog({ action: 'DELETE', entityType: 'practice' })
-  async remove(@Request() req, @Param('id', ParseUUIDPipe) id: string) {
+  async remove(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     const user = req.user;
     return this.practicesService.delete(user.tenantId, id);
   }
 
   @Delete(':id/notes/:noteIndex')
-  @RequirePermission('canEditPractices')
-  @AuditLog({ action: 'DELETE_NOTE', entityType: 'practice' })
   async deleteNote(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('noteIndex') noteIndex: string,
   ) {
     const user = req.user;
-    return this.practicesService.deleteNote(
-      user.tenantId,
-      id,
-      parseInt(noteIndex),
-      user.userId,
-    );
+    return this.practicesService.deleteNote(user.tenantId, id, parseInt(noteIndex), user.userId);
   }
 }

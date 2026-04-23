@@ -235,7 +235,7 @@ export default function NewMobilePractice() {
         case 2:
           return !!(data.soldById && data.enteredById);
         case 3: {
-          const baseOk = data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone?.trim() && data.email?.trim();
+          const baseOk = data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone?.trim();
           return !!baseOk;
         }
         case 4:
@@ -293,7 +293,7 @@ export default function NewMobilePractice() {
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email },
+        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '' },
       },
       4: {
         codiceFiscaleVecchiaLinea: data.codiceFiscaleVecchiaLinea,

@@ -31,10 +31,25 @@ const validateFiscalCode = (cf: string): boolean => {
   return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
 };
 
+// Helpers dal wizard rete fissa
+const formatDateToItalian = (d: string | undefined) => {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+};
+const parseItalianDate = (s: string | undefined) => {
+  if (!s || !s.includes('/')) return s || '';
+  const [d, m, y] = s.split('/');
+  return `${y}-${m}-${d}`;
+};
+
 interface MobileWizardData {
-  // Step 1: offerta
+  // Step 1: gestore + offerta
+  gestoreNuovaLinea?: string;
+  gestoreNuovaLineaAltro?: string;
   offerName?: string;
   offertaAltro?: string;
+  dataAttivazione?: string;
   // Step 2: venditori
   soldById?: string;
   soldBy?: string;
@@ -88,6 +103,54 @@ export default function NewMobilePractice() {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
+
+  // ====== Offerte dinamiche + filtro per gestore (come rete fissa) ======
+  // backend risponde con array di stringhe oppure array di oggetti
+  const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
+
+  const getFilteredOffers = useCallback((provider?: string) => {
+    if (!provider) return offerteList;
+    const provUpper = provider.toUpperCase();
+
+    // 1. Offerte dal backend filtrate per gestore
+    const backendNames = allOffers
+      .filter((o: any) => {
+        const name = (typeof o === 'string' ? o : o.name || '').toUpperCase();
+        const prov = (typeof o === 'string' ? '' : (o.provider || '')).toUpperCase();
+        return name.includes(provUpper) || prov.includes(provUpper);
+      })
+      .map((o: any) => (typeof o === 'string' ? o : o.name || ''));
+
+    // 2. Offerte hardcoded filtrate per gestore
+    const hardcodedNames = offerteList
+      .filter((o: any) => {
+        const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
+        return name.includes(provUpper);
+      })
+      .map((o: any) => (typeof o === 'string' ? o : o.value || o.label || o || ''));
+
+    // 3. Merge: backend + hardcoded mancanti (cosi se nel DB manca un'offerta, la prende dall'hardcoded)
+    const merged = [...backendNames];
+    hardcodedNames.forEach((h: string) => {
+      if (!merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
+        merged.push(h);
+      }
+    });
+
+    return merged.length > 0 ? merged : offerteList;
+  }, [allOffers, offerteList]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=MOBILE');
+        // Il backend potrebbe ritornare stringhe o oggetti
+        setAllOffers(res.data || []);
+      } catch {
+        setAllOffers([]);
+      }
+    })();
+  }, []);
 
   // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=MOBILE).
   // Se il backend è vuoto o risponde con errore, facciamo fallback sulla lista hardcoded
@@ -157,8 +220,12 @@ export default function NewMobilePractice() {
   const stepValid = useMemo(() => {
     return (id: number): boolean => {
       switch (id) {
-        case 1:
-          return !!(data.offerName && (data.offerName !== 'ALTRO' || data.offertaAltro?.trim()));
+        case 1: {
+          const gestoreOk = data.gestoreNuovaLinea && (data.gestoreNuovaLinea !== 'ALTRO' || data.gestoreNuovaLineaAltro?.trim());
+          const offertaOk = data.offerName && (data.offerName !== 'ALTRO' || data.offertaAltro?.trim());
+          const dataOk = data.dataAttivazione && data.dataAttivazione.length >= 8;
+          return !!(gestoreOk && offertaOk && dataOk);
+        }
         case 2:
           return !!(data.soldById && data.enteredById);
         case 3: {
@@ -177,9 +244,7 @@ export default function NewMobilePractice() {
             data.numeroDaPortare !== undefined &&
             data.tipoLinea &&
             data.gestoreProvenienza &&
-            (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim()) &&
-            data.gestoreNuovaLinea &&
-            (data.gestoreNuovaLinea !== 'ALTRO' || data.gestoreNuovaLineaAltro?.trim())
+            (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim())
           );
         case 5:
           return !!(
@@ -199,11 +264,13 @@ export default function NewMobilePractice() {
   const saveStep = async (stepNumber: number): Promise<string | null> => {
     if (stepNumber === 1 && !practiceId) {
       // Creiamo la pratica al primo step (come la rete fissa)
+      const gestore = data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea;
       const res = await api.post('/practices', {
         category: 'MOBILE',
-        type: null, // il gestore viene scelto allo step 4
+        type: gestore, // gestore selezionato dalle card
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
+        activationDate: data.dataAttivazione,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
           ? {
               firstName: data.firstName,
@@ -214,7 +281,10 @@ export default function NewMobilePractice() {
             }
           : undefined,
         mobileData: {
+          gestoreNuovaLinea: data.gestoreNuovaLinea,
+          gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
           offertaAltro: data.offertaAltro,
+          noteGeneriche: data.noteGeneriche,
         },
       });
       setPracticeId(res.data.id);
@@ -227,7 +297,12 @@ export default function NewMobilePractice() {
       1: {
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
+        activationDate: data.dataAttivazione,
+        gestoreNuovaLinea: data.gestoreNuovaLinea,
+        gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
         offertaAltro: data.offertaAltro,
+        noteGeneriche: data.noteGeneriche,
+        type: data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea,
       },
       2: {
         soldById: data.soldById,
@@ -251,10 +326,6 @@ export default function NewMobilePractice() {
         gestoreProvenienza: data.gestoreProvenienza,
         gestoreProvenienzaAltro: data.gestoreProvenienzaAltro,
         noteMnp: data.noteMnp,
-        gestoreNuovaLinea: data.gestoreNuovaLinea,
-        gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
-        // type sincronizzato col gestore nuova linea per lista/filtri
-        type: data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea,
       },
       5: {
         ibanCdc: data.ibanCdc,
@@ -370,19 +441,130 @@ export default function NewMobilePractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
-                {/* STEP 1: OFFERTA */}
+                {/* STEP 1: GESTORE + OFFERTA + DATA (come rete fissa) */}
                 {s.id === 1 && (
                   <div className="space-y-4">
-                    <SelectWithOther
-                      label="Offerta"
-                      required
-                      value={data.offerName}
-                      otherValue={data.offertaAltro}
-                      onChange={(v) => patch({ offerName: v })}
-                      onOtherChange={(v) => patch({ offertaAltro: v })}
-                      options={offerteList}
-                      testId="mobile-offerta"
-                    />
+                    {/* Card gestore */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        Seleziona gestore <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {MOBILE_PROVIDER_CARDS.map((provider) => {
+                          const isSelected = data.gestoreNuovaLinea === provider.key;
+                          return (
+                            <motion.button
+                              key={provider.key}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() =>
+                                patch({
+                                  gestoreNuovaLinea: provider.key,
+                                  gestoreNuovaLineaAltro: undefined,
+                                  offerName: undefined,
+                                })
+                              }
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                isSelected
+                                  ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
+                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                              }`}
+                              data-testid={`mobile-card-${provider.key}`}
+                            >
+                              {provider.logo ? (
+                                <img
+                                  src={provider.logo}
+                                  alt={provider.name}
+                                  className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
+                                />
+                              ) : (
+                                <div
+                                  className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+                                  style={{ backgroundColor: provider.color, color: provider.textColor }}
+                                >
+                                  {provider.initials}
+                                </div>
+                              )}
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
+                                {provider.name}
+                              </span>
+                              {isSelected && <CheckCircle className="w-4 h-4 text-cyan-400" />}
+                            </motion.button>
+                          );
+                        })}
+                        {/* ALTRO */}
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => patch({ gestoreNuovaLinea: 'ALTRO', gestoreNuovaLineaAltro: '', offerName: undefined })}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                            data.gestoreNuovaLinea === 'ALTRO'
+                              ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
+                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">+</div>
+                          <span className={`font-bold text-xs text-center ${data.gestoreNuovaLinea === 'ALTRO' ? 'text-cyan-400' : 'text-slate-300'}`}>Altro</span>
+                          {data.gestoreNuovaLinea === 'ALTRO' && <CheckCircle className="w-4 h-4 text-cyan-400" />}
+                        </motion.button>
+                      </div>
+                      {/* Input ALTRO */}
+                      {data.gestoreNuovaLinea === 'ALTRO' && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-3">
+                          <input
+                            type="text"
+                            value={data.gestoreNuovaLineaAltro || ''}
+                            onChange={(e) => patch({ gestoreNuovaLineaAltro: e.target.value })}
+                            placeholder="Specifica gestore..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                            data-testid="mobile-gestore-altro"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Offerta filtrata per gestore */}
+                    {data.gestoreNuovaLinea && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <SelectWithOther
+                          label={`Offerta ${data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea} *`}
+                          required
+                          value={data.offerName}
+                          otherValue={data.offertaAltro}
+                          onChange={(v) => patch({ offerName: v })}
+                          onOtherChange={(v) => patch({ offertaAltro: v })}
+                          options={getFilteredOffers(data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea)}
+                          testId="mobile-offerta"
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* Data attivazione */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Data attivazione <span className="text-rose-400">*</span></label>
+                      <input
+                        type="date"
+                        value={parseItalianDate(data.dataAttivazione)}
+                        onChange={(e) =>
+                          patch({ dataAttivazione: formatDateToItalian(e.target.value) })
+                        }
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                        data-testid="mobile-data-attivazione"
+                      />
+                    </div>
+
+                    {/* Note generiche step 1 */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Note</label>
+                      <textarea
+                        value={data.noteGeneriche || ''}
+                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
+                        rows={2}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                        data-testid="mobile-note-step1"
+                      />
+                    </div>
+
                     <WizardStepNav
                       canAdvance={stepValid(1)}
                       isLast={false}
@@ -512,86 +694,16 @@ export default function NewMobilePractice() {
                       />
                     </div>
 
-                    {/* ===== CARD GESTORI NUOVA LINEA ===== */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-3">
-                        Gestore nuova linea <span className="text-rose-400">*</span>
-                      </label>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {MOBILE_PROVIDER_CARDS.map((provider) => {
-                          const isSelected = data.gestoreNuovaLinea === provider.key;
-                          return (
-                            <motion.button
-                              key={provider.key}
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() => patch({
-                                gestoreNuovaLinea: provider.key,
-                                gestoreNuovaLineaAltro: undefined,
-                              })}
-                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                isSelected
-                                  ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
-                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                              }`}
-                              data-testid={`mobile-card-${provider.key}`}
-                            >
-                              <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
-                                style={{ backgroundColor: provider.color, color: provider.textColor }}
-                              >
-                                {provider.initials}
-                              </div>
-                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
-                                {provider.name}
-                              </span>
-                              {isSelected && (
-                                <CheckCircle className="w-4 h-4 text-cyan-400" />
-                              )}
-                            </motion.button>
-                          );
-                        })}
-                        {/* Bottone ALTRO */}
-                        <motion.button
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => patch({ gestoreNuovaLinea: 'ALTRO', gestoreNuovaLineaAltro: '' })}
-                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                            data.gestoreNuovaLinea === 'ALTRO'
-                              ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
-                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">
-                            +
-                          </div>
-                          <span className={`font-bold text-xs text-center ${data.gestoreNuovaLinea === 'ALTRO' ? 'text-cyan-400' : 'text-slate-300'}`}>
-                            Altro
-                          </span>
-                          {data.gestoreNuovaLinea === 'ALTRO' && (
-                            <CheckCircle className="w-4 h-4 text-cyan-400" />
-                          )}
-                        </motion.button>
+                    {/* Riepilogo gestore scelto allo step 1 (read-only) */}
+                    <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-cyan-400" />
+                      <div>
+                        <p className="text-sm text-slate-500">Gestore selezionato allo Step 1</p>
+                        <p className="text-sm font-bold text-slate-200">
+                          {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}
+                        </p>
                       </div>
-                      {/* Input ALTRO */}
-                      {data.gestoreNuovaLinea === 'ALTRO' && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          className="mt-3"
-                        >
-                          <input
-                            type="text"
-                            value={data.gestoreNuovaLineaAltro || ''}
-                            onChange={(e) => patch({ gestoreNuovaLineaAltro: e.target.value })}
-                            placeholder="Specifica gestore..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                            data-testid="mobile-gestore-nuova-altro"
-                          />
-                        </motion.div>
-                      )}
                     </div>
-                    {/* ===== FINE CARD GESTORI ===== */}
 
                     <WizardStepNav
                       canAdvance={stepValid(4)}

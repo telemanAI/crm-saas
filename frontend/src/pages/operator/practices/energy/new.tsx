@@ -24,15 +24,30 @@ import {
 } from '@/constants/practiceCategories';
 import api from '@/lib/axios';
 
+// Helpers (come wizard rete fissa)
+const formatDateToItalian = (d: string | undefined) => {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+};
+const parseItalianDate = (s: string | undefined) => {
+  if (!s || !s.includes('/')) return s || '';
+  const [d, m, y] = s.split('/');
+  return `${y}-${m}-${d}`;
+};
+
 const validateFiscalCode = (cf: string): boolean => {
   if (!cf || cf.length !== 16) return false;
   return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
 };
 
 interface EnergyWizardData {
-  // Step 1: tipo offerta
+  // Step 1: gestore + offerta
+  gestoreNuovoContratto?: string;
+  gestoreNuovoContrattoAltro?: string;
   tipoOfferta?: string;
   tipoOffertaAltro?: string;
+  dataAttivazione?: string;
   // Step 2: venditori
   soldById?: string;
   soldBy?: string;
@@ -83,6 +98,52 @@ export default function NewEnergyPractice() {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
+
+  // ====== Offerte dinamiche + filtro per gestore (come rete fissa) ======
+  const [allOffers, setAllOffers] = useState<Array<{ provider: string; name: string }>>([]);
+
+  const getFilteredOffers = useCallback((provider?: string) => {
+    if (!provider) return offerteList;
+    const provUpper = provider.toUpperCase();
+
+    // 1. Offerte dal backend filtrate per gestore
+    const backendNames = allOffers
+      .filter((o: any) => {
+        const name = (typeof o === 'string' ? o : o.name || '').toUpperCase();
+        const prov = (typeof o === 'string' ? '' : (o.provider || '')).toUpperCase();
+        return name.includes(provUpper) || prov.includes(provUpper);
+      })
+      .map((o: any) => (typeof o === 'string' ? o : o.name || ''));
+
+    // 2. Offerte hardcoded filtrate per gestore
+    const hardcodedNames = offerteList
+      .filter((o: any) => {
+        const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
+        return name.includes(provUpper);
+      })
+      .map((o: any) => (typeof o === 'string' ? o : o.value || o.label || o || ''));
+
+    // 3. Merge: backend + hardcoded mancanti (cosi se nel DB manca un'offerta, la prende dall'hardcoded)
+    const merged = [...backendNames];
+    hardcodedNames.forEach((h: string) => {
+      if (!merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
+        merged.push(h);
+      }
+    });
+
+    return merged.length > 0 ? merged : offerteList;
+  }, [allOffers, offerteList]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/offers?category=ENERGY');
+        setAllOffers(res.data || []);
+      } catch {
+        setAllOffers([]);
+      }
+    })();
+  }, []);
 
   // Offerte dinamiche caricate dal backend (gestite dal SUPER_ADMIN in /admin/offers?category=ENERGY).
   // Se vuote/errore -> fallback su TIPI_OFFERTA_ENERGY (VARIABILE/FISSA/ALTRO).
@@ -149,8 +210,12 @@ export default function NewEnergyPractice() {
 
   const stepValid = useMemo(() => (id: number): boolean => {
     switch (id) {
-      case 1:
-        return !!(data.tipoOfferta && (data.tipoOfferta !== 'ALTRO' || data.tipoOffertaAltro?.trim()));
+      case 1: {
+        const gestoreOk = data.gestoreNuovoContratto && (data.gestoreNuovoContratto !== 'ALTRO' || data.gestoreNuovoContrattoAltro?.trim());
+        const offertaOk = data.tipoOfferta && (data.tipoOfferta !== 'ALTRO' || data.tipoOffertaAltro?.trim());
+        const dataOk = data.dataAttivazione && data.dataAttivazione.length >= 8;
+        return !!(gestoreOk && offertaOk && dataOk);
+      }
       case 2:
         return !!(data.soldById && data.enteredById);
       case 3:
@@ -171,9 +236,7 @@ export default function NewEnergyPractice() {
           data.potenzaContatore &&
           (data.potenzaContatore !== 'ALTRO' || data.potenzaContatoreAltro?.trim()) &&
           data.gestoreProvenienza &&
-          (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim()) &&
-          data.gestoreNuovoContratto &&
-          (data.gestoreNuovoContratto !== 'ALTRO' || data.gestoreNuovoContrattoAltro?.trim())
+          (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim())
         );
       case 5:
         return !!data.ibanCdc?.trim(); // IBAN oppure stringa "BOLLETTINO"
@@ -186,16 +249,30 @@ export default function NewEnergyPractice() {
 
   const saveStep = async (stepNumber: number): Promise<string | null> => {
     if (stepNumber === 1 && !practiceId) {
+      const gestore = data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto;
       const res = await api.post('/practices', {
         category: 'ENERGY',
-        type: null, // il gestore viene scelto allo step 4
+        type: gestore, // gestore selezionato dalle card
         offerName:
           data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode:
           data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
+        activationDate: data.dataAttivazione,
+        customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
+          ? {
+              firstName: data.firstName,
+              lastName: data.lastName,
+              fiscalCode: data.fiscalCode,
+              phone: data.phone || '',
+              email: data.email,
+            }
+          : undefined,
         energyData: {
+          gestoreNuovoContratto: data.gestoreNuovoContratto,
+          gestoreNuovoContrattoAltro: data.gestoreNuovoContrattoAltro,
           tipoOfferta: data.tipoOfferta,
           tipoOffertaAltro: data.tipoOffertaAltro,
+          noteGeneriche: data.noteGeneriche,
         },
       });
       setPracticeId(res.data.id);
@@ -211,6 +288,11 @@ export default function NewEnergyPractice() {
           data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         tipoOfferta: data.tipoOfferta,
         tipoOffertaAltro: data.tipoOffertaAltro,
+        activationDate: data.dataAttivazione,
+        gestoreNuovoContratto: data.gestoreNuovoContratto,
+        gestoreNuovoContrattoAltro: data.gestoreNuovoContrattoAltro,
+        noteGeneriche: data.noteGeneriche,
+        type: data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto,
       },
       2: {
         soldById: data.soldById,
@@ -236,12 +318,6 @@ export default function NewEnergyPractice() {
         potenzaContatoreAltro: data.potenzaContatoreAltro,
         gestoreProvenienza: data.gestoreProvenienza,
         gestoreProvenienzaAltro: data.gestoreProvenienzaAltro,
-        gestoreNuovoContratto: data.gestoreNuovoContratto,
-        gestoreNuovoContrattoAltro: data.gestoreNuovoContrattoAltro,
-        type:
-          data.gestoreNuovoContratto === 'ALTRO'
-            ? data.gestoreNuovoContrattoAltro
-            : data.gestoreNuovoContratto,
       },
       5: {
         ibanCdc: data.ibanCdc,
@@ -351,18 +427,128 @@ export default function NewEnergyPractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
+                {/* STEP 1: GESTORE + OFFERTA + DATA (come rete fissa) */}
                 {s.id === 1 && (
                   <div className="space-y-4">
-                    <SelectWithOther
-                      label="Offerta"
-                      required
-                      value={data.tipoOfferta}
-                      otherValue={data.tipoOffertaAltro}
-                      onChange={(v) => patch({ tipoOfferta: v })}
-                      onOtherChange={(v) => patch({ tipoOffertaAltro: v })}
-                      options={offerteList}
-                      testId="energy-tipo-offerta"
-                    />
+                    {/* Card gestore */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        Seleziona gestore <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {ENERGY_PROVIDER_CARDS.map((provider) => {
+                          const isSelected = data.gestoreNuovoContratto === provider.key;
+                          return (
+                            <motion.button
+                              key={provider.key}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() =>
+                                patch({
+                                  gestoreNuovoContratto: provider.key,
+                                  gestoreNuovoContrattoAltro: undefined,
+                                  tipoOfferta: undefined,
+                                })
+                              }
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                isSelected
+                                  ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
+                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                              }`}
+                              data-testid={`energy-card-${provider.key}`}
+                            >
+                              {provider.logo ? (
+                                <img
+                                  src={provider.logo}
+                                  alt={provider.name}
+                                  className="w-12 h-12 object-contain rounded-lg bg-white p-0.5"
+                                />
+                              ) : (
+                                <div
+                                  className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+                                  style={{ backgroundColor: provider.color, color: provider.textColor }}
+                                >
+                                  {provider.initials}
+                                </div>
+                              )}
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>
+                                {provider.name}
+                              </span>
+                              {isSelected && <CheckCircle className="w-4 h-4 text-amber-400" />}
+                            </motion.button>
+                          );
+                        })}
+                        {/* ALTRO */}
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => patch({ gestoreNuovoContratto: 'ALTRO', gestoreNuovoContrattoAltro: '', tipoOfferta: undefined })}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                            data.gestoreNuovoContratto === 'ALTRO'
+                              ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
+                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">+</div>
+                          <span className={`font-bold text-xs text-center ${data.gestoreNuovoContratto === 'ALTRO' ? 'text-amber-400' : 'text-slate-300'}`}>Altro</span>
+                          {data.gestoreNuovoContratto === 'ALTRO' && <CheckCircle className="w-4 h-4 text-amber-400" />}
+                        </motion.button>
+                      </div>
+                      {/* Input ALTRO */}
+                      {data.gestoreNuovoContratto === 'ALTRO' && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-3">
+                          <input
+                            type="text"
+                            value={data.gestoreNuovoContrattoAltro || ''}
+                            onChange={(e) => patch({ gestoreNuovoContrattoAltro: e.target.value })}
+                            placeholder="Specifica gestore..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                            data-testid="energy-gestore-altro"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+
+                    {/* Offerta filtrata per gestore */}
+                    {data.gestoreNuovoContratto && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                        <SelectWithOther
+                          label={`Offerta ${data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto} *`}
+                          required
+                          value={data.tipoOfferta}
+                          otherValue={data.tipoOffertaAltro}
+                          onChange={(v) => patch({ tipoOfferta: v })}
+                          onOtherChange={(v) => patch({ tipoOffertaAltro: v })}
+                          options={getFilteredOffers(data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto)}
+                          testId="energy-tipo-offerta"
+                        />
+                      </motion.div>
+                    )}
+
+                    {/* Data attivazione */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Data attivazione <span className="text-rose-400">*</span></label>
+                      <input
+                        type="date"
+                        value={parseItalianDate(data.dataAttivazione)}
+                        onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                        data-testid="energy-data-attivazione"
+                      />
+                    </div>
+
+                    {/* Note */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Note</label>
+                      <textarea
+                        value={data.noteGeneriche || ''}
+                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
+                        rows={2}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                        data-testid="energy-note-step1"
+                      />
+                    </div>
+
                     <WizardStepNav canAdvance={stepValid(1)} isLast={false} onAdvance={() => advance(1)} loading={loading} />
                   </div>
                 )}
@@ -483,86 +669,16 @@ export default function NewEnergyPractice() {
                       testId="energy-gestore-provenienza"
                     />
 
-                    {/* ===== CARD GESTORI NUOVO CONTRATTO ===== */}
-                    <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-3">
-                        Gestore nuovo contratto <span className="text-rose-400">*</span>
-                      </label>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        {ENERGY_PROVIDER_CARDS.map((provider) => {
-                          const isSelected = data.gestoreNuovoContratto === provider.key;
-                          return (
-                            <motion.button
-                              key={provider.key}
-                              whileHover={{ scale: 1.03 }}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() => patch({
-                                gestoreNuovoContratto: provider.key,
-                                gestoreNuovoContrattoAltro: undefined,
-                              })}
-                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                isSelected
-                                  ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
-                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                              }`}
-                              data-testid={`energy-card-${provider.key}`}
-                            >
-                              <div
-                                className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
-                                style={{ backgroundColor: provider.color, color: provider.textColor }}
-                              >
-                                {provider.initials}
-                              </div>
-                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>
-                                {provider.name}
-                              </span>
-                              {isSelected && (
-                                <CheckCircle className="w-4 h-4 text-amber-400" />
-                              )}
-                            </motion.button>
-                          );
-                        })}
-                        {/* Bottone ALTRO */}
-                        <motion.button
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => patch({ gestoreNuovoContratto: 'ALTRO', gestoreNuovoContrattoAltro: '' })}
-                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                            data.gestoreNuovoContratto === 'ALTRO'
-                              ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
-                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">
-                            +
-                          </div>
-                          <span className={`font-bold text-xs text-center ${data.gestoreNuovoContratto === 'ALTRO' ? 'text-amber-400' : 'text-slate-300'}`}>
-                            Altro
-                          </span>
-                          {data.gestoreNuovoContratto === 'ALTRO' && (
-                            <CheckCircle className="w-4 h-4 text-amber-400" />
-                          )}
-                        </motion.button>
+                    {/* Riepilogo gestore scelto allo step 1 (read-only) */}
+                    <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-amber-400" />
+                      <div>
+                        <p className="text-sm text-slate-500">Gestore selezionato allo Step 1</p>
+                        <p className="text-sm font-bold text-slate-200">
+                          {data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}
+                        </p>
                       </div>
-                      {/* Input ALTRO */}
-                      {data.gestoreNuovoContratto === 'ALTRO' && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          className="mt-3"
-                        >
-                          <input
-                            type="text"
-                            value={data.gestoreNuovoContrattoAltro || ''}
-                            onChange={(e) => patch({ gestoreNuovoContrattoAltro: e.target.value })}
-                            placeholder="Specifica gestore..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                            data-testid="energy-gestore-nuovo-altro"
-                          />
-                        </motion.div>
-                      )}
                     </div>
-                    {/* ===== FINE CARD GESTORI ===== */}
 
                     <WizardStepNav
                       canAdvance={stepValid(4)}

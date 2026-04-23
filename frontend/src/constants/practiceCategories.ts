@@ -140,31 +140,34 @@ export const TIPI_OFFERTA_ENERGY = [
 ] as const;
 
 // ===== CARD GESTORI MOBILE (per wizard step 4) =====
+// Il campo 'logo' è opzionale: se presente, il wizard mostra l'immagine.
+// Se assente, mostra un cerchio colorato con le iniziali (fallback).
+// Per aggiungere un logo: metti il PNG in public/logos/ e aggiungi la riga logo: '/logos/nome.png'.
 export const MOBILE_PROVIDER_CARDS = [
-  { key: 'TIM', name: 'TIM', color: '#003B8E', initials: 'TM', textColor: '#fff' },
-  { key: 'VODAFONE', name: 'Vodafone', color: '#E60000', initials: 'VF', textColor: '#fff' },
-  { key: 'WIND3', name: 'Wind3', color: '#FF6B00', initials: 'W3', textColor: '#fff' },
-  { key: 'ILIAD', name: 'Iliad', color: '#D70000', initials: 'IL', textColor: '#fff' },
-  { key: 'KENA', name: 'Kena', color: '#FF6600', initials: 'KN', textColor: '#fff' },
-  { key: 'HO', name: 'Ho.', color: '#00A0E3', initials: 'HO', textColor: '#fff' },
-  { key: 'VERY', name: 'Very', color: '#7B2D8E', initials: 'VR', textColor: '#fff' },
-  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff' },
-  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff' },
-  { key: 'EMOBILE24', name: 'eMobile24', color: '#2ECC71', initials: 'E24', textColor: '#fff' },
-  { key: 'FASTWEB', name: 'Fastweb', color: '#FFCC00', initials: 'FW', textColor: '#000' },
-  { key: 'SKY MOBILE', name: 'SKY Mobile', color: '#005EB8', initials: 'SM', textColor: '#fff' },
+  { key: 'TIM', name: 'TIM', color: '#003B8E', initials: 'TM', textColor: '#fff', logo: '/logos/tim.png' },
+  { key: 'VODAFONE', name: 'Vodafone', color: '#E60000', initials: 'VF', textColor: '#fff', logo: '/logos/vodafone.png' },
+  { key: 'WIND3', name: 'Wind3', color: '#FF6B00', initials: 'W3', textColor: '#fff', logo: '/logos/windtre.png' },
+  { key: 'ILIAD', name: 'Iliad', color: '#D70000', initials: 'IL', textColor: '#fff', logo: '/logos/iliad.png' },
+  { key: 'KENA', name: 'Kena', color: '#FF6600', initials: 'KN', textColor: '#fff', logo: '/logos/kena.png' },
+  { key: 'HO', name: 'Ho.', color: '#00A0E3', initials: 'HO', textColor: '#fff', logo: '/logos/ho-mobile.png' },
+  { key: 'VERY', name: 'Very', color: '#7B2D8E', initials: 'VR', textColor: '#fff', logo: '/logos/very-mobile.png' },
+  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff', logo: '/logos/optima.png' },
+  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff', logo: '/logos/italia-power.png' },
+  { key: 'EMOBILE24', name: 'eMobile24', color: '#2ECC71', initials: 'E24', textColor: '#fff', logo: '/logos/emobile24.png' },
+  { key: 'FASTWEB', name: 'Fastweb', color: '#FFCC00', initials: 'FW', textColor: '#000', logo: '/logos/fastweb.png' },
+  { key: 'SKY MOBILE', name: 'SKY Mobile', color: '#005EB8', initials: 'SM', textColor: '#fff', logo: '/logos/sky.png' },
 ] as const;
 
 // ===== CARD GESTORI ENERGY (per wizard step 4) =====
 export const ENERGY_PROVIDER_CARDS = [
-  { key: 'IREN SEV', name: 'Iren SEV', color: '#00A651', initials: 'IS', textColor: '#fff' },
-  { key: 'A2A', name: 'A2A', color: '#0072BC', initials: 'A2', textColor: '#fff' },
-  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff' },
-  { key: 'SORGENIA BOLLETTA EXPRESS', name: 'Sorgenia', color: '#FF6600', initials: 'SR', textColor: '#fff' },
+  { key: 'IREN SEV', name: 'Iren SEV', color: '#00A651', initials: 'IS', textColor: '#fff', logo: '/logos/iren.png' },
+  { key: 'A2A', name: 'A2A', color: '#0072BC', initials: 'A2', textColor: '#fff', logo: '/logos/a2a.png' },
+  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff', logo: '/logos/italia-power.png' },
+  { key: 'SORGENIA BOLLETTA EXPRESS', name: 'Sorgenia', color: '#FF6600', initials: 'SR', textColor: '#fff', logo: '/logos/sorgenia.png' },
   { key: 'SINERGY BOLLETTA EXPRESS', name: 'Sinergy', color: '#0066CC', initials: 'SN', textColor: '#fff' },
-  { key: 'ENEL AB CONTACT', name: 'Enel', color: '#FF8000', initials: 'EN', textColor: '#fff' },
-  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff' },
-  { key: 'ACEA WIND3', name: 'Acea Wind3', color: '#6B35A0', initials: 'AW', textColor: '#fff' },
-  { key: 'ENI PLENITUDE', name: 'Eni Plenitude', color: '#008542', initials: 'EP', textColor: '#fff' },
-  { key: 'EDISON', name: 'Edison', color: '#0055A4', initials: 'ED', textColor: '#fff' },
+  { key: 'ENEL AB CONTACT', name: 'Enel', color: '#FF8000', initials: 'EN', textColor: '#fff', logo: '/logos/enel.png' },
+  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff', logo: '/logos/optima.png' },
+  { key: 'ACEA WIND3', name: 'Acea Wind3', color: '#6B35A0', initials: 'AW', textColor: '#fff', logo: '/logos/acea.png' },
+  { key: 'ENI PLENITUDE', name: 'Eni Plenitude', color: '#008542', initials: 'EP', textColor: '#fff', logo: '/logos/eni-plenitude.png' },
+  { key: 'EDISON', name: 'Edison', color: '#0055A4', initials: 'ED', textColor: '#fff', logo: '/logos/edison.png' },
 ] as const;

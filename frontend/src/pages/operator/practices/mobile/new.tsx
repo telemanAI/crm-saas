@@ -7,7 +7,6 @@ import {
   Phone,
   CreditCard,
   FileText,
-  Eye,
   DeviceMobile,
   CheckCircle,
 } from 'phosphor-react';
@@ -18,7 +17,7 @@ import { OperatorsDropdown } from '@/components/practices/OperatorsDropdown';
 import { CustomerAutocomplete, CustomerLite } from '@/components/practices/CustomerAutocomplete';
 import {
   GESTORI_MOBILE_PROVENIENZA,
-  GESTORI_MOBILE_NUOVI,
+  MOBILE_PROVIDER_CARDS,
   OFFERTE_MOBILE,
   TIPI_LINEA_MOBILE,
   RICARICA_OPTIONS,
@@ -202,7 +201,7 @@ export default function NewMobilePractice() {
       // Creiamo la pratica al primo step (come la rete fissa)
       const res = await api.post('/practices', {
         category: 'MOBILE',
-        type: 'MOBILE', // placeholder, il gestore nuova linea va in step 4
+        type: null, // il gestore viene scelto allo step 4
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
@@ -512,16 +511,88 @@ export default function NewMobilePractice() {
                         className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
                       />
                     </div>
-                    <SelectWithOther
-                      label="Gestore nuova linea"
-                      required
-                      value={data.gestoreNuovaLinea}
-                      otherValue={data.gestoreNuovaLineaAltro}
-                      onChange={(v) => patch({ gestoreNuovaLinea: v })}
-                      onOtherChange={(v) => patch({ gestoreNuovaLineaAltro: v })}
-                      options={GESTORI_MOBILE_NUOVI as any}
-                      testId="mobile-gestore-nuova"
-                    />
+
+                    {/* ===== CARD GESTORI NUOVA LINEA ===== */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        Gestore nuova linea <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {MOBILE_PROVIDER_CARDS.map((provider) => {
+                          const isSelected = data.gestoreNuovaLinea === provider.key;
+                          return (
+                            <motion.button
+                              key={provider.key}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => patch({
+                                gestoreNuovaLinea: provider.key,
+                                gestoreNuovaLineaAltro: undefined,
+                              })}
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                isSelected
+                                  ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
+                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                              }`}
+                              data-testid={`mobile-card-${provider.key}`}
+                            >
+                              <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+                                style={{ backgroundColor: provider.color, color: provider.textColor }}
+                              >
+                                {provider.initials}
+                              </div>
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
+                                {provider.name}
+                              </span>
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4 text-cyan-400" />
+                              )}
+                            </motion.button>
+                          );
+                        })}
+                        {/* Bottone ALTRO */}
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => patch({ gestoreNuovaLinea: 'ALTRO', gestoreNuovaLineaAltro: '' })}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                            data.gestoreNuovaLinea === 'ALTRO'
+                              ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
+                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">
+                            +
+                          </div>
+                          <span className={`font-bold text-xs text-center ${data.gestoreNuovaLinea === 'ALTRO' ? 'text-cyan-400' : 'text-slate-300'}`}>
+                            Altro
+                          </span>
+                          {data.gestoreNuovaLinea === 'ALTRO' && (
+                            <CheckCircle className="w-4 h-4 text-cyan-400" />
+                          )}
+                        </motion.button>
+                      </div>
+                      {/* Input ALTRO */}
+                      {data.gestoreNuovaLinea === 'ALTRO' && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          className="mt-3"
+                        >
+                          <input
+                            type="text"
+                            value={data.gestoreNuovaLineaAltro || ''}
+                            onChange={(e) => patch({ gestoreNuovaLineaAltro: e.target.value })}
+                            placeholder="Specifica gestore..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                            data-testid="mobile-gestore-nuova-altro"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+                    {/* ===== FINE CARD GESTORI ===== */}
+
                     <WizardStepNav
                       canAdvance={stepValid(4)}
                       isLast={false}

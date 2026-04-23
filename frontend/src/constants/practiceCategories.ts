@@ -138,3 +138,33 @@ export const TIPI_OFFERTA_ENERGY = [
   { value: 'FISSA', label: 'FISSA' },
   { value: 'ALTRO', label: 'Altro' },
 ] as const;
+
+// ===== CARD GESTORI MOBILE (per wizard step 4) =====
+export const MOBILE_PROVIDER_CARDS = [
+  { key: 'TIM', name: 'TIM', color: '#003B8E', initials: 'TM', textColor: '#fff' },
+  { key: 'VODAFONE', name: 'Vodafone', color: '#E60000', initials: 'VF', textColor: '#fff' },
+  { key: 'WIND3', name: 'Wind3', color: '#FF6B00', initials: 'W3', textColor: '#fff' },
+  { key: 'ILIAD', name: 'Iliad', color: '#D70000', initials: 'IL', textColor: '#fff' },
+  { key: 'KENA', name: 'Kena', color: '#FF6600', initials: 'KN', textColor: '#fff' },
+  { key: 'HO', name: 'Ho.', color: '#00A0E3', initials: 'HO', textColor: '#fff' },
+  { key: 'VERY', name: 'Very', color: '#7B2D8E', initials: 'VR', textColor: '#fff' },
+  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff' },
+  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff' },
+  { key: 'EMOBILE24', name: 'eMobile24', color: '#2ECC71', initials: 'E24', textColor: '#fff' },
+  { key: 'FASTWEB', name: 'Fastweb', color: '#FFCC00', initials: 'FW', textColor: '#000' },
+  { key: 'SKY MOBILE', name: 'SKY Mobile', color: '#005EB8', initials: 'SM', textColor: '#fff' },
+] as const;
+
+// ===== CARD GESTORI ENERGY (per wizard step 4) =====
+export const ENERGY_PROVIDER_CARDS = [
+  { key: 'IREN SEV', name: 'Iren SEV', color: '#00A651', initials: 'IS', textColor: '#fff' },
+  { key: 'A2A', name: 'A2A', color: '#0072BC', initials: 'A2', textColor: '#fff' },
+  { key: 'ITALIA POWER', name: 'Italia Power', color: '#009246', initials: 'IP', textColor: '#fff' },
+  { key: 'SORGENIA BOLLETTA EXPRESS', name: 'Sorgenia', color: '#FF6600', initials: 'SR', textColor: '#fff' },
+  { key: 'SINERGY BOLLETTA EXPRESS', name: 'Sinergy', color: '#0066CC', initials: 'SN', textColor: '#fff' },
+  { key: 'ENEL AB CONTACT', name: 'Enel', color: '#FF8000', initials: 'EN', textColor: '#fff' },
+  { key: 'OPTIMA', name: 'Optima', color: '#0047AB', initials: 'OP', textColor: '#fff' },
+  { key: 'ACEA WIND3', name: 'Acea Wind3', color: '#6B35A0', initials: 'AW', textColor: '#fff' },
+  { key: 'ENI PLENITUDE', name: 'Eni Plenitude', color: '#008542', initials: 'EP', textColor: '#fff' },
+  { key: 'EDISON', name: 'Edison', color: '#0055A4', initials: 'ED', textColor: '#fff' },
+] as const;

@@ -17,7 +17,7 @@ import { OperatorsDropdown } from '@/components/practices/OperatorsDropdown';
 import { CustomerAutocomplete, CustomerLite } from '@/components/practices/CustomerAutocomplete';
 import {
   GESTORI_ENERGY_PROVENIENZA,
-  GESTORI_ENERGY_NUOVI,
+  ENERGY_PROVIDER_CARDS,
   TIPI_ATTIVAZIONE_ENERGY,
   POTENZE_CONTATORE,
   TIPI_OFFERTA_ENERGY,
@@ -188,7 +188,7 @@ export default function NewEnergyPractice() {
     if (stepNumber === 1 && !practiceId) {
       const res = await api.post('/practices', {
         category: 'ENERGY',
-        type: 'ENERGY', // aggiornato quando arriva gestore nuovo contratto
+        type: null, // il gestore viene scelto allo step 4
         offerName:
           data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode:
@@ -482,16 +482,88 @@ export default function NewEnergyPractice() {
                       options={GESTORI_ENERGY_PROVENIENZA as any}
                       testId="energy-gestore-provenienza"
                     />
-                    <SelectWithOther
-                      label="Gestore nuovo contratto"
-                      required
-                      value={data.gestoreNuovoContratto}
-                      otherValue={data.gestoreNuovoContrattoAltro}
-                      onChange={(v) => patch({ gestoreNuovoContratto: v })}
-                      onOtherChange={(v) => patch({ gestoreNuovoContrattoAltro: v })}
-                      options={GESTORI_ENERGY_NUOVI as any}
-                      testId="energy-gestore-nuovo"
-                    />
+
+                    {/* ===== CARD GESTORI NUOVO CONTRATTO ===== */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        Gestore nuovo contratto <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        {ENERGY_PROVIDER_CARDS.map((provider) => {
+                          const isSelected = data.gestoreNuovoContratto === provider.key;
+                          return (
+                            <motion.button
+                              key={provider.key}
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => patch({
+                                gestoreNuovoContratto: provider.key,
+                                gestoreNuovoContrattoAltro: undefined,
+                              })}
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                isSelected
+                                  ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
+                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                              }`}
+                              data-testid={`energy-card-${provider.key}`}
+                            >
+                              <div
+                                className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm"
+                                style={{ backgroundColor: provider.color, color: provider.textColor }}
+                              >
+                                {provider.initials}
+                              </div>
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>
+                                {provider.name}
+                              </span>
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4 text-amber-400" />
+                              )}
+                            </motion.button>
+                          );
+                        })}
+                        {/* Bottone ALTRO */}
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => patch({ gestoreNuovoContratto: 'ALTRO', gestoreNuovoContrattoAltro: '' })}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                            data.gestoreNuovoContratto === 'ALTRO'
+                              ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
+                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">
+                            +
+                          </div>
+                          <span className={`font-bold text-xs text-center ${data.gestoreNuovoContratto === 'ALTRO' ? 'text-amber-400' : 'text-slate-300'}`}>
+                            Altro
+                          </span>
+                          {data.gestoreNuovoContratto === 'ALTRO' && (
+                            <CheckCircle className="w-4 h-4 text-amber-400" />
+                          )}
+                        </motion.button>
+                      </div>
+                      {/* Input ALTRO */}
+                      {data.gestoreNuovoContratto === 'ALTRO' && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          className="mt-3"
+                        >
+                          <input
+                            type="text"
+                            value={data.gestoreNuovoContrattoAltro || ''}
+                            onChange={(e) => patch({ gestoreNuovoContrattoAltro: e.target.value })}
+                            placeholder="Specifica gestore..."
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                            data-testid="energy-gestore-nuovo-altro"
+                          />
+                        </motion.div>
+                      )}
+                    </div>
+                    {/* ===== FINE CARD GESTORI ===== */}
+
                     <WizardStepNav
                       canAdvance={stepValid(4)}
                       isLast={false}

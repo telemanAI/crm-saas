@@ -9,6 +9,7 @@ import {
   FileText,
   DeviceMobile,
   CheckCircle,
+  ClipboardText,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { PracticeStepCard, WizardStepNav } from '@/components/practices/PracticeStepCard';
@@ -43,7 +44,7 @@ const validateFiscalCode = (cf: string): boolean => {
 };
 
 // Helper per renderizzare l'icona del provider evitando il type narrowing TS
-function ProviderIcon({ provider, isSelected }: { provider: any; isSelected: boolean }) {
+function ProviderIcon({ provider }: { provider: any }) {
   if (provider.logo && provider.logo.length > 0) {
     return (
       <img
@@ -109,6 +110,7 @@ const STEPS = [
   { id: 4, title: 'Numero & MNP', icon: Phone },
   { id: 5, title: 'Pagamento & Ricarica', icon: CreditCard },
   { id: 6, title: 'TIM Unica & Note', icon: FileText },
+  { id: 7, title: 'Riepilogo', icon: ClipboardText },
 ] as const;
 const TOTAL_STEPS = STEPS.length;
 
@@ -128,13 +130,12 @@ export default function NewMobilePractice() {
 
   const offerteList = offerteBackend && offerteBackend.length > 0 ? offerteBackend : (OFFERTE_MOBILE as any);
 
-  // Filtro offerte per gestore (DEVE essere DOPO offerteList)
   // Filtro offerte per gestore — match ESATTO sul provider per evitare falsi positivi
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
-    // 1. Offerte dal backend: match ESATTO sul campo provider (es. provider === "TIM")
+    // 1. Offerte dal backend: match ESATTO sul campo provider
     const backendNames = allOffers
       .filter((o: any) => {
         if (typeof o === 'string') return false;
@@ -250,6 +251,8 @@ export default function NewMobilePractice() {
           return !!(data.ricarica && (data.ricarica !== 'ALTRO' || data.ricaricaAltro?.trim()));
         case 6:
           return !!(data.timUnica && (data.timUnica !== 'ALTRO' || data.timUnicaAltro?.trim()));
+        case 7:
+          return true; // riepilogo
         default:
           return false;
       }
@@ -265,14 +268,14 @@ export default function NewMobilePractice() {
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email, address: '' }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email || '', address: '' }
           : undefined,
         mobileData: {
           gestoreNuovaLinea: data.gestoreNuovaLinea,
           gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
           offertaAltro: data.offertaAltro,
-          noteGeneriche: data.noteGeneriche,
           dataAttivazione: data.dataAttivazione,
+          noteGeneriche: data.noteGeneriche,
         },
       });
       setPracticeId(res.data.id);
@@ -287,13 +290,13 @@ export default function NewMobilePractice() {
         gestoreNuovaLinea: data.gestoreNuovaLinea,
         gestoreNuovaLineaAltro: data.gestoreNuovaLineaAltro,
         offertaAltro: data.offertaAltro,
-        noteGeneriche: data.noteGeneriche,
         dataAttivazione: data.dataAttivazione,
+        noteGeneriche: data.noteGeneriche,
         type: data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea,
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '' },
+        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '', address: '' },
       },
       4: {
         codiceFiscaleVecchiaLinea: data.codiceFiscaleVecchiaLinea,
@@ -317,6 +320,7 @@ export default function NewMobilePractice() {
         accordiCliente: data.accordiCliente,
         lavorazioniPostAttivazione: data.lavorazioniPostAttivazione,
       },
+      7: { completed: true },
     };
 
     await api.put(`/practices/${practiceId}/step`, { stepNumber, data: stepPayloads[stepNumber] });
@@ -342,7 +346,6 @@ export default function NewMobilePractice() {
     setLoading(true);
     try {
       await saveStep(TOTAL_STEPS);
-      await api.put(`/practices/${practiceId}/step`, { stepNumber: TOTAL_STEPS, data: { completed: true } });
       await api.post(`/practices/${practiceId}/force-complete`, {});
       alert('Pratica mobile completata con successo!');
       router.push('/operator/practices/mobile');
@@ -414,7 +417,6 @@ export default function NewMobilePractice() {
                 {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
-                    {/* Card gestore */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-3">
                         Seleziona gestore <span className="text-rose-400">*</span>
@@ -427,99 +429,48 @@ export default function NewMobilePractice() {
                               key={provider.key}
                               whileHover={{ scale: 1.03 }}
                               whileTap={{ scale: 0.97 }}
-                              onClick={() =>
-                                patch({
-                                  gestoreNuovaLinea: provider.key,
-                                  gestoreNuovaLineaAltro: undefined,
-                                  offerName: undefined,
-                                })
-                              }
-                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                isSelected
-                                  ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
-                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                              }`}
+                              onClick={() => patch({ gestoreNuovaLinea: provider.key, gestoreNuovaLineaAltro: undefined, offerName: undefined })}
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${isSelected ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
                               data-testid={`mobile-card-${provider.key}`}
                             >
-                              <ProviderIcon provider={provider} isSelected={isSelected} />
-                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>
-                                {provider.name}
-                              </span>
+                              <ProviderIcon provider={provider} />
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-cyan-400' : 'text-slate-300'}`}>{provider.name}</span>
                               {isSelected && <CheckCircle className="w-4 h-4 text-cyan-400" />}
                             </motion.button>
                           );
                         })}
-                        {/* ALTRO */}
                         <motion.button
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.97 }}
                           onClick={() => patch({ gestoreNuovaLinea: 'ALTRO', gestoreNuovaLineaAltro: '', offerName: undefined })}
-                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                            data.gestoreNuovaLinea === 'ALTRO'
-                              ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10'
-                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                          }`}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${data.gestoreNuovaLinea === 'ALTRO' ? 'border-cyan-500 bg-cyan-600/20 shadow-lg shadow-cyan-500/10' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
                         >
                           <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">+</div>
                           <span className={`font-bold text-xs text-center ${data.gestoreNuovaLinea === 'ALTRO' ? 'text-cyan-400' : 'text-slate-300'}`}>Altro</span>
                           {data.gestoreNuovaLinea === 'ALTRO' && <CheckCircle className="w-4 h-4 text-cyan-400" />}
                         </motion.button>
                       </div>
-                      {/* Input ALTRO */}
                       {data.gestoreNuovaLinea === 'ALTRO' && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-3">
-                          <input
-                            type="text"
-                            value={data.gestoreNuovaLineaAltro || ''}
-                            onChange={(e) => patch({ gestoreNuovaLineaAltro: e.target.value })}
-                            placeholder="Specifica gestore..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                            data-testid="mobile-gestore-altro"
-                          />
+                          <input type="text" value={data.gestoreNuovaLineaAltro || ''} onChange={(e) => patch({ gestoreNuovaLineaAltro: e.target.value })} placeholder="Specifica gestore..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-gestore-altro" />
                         </motion.div>
                       )}
                     </div>
 
-                    {/* Offerta filtrata per gestore */}
                     {data.gestoreNuovaLinea && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <SelectWithOther
-                          label={`Offerta ${data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea} *`}
-                          required
-                          value={data.offerName}
-                          otherValue={data.offertaAltro}
-                          onChange={(v) => patch({ offerName: v })}
-                          onOtherChange={(v) => patch({ offertaAltro: v })}
-                          options={getFilteredOffers(data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea)}
-                          testId="mobile-offerta"
-                        />
+                        <SelectWithOther label={`Offerta ${data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea} *`} required value={data.offerName} otherValue={data.offertaAltro} onChange={(v) => patch({ offerName: v })} onOtherChange={(v) => patch({ offertaAltro: v })} options={getFilteredOffers(data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea)} testId="mobile-offerta" />
                       </motion.div>
                     )}
 
-                    {/* Data attivazione */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Data attivazione <span className="text-rose-400">*</span></label>
-                      <input
-                        type="date"
-                        value={parseItalianDate(data.dataAttivazione)}
-                        onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="mobile-data-attivazione"
-                      />
+                      <input type="date" value={parseItalianDate(data.dataAttivazione)} onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-data-attivazione" />
                     </div>
-
-                    {/* Note */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note</label>
-                      <textarea
-                        value={data.noteGeneriche || ''}
-                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="mobile-note-step1"
-                      />
+                      <textarea value={data.noteGeneriche || ''} onChange={(e) => patch({ noteGeneriche: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-note-step1" />
                     </div>
-
                     <WizardStepNav canAdvance={stepValid(1)} isLast={false} onAdvance={() => advance(1)} loading={loading} />
                   </div>
                 )}
@@ -534,7 +485,7 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 3: CLIENTE */}
+                {/* STEP 3: ANAGRAFICA CLIENTE */}
                 {s.id === 3 && (
                   <div className="space-y-4">
                     <CustomerAutocomplete
@@ -554,24 +505,12 @@ export default function NewMobilePractice() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchia linea <span className="text-rose-400">*</span></label>
-                      <input
-                        type="text"
-                        value={data.codiceFiscaleVecchiaLinea || ''}
-                        onChange={(e) => patch({ codiceFiscaleVecchiaLinea: e.target.value.toUpperCase() })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="mobile-cf-vecchia-linea"
-                      />
+                      <input type="text" value={data.codiceFiscaleVecchiaLinea || ''} onChange={(e) => patch({ codiceFiscaleVecchiaLinea: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-cf-vecchia-linea" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Numero da portare <span className="text-rose-400">*</span></label>
                       <p className="text-xs text-slate-500 mb-2">Se nuovo numero scrivere 0</p>
-                      <input
-                        type="text"
-                        value={data.numeroDaPortare || ''}
-                        onChange={(e) => patch({ numeroDaPortare: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="mobile-numero-portare"
-                      />
+                      <input type="text" value={data.numeroDaPortare || ''} onChange={(e) => patch({ numeroDaPortare: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-numero-portare" />
                     </div>
                     <SelectWithOther label="Tipo di linea" required value={data.tipoLinea} otherValue="" onChange={(v) => patch({ tipoLinea: v })} onOtherChange={() => {}} options={TIPI_LINEA_MOBILE} testId="mobile-tipo-linea" />
                     <SelectWithOther label="Gestore di provenienza" required value={data.gestoreProvenienza} otherValue={data.gestoreProvenienzaAltro} onChange={(v) => patch({ gestoreProvenienza: v })} onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })} options={GESTORI_MOBILE_PROVENIENZA as any} testId="mobile-gestore-provenienza" />
@@ -579,18 +518,13 @@ export default function NewMobilePractice() {
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note MNP</label>
                       <textarea value={data.noteMnp || ''} onChange={(e) => patch({ noteMnp: e.target.value })} rows={3} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
-
-                    {/* Riepilogo gestore scelto allo step 1 */}
                     <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
                       <CheckCircle className="w-5 h-5 text-cyan-400" />
                       <div>
                         <p className="text-sm text-slate-500">Gestore selezionato allo Step 1</p>
-                        <p className="text-sm font-bold text-slate-200">
-                          {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}
-                        </p>
+                        <p className="text-sm font-bold text-slate-200">{data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
                       </div>
                     </div>
-
                     <WizardStepNav canAdvance={stepValid(4)} isLast={false} onBack={() => setExpandedStep(3)} onAdvance={() => advance(4)} loading={loading} />
                   </div>
                 )}
@@ -602,13 +536,7 @@ export default function NewMobilePractice() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">IBAN / CDC</label>
                       <p className="text-xs text-slate-500 mb-2">Se ricaricabile non compilare</p>
-                      <input
-                        type="text"
-                        value={data.ibanCdc || ''}
-                        onChange={(e) => patch({ ibanCdc: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="mobile-iban"
-                      />
+                      <input type="text" value={data.ibanCdc || ''} onChange={(e) => patch({ ibanCdc: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-iban" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note metodo di pagamento</label>
@@ -618,19 +546,14 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 6: TIM UNICA + NOTE + CONFERMA */}
+                {/* STEP 6: TIM UNICA + NOTE */}
                 {s.id === 6 && (
                   <div className="space-y-4">
                     <SelectWithOther label="TIM Unica" required value={data.timUnica} otherValue={data.timUnicaAltro} onChange={(v) => patch({ timUnica: v })} onOtherChange={(v) => patch({ timUnicaAltro: v })} options={TIM_UNICA_OPTIONS} testId="mobile-tim-unica" />
                     {(data.timUnica === 'AGGANCIATA' || data.timUnica === 'DA_AGGANCIARE') && (
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Numero rete fissa TIM Unica</label>
-                        <input
-                          type="text"
-                          value={data.numeroReteFissaTimUnica || ''}
-                          onChange={(e) => patch({ numeroReteFissaTimUnica: e.target.value })}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        />
+                        <input type="text" value={data.numeroReteFissaTimUnica || ''} onChange={(e) => patch({ numeroReteFissaTimUnica: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                       </div>
                     )}
                     <div>
@@ -645,18 +568,95 @@ export default function NewMobilePractice() {
                       <label className="block text-sm font-medium text-slate-300 mb-2">Lavorazioni post-attivazione</label>
                       <textarea value={data.lavorazioniPostAttivazione || ''} onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
+                    <WizardStepNav canAdvance={stepValid(6)} isLast={false} onBack={() => setExpandedStep(5)} onAdvance={() => advance(6)} loading={loading} />
+                  </div>
+                )}
 
-                    <div className="rounded-xl p-4 bg-slate-950 border border-slate-800 flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5" />
-                      <div className="text-sm text-slate-300 space-y-1">
-                        <p><span className="text-slate-500">Offerta:</span> {data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}</p>
-                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} &middot; {data.fiscalCode}</p>
-                        <p><span className="text-slate-500">Gestore:</span> {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
-                        <p><span className="text-slate-500">TIM Unica:</span> {data.timUnica === 'ALTRO' ? data.timUnicaAltro : data.timUnica}</p>
+                {/* STEP 7: RIEPILOGO */}
+                {s.id === 7 && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl p-5 bg-slate-950 border border-slate-800 space-y-3">
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <ClipboardText className="w-5 h-5 text-indigo-400" />
+                        Riepilogo Pratica Mobile
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Gestore</p>
+                          <p className="text-sm font-medium text-slate-200">{data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Offerta</p>
+                          <p className="text-sm font-medium text-slate-200">{data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Data attivazione</p>
+                          <p className="text-sm font-medium text-slate-200">{data.dataAttivazione}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Venditore / Inseritore</p>
+                          <p className="text-sm font-medium text-slate-200">{data.soldBy} / {data.enteredBy}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Cliente</p>
+                          <p className="text-sm font-medium text-slate-200">{data.firstName} {data.lastName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Codice Fiscale</p>
+                          <p className="text-sm font-medium text-slate-200">{data.fiscalCode}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Telefono</p>
+                          <p className="text-sm font-medium text-slate-200">{data.phone}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Numero da portare</p>
+                          <p className="text-sm font-medium text-slate-200">{data.numeroDaPortare}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Tipo linea</p>
+                          <p className="text-sm font-medium text-slate-200">{data.tipoLinea}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Ricarica</p>
+                          <p className="text-sm font-medium text-slate-200">{data.ricarica === 'ALTRO' ? data.ricaricaAltro : data.ricarica}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">TIM Unica</p>
+                          <p className="text-sm font-medium text-slate-200">{data.timUnica === 'ALTRO' ? data.timUnicaAltro : data.timUnica}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">IBAN / CDC</p>
+                          <p className="text-sm font-medium text-slate-200">{data.ibanCdc || '-'}</p>
+                        </div>
                       </div>
+
+                      {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
+                        <div className="mt-4 pt-4 border-t border-slate-800 space-y-2">
+                          {data.noteGeneriche && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Note</p>
+                              <p className="text-sm text-slate-300">{data.noteGeneriche}</p>
+                            </div>
+                          )}
+                          {data.accordiCliente && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Accordi cliente</p>
+                              <p className="text-sm text-slate-300">{data.accordiCliente}</p>
+                            </div>
+                          )}
+                          {data.lavorazioniPostAttivazione && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Lavorazioni post-attivazione</p>
+                              <p className="text-sm text-slate-300">{data.lavorazioniPostAttivazione}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <WizardStepNav canAdvance={stepValid(6)} isLast onBack={() => setExpandedStep(5)} onAdvance={submit} loading={loading} />
+                    <WizardStepNav canAdvance={stepValid(7)} isLast onBack={() => setExpandedStep(6)} onAdvance={submit} loading={loading} />
                   </div>
                 )}
               </PracticeStepCard>

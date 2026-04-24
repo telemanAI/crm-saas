@@ -9,6 +9,7 @@ import {
   FileText,
   Lightning,
   CheckCircle,
+  ClipboardText,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { PracticeStepCard, WizardStepNav } from '@/components/practices/PracticeStepCard';
@@ -42,7 +43,7 @@ const validateFiscalCode = (cf: string): boolean => {
 };
 
 // Helper per renderizzare l'icona del provider evitando il type narrowing TS
-function ProviderIcon({ provider, isSelected }: { provider: any; isSelected: boolean }) {
+function ProviderIcon({ provider }: { provider: any }) {
   if (provider.logo && provider.logo.length > 0) {
     return (
       <img
@@ -105,6 +106,7 @@ const STEPS = [
   { id: 4, title: 'Attivazione & Contatore', icon: Gauge },
   { id: 5, title: 'Pagamento', icon: CreditCard },
   { id: 6, title: 'Note & Conferma', icon: FileText },
+  { id: 7, title: 'Riepilogo', icon: ClipboardText },
 ] as const;
 const TOTAL_STEPS = STEPS.length;
 
@@ -124,7 +126,6 @@ export default function NewEnergyPractice() {
 
   const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
 
-  // Filtro offerte per gestore (DEVE essere DOPO offerteList)
   // Filtro offerte per gestore — match ESATTO sul provider per evitare falsi positivi
   const getFilteredOffers = useCallback((provider?: string) => {
     if (!provider) return offerteList;
@@ -158,13 +159,12 @@ export default function NewEnergyPractice() {
     return merged;
   }, [allOffers, offerteList]);
 
-  // Carica offerte dal backend (una sola volta)
+  // Carica offerte dal backend
   useEffect(() => {
     (async () => {
       try {
         const res = await api.get('/offers?category=ENERGY');
         setAllOffers(res.data || []);
-        // Formatta per SelectWithOther
         const items = (res.data || [])
           .filter((o: any) => o.name)
           .map((o: any) => ({ value: o.name, label: o.name }));
@@ -255,6 +255,8 @@ export default function NewEnergyPractice() {
         return !!data.ibanCdc?.trim();
       case 6:
         return true;
+      case 7:
+        return true;
       default:
         return false;
     }
@@ -269,15 +271,15 @@ export default function NewEnergyPractice() {
         offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email, address: '' }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email || '', address: '' }
           : undefined,
         energyData: {
           gestoreNuovoContratto: data.gestoreNuovoContratto,
           gestoreNuovoContrattoAltro: data.gestoreNuovoContrattoAltro,
           tipoOfferta: data.tipoOfferta,
           tipoOffertaAltro: data.tipoOffertaAltro,
-          noteGeneriche: data.noteGeneriche,
           dataAttivazione: data.dataAttivazione,
+          noteGeneriche: data.noteGeneriche,
         },
       });
       setPracticeId(res.data.id);
@@ -299,7 +301,7 @@ export default function NewEnergyPractice() {
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '' },
+        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '', address: '' },
         codiceFiscaleVecchioContratto: data.codiceFiscaleVecchioContratto,
       },
       4: {
@@ -313,6 +315,7 @@ export default function NewEnergyPractice() {
       },
       5: { ibanCdc: data.ibanCdc, noteMetodoPagamento: data.noteMetodoPagamento },
       6: { noteGeneriche: data.noteGeneriche, accordiCliente: data.accordiCliente, lavorazioniPostAttivazione: data.lavorazioniPostAttivazione },
+      7: { completed: true },
     };
 
     await api.put(`/practices/${practiceId}/step`, { stepNumber, data: stepPayloads[stepNumber] });
@@ -337,7 +340,6 @@ export default function NewEnergyPractice() {
     setLoading(true);
     try {
       await saveStep(TOTAL_STEPS);
-      await api.put(`/practices/${practiceId}/step`, { stepNumber: TOTAL_STEPS, data: { completed: true } });
       await api.post(`/practices/${practiceId}/force-complete`, {});
       alert('Pratica luce/gas completata con successo!');
       router.push('/operator/practices/energy');
@@ -409,7 +411,6 @@ export default function NewEnergyPractice() {
                 {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
-                    {/* Card gestore */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-3">
                         Seleziona gestore <span className="text-rose-400">*</span>
@@ -422,99 +423,48 @@ export default function NewEnergyPractice() {
                               key={provider.key}
                               whileHover={{ scale: 1.03 }}
                               whileTap={{ scale: 0.97 }}
-                              onClick={() =>
-                                patch({
-                                  gestoreNuovoContratto: provider.key,
-                                  gestoreNuovoContrattoAltro: undefined,
-                                  tipoOfferta: undefined,
-                                })
-                              }
-                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                                isSelected
-                                  ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
-                                  : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                              }`}
+                              onClick={() => patch({ gestoreNuovoContratto: provider.key, gestoreNuovoContrattoAltro: undefined, tipoOfferta: undefined })}
+                              className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${isSelected ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
                               data-testid={`energy-card-${provider.key}`}
                             >
-                              <ProviderIcon provider={provider} isSelected={isSelected} />
-                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>
-                                {provider.name}
-                              </span>
+                              <ProviderIcon provider={provider} />
+                              <span className={`font-bold text-xs text-center leading-tight ${isSelected ? 'text-amber-400' : 'text-slate-300'}`}>{provider.name}</span>
                               {isSelected && <CheckCircle className="w-4 h-4 text-amber-400" />}
                             </motion.button>
                           );
                         })}
-                        {/* ALTRO */}
                         <motion.button
                           whileHover={{ scale: 1.03 }}
                           whileTap={{ scale: 0.97 }}
                           onClick={() => patch({ gestoreNuovoContratto: 'ALTRO', gestoreNuovoContrattoAltro: '', tipoOfferta: undefined })}
-                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
-                            data.gestoreNuovoContratto === 'ALTRO'
-                              ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10'
-                              : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'
-                          }`}
+                          className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${data.gestoreNuovoContratto === 'ALTRO' ? 'border-amber-500 bg-amber-600/20 shadow-lg shadow-amber-500/10' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
                         >
                           <div className="w-12 h-12 rounded-full bg-slate-600 flex items-center justify-center font-bold text-lg text-white">+</div>
                           <span className={`font-bold text-xs text-center ${data.gestoreNuovoContratto === 'ALTRO' ? 'text-amber-400' : 'text-slate-300'}`}>Altro</span>
                           {data.gestoreNuovoContratto === 'ALTRO' && <CheckCircle className="w-4 h-4 text-amber-400" />}
                         </motion.button>
                       </div>
-                      {/* Input ALTRO */}
                       {data.gestoreNuovoContratto === 'ALTRO' && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} className="mt-3">
-                          <input
-                            type="text"
-                            value={data.gestoreNuovoContrattoAltro || ''}
-                            onChange={(e) => patch({ gestoreNuovoContrattoAltro: e.target.value })}
-                            placeholder="Specifica gestore..."
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                            data-testid="energy-gestore-altro"
-                          />
+                          <input type="text" value={data.gestoreNuovoContrattoAltro || ''} onChange={(e) => patch({ gestoreNuovoContrattoAltro: e.target.value })} placeholder="Specifica gestore..." className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-gestore-altro" />
                         </motion.div>
                       )}
                     </div>
 
-                    {/* Offerta filtrata per gestore */}
                     {data.gestoreNuovoContratto && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <SelectWithOther
-                          label={`Offerta ${data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto} *`}
-                          required
-                          value={data.tipoOfferta}
-                          otherValue={data.tipoOffertaAltro}
-                          onChange={(v) => patch({ tipoOfferta: v })}
-                          onOtherChange={(v) => patch({ tipoOffertaAltro: v })}
-                          options={getFilteredOffers(data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto)}
-                          testId="energy-tipo-offerta"
-                        />
+                        <SelectWithOther label={`Offerta ${data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto} *`} required value={data.tipoOfferta} otherValue={data.tipoOffertaAltro} onChange={(v) => patch({ tipoOfferta: v })} onOtherChange={(v) => patch({ tipoOffertaAltro: v })} options={getFilteredOffers(data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto)} testId="energy-tipo-offerta" />
                       </motion.div>
                     )}
 
-                    {/* Data attivazione */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Data attivazione <span className="text-rose-400">*</span></label>
-                      <input
-                        type="date"
-                        value={parseItalianDate(data.dataAttivazione)}
-                        onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="energy-data-attivazione"
-                      />
+                      <input type="date" value={parseItalianDate(data.dataAttivazione)} onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-data-attivazione" />
                     </div>
-
-                    {/* Note */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note</label>
-                      <textarea
-                        value={data.noteGeneriche || ''}
-                        onChange={(e) => patch({ noteGeneriche: e.target.value })}
-                        rows={2}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="energy-note-step1"
-                      />
+                      <textarea value={data.noteGeneriche || ''} onChange={(e) => patch({ noteGeneriche: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-note-step1" />
                     </div>
-
                     <WizardStepNav canAdvance={stepValid(1)} isLast={false} onAdvance={() => advance(1)} loading={loading} />
                   </div>
                 )}
@@ -528,7 +478,7 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 3: CLIENTE */}
+                {/* STEP 3: ANAGRAFICA CLIENTE */}
                 {s.id === 3 && (
                   <div className="space-y-4">
                     <CustomerAutocomplete
@@ -538,13 +488,7 @@ export default function NewEnergyPractice() {
                     />
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchio contratto <span className="text-rose-400">*</span></label>
-                      <input
-                        type="text"
-                        value={data.codiceFiscaleVecchioContratto || ''}
-                        onChange={(e) => patch({ codiceFiscaleVecchioContratto: e.target.value.toUpperCase() })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
-                        data-testid="energy-cf-vecchio"
-                      />
+                      <input type="text" value={data.codiceFiscaleVecchioContratto || ''} onChange={(e) => patch({ codiceFiscaleVecchioContratto: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-cf-vecchio" />
                     </div>
                     {data.fiscalCode && !validateFiscalCode(data.fiscalCode) && (
                       <p className="text-rose-400 text-sm">Codice fiscale non valido</p>
@@ -560,28 +504,17 @@ export default function NewEnergyPractice() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Numero contatore <span className="text-rose-400">*</span></label>
                       <p className="text-xs text-slate-500 mb-2">LUCE = POD, GAS = PDR</p>
-                      <input
-                        type="text"
-                        value={data.numeroContatore || ''}
-                        onChange={(e) => patch({ numeroContatore: e.target.value.toUpperCase() })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-mono"
-                        data-testid="energy-numero-contatore"
-                      />
+                      <input type="text" value={data.numeroContatore || ''} onChange={(e) => patch({ numeroContatore: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-mono" data-testid="energy-numero-contatore" />
                     </div>
                     <SelectWithOther label="Potenza contatore" required value={data.potenzaContatore} otherValue={data.potenzaContatoreAltro} onChange={(v) => patch({ potenzaContatore: v })} onOtherChange={(v) => patch({ potenzaContatoreAltro: v })} options={POTENZE_CONTATORE} testId="energy-potenza" />
                     <SelectWithOther label="Gestore di provenienza" required value={data.gestoreProvenienza} otherValue={data.gestoreProvenienzaAltro} onChange={(v) => patch({ gestoreProvenienza: v })} onOtherChange={(v) => patch({ gestoreProvenienzaAltro: v })} options={GESTORI_ENERGY_PROVENIENZA as any} testId="energy-gestore-provenienza" />
-
-                    {/* Riepilogo gestore scelto allo step 1 */}
                     <div className="rounded-xl p-3 bg-slate-950 border border-slate-800 flex items-center gap-3">
                       <CheckCircle className="w-5 h-5 text-amber-400" />
                       <div>
                         <p className="text-sm text-slate-500">Gestore selezionato allo Step 1</p>
-                        <p className="text-sm font-bold text-slate-200">
-                          {data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}
-                        </p>
+                        <p className="text-sm font-bold text-slate-200">{data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}</p>
                       </div>
                     </div>
-
                     <WizardStepNav canAdvance={stepValid(4)} isLast={false} onBack={() => setExpandedStep(3)} onAdvance={() => advance(4)} loading={loading} />
                   </div>
                 )}
@@ -592,13 +525,7 @@ export default function NewEnergyPractice() {
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">IBAN / CDC <span className="text-rose-400">*</span></label>
                       <p className="text-xs text-slate-500 mb-2">Se bollettino scrivere &quot;BOLLETTINO&quot;</p>
-                      <input
-                        type="text"
-                        value={data.ibanCdc || ''}
-                        onChange={(e) => patch({ ibanCdc: e.target.value.toUpperCase() })}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-mono"
-                        data-testid="energy-iban"
-                      />
+                      <input type="text" value={data.ibanCdc || ''} onChange={(e) => patch({ ibanCdc: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 font-mono" data-testid="energy-iban" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Note metodo di pagamento</label>
@@ -608,7 +535,7 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 6: NOTE & CONFERMA */}
+                {/* STEP 6: NOTE */}
                 {s.id === 6 && (
                   <div className="space-y-4">
                     <div>
@@ -623,19 +550,95 @@ export default function NewEnergyPractice() {
                       <label className="block text-sm font-medium text-slate-300 mb-2">Lavorazioni post-attivazione</label>
                       <textarea value={data.lavorazioniPostAttivazione || ''} onChange={(e) => patch({ lavorazioniPostAttivazione: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" />
                     </div>
+                    <WizardStepNav canAdvance={stepValid(6)} isLast={false} onBack={() => setExpandedStep(5)} onAdvance={() => advance(6)} loading={loading} />
+                  </div>
+                )}
 
-                    <div className="rounded-xl p-4 bg-slate-950 border border-slate-800 flex items-start gap-3">
-                      <CheckCircle className="w-5 h-5 text-emerald-400 mt-0.5" />
-                      <div className="text-sm text-slate-300 space-y-1">
-                        <p><span className="text-slate-500">Cliente:</span> {data.firstName} {data.lastName} &middot; {data.fiscalCode}</p>
-                        <p><span className="text-slate-500">Attivazione:</span> {data.tipoAttivazione === 'ALTRO' ? data.tipoAttivazioneAltro : data.tipoAttivazione}</p>
-                        <p><span className="text-slate-500">Contatore:</span> {data.numeroContatore} &middot; {data.potenzaContatore === 'ALTRO' ? data.potenzaContatoreAltro : data.potenzaContatore}</p>
-                        <p><span className="text-slate-500">Gestore:</span> {data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}</p>
-                        <p><span className="text-slate-500">Pagamento:</span> {data.ibanCdc}</p>
+                {/* STEP 7: RIEPILOGO */}
+                {s.id === 7 && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl p-5 bg-slate-950 border border-slate-800 space-y-3">
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <ClipboardText className="w-5 h-5 text-amber-400" />
+                        Riepilogo Pratica Luce/Gas
+                      </h3>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Gestore</p>
+                          <p className="text-sm font-medium text-slate-200">{data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Offerta</p>
+                          <p className="text-sm font-medium text-slate-200">{data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Data attivazione</p>
+                          <p className="text-sm font-medium text-slate-200">{data.dataAttivazione}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Venditore / Inseritore</p>
+                          <p className="text-sm font-medium text-slate-200">{data.soldBy} / {data.enteredBy}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Cliente</p>
+                          <p className="text-sm font-medium text-slate-200">{data.firstName} {data.lastName}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Codice Fiscale</p>
+                          <p className="text-sm font-medium text-slate-200">{data.fiscalCode}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Telefono</p>
+                          <p className="text-sm font-medium text-slate-200">{data.phone}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Attivazione</p>
+                          <p className="text-sm font-medium text-slate-200">{data.tipoAttivazione === 'ALTRO' ? data.tipoAttivazioneAltro : data.tipoAttivazione}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Contatore</p>
+                          <p className="text-sm font-medium text-slate-200">{data.numeroContatore}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Potenza</p>
+                          <p className="text-sm font-medium text-slate-200">{data.potenzaContatore === 'ALTRO' ? data.potenzaContatoreAltro : data.potenzaContatore}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">Gestore provenienza</p>
+                          <p className="text-sm font-medium text-slate-200">{data.gestoreProvenienza === 'ALTRO' ? data.gestoreProvenienzaAltro : data.gestoreProvenienza}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-slate-500 uppercase">IBAN / CDC</p>
+                          <p className="text-sm font-medium text-slate-200">{data.ibanCdc || '-'}</p>
+                        </div>
                       </div>
+
+                      {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
+                        <div className="mt-4 pt-4 border-t border-slate-800 space-y-2">
+                          {data.noteGeneriche && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Note</p>
+                              <p className="text-sm text-slate-300">{data.noteGeneriche}</p>
+                            </div>
+                          )}
+                          {data.accordiCliente && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Accordi cliente</p>
+                              <p className="text-sm text-slate-300">{data.accordiCliente}</p>
+                            </div>
+                          )}
+                          {data.lavorazioniPostAttivazione && (
+                            <div>
+                              <p className="text-xs text-slate-500 uppercase">Lavorazioni post-attivazione</p>
+                              <p className="text-sm text-slate-300">{data.lavorazioniPostAttivazione}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
 
-                    <WizardStepNav canAdvance={stepValid(6)} isLast onBack={() => setExpandedStep(5)} onAdvance={submit} loading={loading} />
+                    <WizardStepNav canAdvance={stepValid(7)} isLast onBack={() => setExpandedStep(6)} onAdvance={submit} loading={loading} />
                   </div>
                 )}
               </PracticeStepCard>

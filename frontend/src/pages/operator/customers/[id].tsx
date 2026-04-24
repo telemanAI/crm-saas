@@ -13,7 +13,9 @@ import {
   Calendar,
   CheckCircle,
   Clock,
-  PencilSimple
+  PencilSimple,
+  DeviceMobile,
+  Lightning,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
@@ -321,7 +323,8 @@ export default function CustomerDetail() {
             </div>
           </motion.div>
 
-          <motion.div 
+          {/* === PRATICHE RETE FISSA === */}
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -332,35 +335,35 @@ export default function CustomerDetail() {
                 <div className="w-10 h-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center">
                   <ShoppingCart className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">Pratiche Associate</h2>
+                <h2 className="text-xl font-semibold text-white">
+                  Pratiche Rete Fissa
+                  <span className="ml-2 text-sm text-slate-400">
+                    ({practices.filter((p) => p.category === 'FIXED_LINE' || !p.category).length})
+                  </span>
+                </h2>
               </div>
-              <span className="text-slate-400 text-sm">{practices.length} pratiche</span>
             </div>
 
-            {practices.length === 0 ? (
-              <div className="text-center py-8 bg-slate-800/30 rounded-xl">
-                <p className="text-slate-400">Nessuna pratica associata a questo cliente</p>
-                <Link href="/operator/practices/new" className="text-indigo-400 hover:text-indigo-300 text-sm mt-2 inline-block">
-                  Crea una nuova pratica
-                </Link>
+            {practices.filter((p) => p.category === 'FIXED_LINE' || !p.category).length === 0 ? (
+              <div className="text-center py-6 bg-slate-800/30 rounded-xl">
+                <p className="text-slate-400 text-sm">Nessuna pratica rete fissa</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {practices.map((practice) => (
+                {practices.filter((p) => p.category === 'FIXED_LINE' || !p.category).map((practice) => (
                   <Link key={practice.id} href={`/operator/practices/${practice.id}`}>
                     <div className="bg-slate-800/50 rounded-xl p-4 hover:bg-slate-800 transition-all cursor-pointer border border-slate-700 hover:border-slate-600">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-semibold text-white">{practice.offerName}</h4>
+                          <h4 className="font-semibold text-white">{practice.offerName || 'Pratica senza nome'}</h4>
                           <p className="text-sm text-slate-400 mt-1">
-                            {practice.type === 'TIM_FIBRA' ? 'TIM Fibra' : 'SKY TV'} • 
-                            Step {practice.currentStep}/8
+                            {practice.type === 'TIM_FIBRA' ? 'TIM Fibra' : practice.type || 'Rete Fissa'} • Step {practice.currentStep}/8
                           </p>
                         </div>
                         <div className="flex items-center gap-3">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(practice.status)}`}>
-                            {practice.status === 'COMPLETED' ? 'Completata' : 
-                             practice.status === 'CANCELLED' ? 'Annullata' : 
+                            {practice.status === 'COMPLETED' ? 'Completata' :
+                             practice.status === 'CANCELLED' ? 'Annullata' :
                              practice.status === 'IN_PROGRESS' ? 'In corso' : 'Bozza'}
                           </span>
                           <Calendar className="w-4 h-4 text-slate-500" />
@@ -372,6 +375,100 @@ export default function CustomerDetail() {
               </div>
             )}
           </motion.div>
+
+          {/* === PRATICHE MOBILE === */}
+          {practices.filter((p) => p.category === 'MOBILE').length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center">
+                    <DeviceMobile className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white">
+                    Pratiche Mobile
+                    <span className="ml-2 text-sm text-slate-400">({practices.filter((p) => p.category === 'MOBILE').length})</span>
+                  </h2>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {practices.filter((p) => p.category === 'MOBILE').map((practice) => (
+                  <Link key={practice.id} href={`/operator/practices/mobile/${practice.id}`}>
+                    <div className="bg-slate-800/50 rounded-xl p-4 hover:bg-slate-800 transition-all cursor-pointer border border-slate-700 hover:border-cyan-600">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-white">{practice.offerName || 'Pratica senza nome'}</h4>
+                          <p className="text-sm text-slate-400 mt-1">
+                            {practice.type || 'Mobile'} • Step {practice.currentStep}/6
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(practice.status)}`}>
+                            {practice.status === 'COMPLETED' ? 'Completata' :
+                             practice.status === 'CANCELLED' ? 'Annullata' :
+                             practice.status === 'IN_PROGRESS' ? 'In corso' : 'Bozza'}
+                          </span>
+                          <Calendar className="w-4 h-4 text-slate-500" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* === PRATICHE LUCE/GAS === */}
+          {practices.filter((p) => p.category === 'ENERGY').length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                    <Lightning className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-white">
+                    Pratiche Luce/Gas
+                    <span className="ml-2 text-sm text-slate-400">({practices.filter((p) => p.category === 'ENERGY').length})</span>
+                  </h2>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {practices.filter((p) => p.category === 'ENERGY').map((practice) => (
+                  <Link key={practice.id} href={`/operator/practices/energy/${practice.id}`}>
+                    <div className="bg-slate-800/50 rounded-xl p-4 hover:bg-slate-800 transition-all cursor-pointer border border-slate-700 hover:border-amber-600">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold text-white">{practice.offerName || 'Pratica senza nome'}</h4>
+                          <p className="text-sm text-slate-400 mt-1">
+                            {practice.type || 'Luce/Gas'} • Step {practice.currentStep}/6
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(practice.status)}`}>
+                            {practice.status === 'COMPLETED' ? 'Completata' :
+                             practice.status === 'CANCELLED' ? 'Annullata' :
+                             practice.status === 'IN_PROGRESS' ? 'In corso' : 'Bozza'}
+                          </span>
+                          <Calendar className="w-4 h-4 text-slate-500" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <div className="space-y-6">

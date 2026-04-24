@@ -10,12 +10,13 @@ import {
   DeviceMobile,
   CheckCircle,
   ClipboardText,
+  MapPin,
+  MagnifyingGlass,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { PracticeStepCard, WizardStepNav } from '@/components/practices/PracticeStepCard';
 import { SelectWithOther } from '@/components/practices/SelectWithOther';
 import { OperatorsDropdown } from '@/components/practices/OperatorsDropdown';
-import { CustomerAutocomplete, CustomerLite } from '@/components/practices/CustomerAutocomplete';
 import {
   GESTORI_MOBILE_PROVENIENZA,
   MOBILE_PROVIDER_CARDS,
@@ -64,6 +65,17 @@ function ProviderIcon({ provider }: { provider: any }) {
   );
 }
 
+interface CustomerSuggestion {
+  id: string;
+  fiscalCode: string;
+  firstName: string;
+  lastName: string;
+  phonePrimary?: string;
+  phone?: string;
+  email?: string;
+  address?: any;
+}
+
 interface MobileWizardData {
   // Step 1: gestore + offerta
   gestoreNuovaLinea?: string;
@@ -82,6 +94,7 @@ interface MobileWizardData {
   fiscalCode?: string;
   phone?: string;
   email?: string;
+  customerAddress?: { street?: string; number?: string; zip?: string; city?: string; province?: string };
   // Step 4: numero/MNP
   codiceFiscaleVecchiaLinea?: string;
   numeroDaPortare?: string;
@@ -123,6 +136,18 @@ export default function NewMobilePractice() {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
+
+  // Ricerca cliente (come rete fissa)
+  const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [nameSuggestions, setNameSuggestions] = useState<CustomerSuggestion[]>([]);
+  const [showCfSuggestions, setShowCfSuggestions] = useState(false);
+  const [showPhoneSuggestions, setShowPhoneSuggestions] = useState(false);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const [isSearchingCf, setIsSearchingCf] = useState(false);
+  const [isSearchingPhone, setIsSearchingPhone] = useState(false);
+  const [isSearchingName, setIsSearchingName] = useState(false);
+  const [lockedCustomer, setLockedCustomer] = useState<CustomerSuggestion | null>(null);
 
   // Offerte dinamiche caricate dal backend
   const [allOffers, setAllOffers] = useState<any[]>([]);
@@ -180,6 +205,111 @@ export default function NewMobilePractice() {
 
   const patch = (p: Partial<MobileWizardData>) => setData((prev) => ({ ...prev, ...p }));
 
+  // Ricerca CF
+  useEffect(() => {
+    const searchFiscalCode = async () => {
+      if (lockedCustomer && data.fiscalCode === lockedCustomer.fiscalCode) {
+        setCfSuggestions([]);
+        setShowCfSuggestions(false);
+        return;
+      }
+      if (!data.fiscalCode || data.fiscalCode.length < 3) {
+        setCfSuggestions([]);
+        setShowCfSuggestions(false);
+        return;
+      }
+      setIsSearchingCf(true);
+      try {
+        const res = await api.get(`/customers/search/by-fiscal-code?code=${data.fiscalCode}`);
+        setCfSuggestions(res.data);
+        setShowCfSuggestions(res.data.length > 0);
+      } catch {
+        setCfSuggestions([]);
+      } finally {
+        setIsSearchingCf(false);
+      }
+    };
+    const timeoutId = setTimeout(searchFiscalCode, 300);
+    return () => clearTimeout(timeoutId);
+  }, [data.fiscalCode, lockedCustomer]);
+
+  // Ricerca Telefono
+  useEffect(() => {
+    const searchPhone = async () => {
+      if (lockedCustomer && data.phone === (lockedCustomer.phonePrimary || lockedCustomer.phone || '')) {
+        setPhoneSuggestions([]);
+        setShowPhoneSuggestions(false);
+        return;
+      }
+      const phoneDigits = data.phone?.replace(/\D/g, '').length || 0;
+      if (!data.phone || phoneDigits < 3) {
+        setPhoneSuggestions([]);
+        setShowPhoneSuggestions(false);
+        return;
+      }
+      setIsSearchingPhone(true);
+      try {
+        const res = await api.get(`/customers/search/by-phone?q=${data.phone}`);
+        setPhoneSuggestions(res.data);
+        setShowPhoneSuggestions(res.data.length > 0);
+      } catch {
+        setPhoneSuggestions([]);
+      } finally {
+        setIsSearchingPhone(false);
+      }
+    };
+    const timeoutId = setTimeout(searchPhone, 300);
+    return () => clearTimeout(timeoutId);
+  }, [data.phone, lockedCustomer]);
+
+  // Ricerca Nome
+  useEffect(() => {
+    const searchName = async () => {
+      const searchTerm = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      const lockedName = lockedCustomer ? `${lockedCustomer.firstName} ${lockedCustomer.lastName}`.trim() : '';
+      if (lockedCustomer && searchTerm === lockedName && searchTerm !== '') {
+        setNameSuggestions([]);
+        setShowNameSuggestions(false);
+        return;
+      }
+      if (!searchTerm || searchTerm.length < 2) {
+        setNameSuggestions([]);
+        setShowNameSuggestions(false);
+        return;
+      }
+      setIsSearchingName(true);
+      try {
+        const res = await api.get(`/customers/search/by-name?q=${searchTerm}`);
+        setNameSuggestions(res.data);
+        setShowNameSuggestions(res.data.length > 0);
+      } catch {
+        setNameSuggestions([]);
+      } finally {
+        setIsSearchingName(false);
+      }
+    };
+    const timeoutId = setTimeout(searchName, 300);
+    return () => clearTimeout(timeoutId);
+  }, [data.firstName, data.lastName, lockedCustomer]);
+
+  const handleSelectCustomer = (customer: CustomerSuggestion) => {
+    patch({
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      fiscalCode: customer.fiscalCode,
+      phone: customer.phonePrimary || customer.phone || '',
+      email: customer.email || '',
+      customerAddress: customer.address || undefined,
+    });
+    setShowCfSuggestions(false);
+    setShowPhoneSuggestions(false);
+    setShowNameSuggestions(false);
+    setCfSuggestions([]);
+    setPhoneSuggestions([]);
+    setNameSuggestions([]);
+    setLockedCustomer(customer);
+  };
+
   // Carica in modalita edit
   useEffect(() => {
     if (!router.isReady) return;
@@ -212,6 +342,7 @@ export default function NewMobilePractice() {
           fiscalCode: p.customerSnapshot?.fiscalCode,
           phone: p.customerSnapshot?.phonePrimary || p.customerSnapshot?.phone,
           email: p.customerSnapshot?.email,
+          customerAddress: p.customerSnapshot?.address || p.customer?.address || undefined,
           ...(p.mobileData || {}),
           lavorazioniPostAttivazione: p.lavorazioniPostAttivazione,
         });
@@ -268,7 +399,7 @@ export default function NewMobilePractice() {
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
-          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email || '', address: '' }
+          ? { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone || '', email: data.email || '', address: data.customerAddress || { street: '', number: '', zip: '', city: '', province: '' } }
           : undefined,
         mobileData: {
           gestoreNuovaLinea: data.gestoreNuovaLinea,
@@ -296,7 +427,14 @@ export default function NewMobilePractice() {
       },
       2: { soldById: data.soldById, soldBy: data.soldBy, enteredById: data.enteredById, enteredBy: data.enteredBy },
       3: {
-        customerData: { firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email || '', address: '' },
+        customerData: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          fiscalCode: data.fiscalCode,
+          phone: data.phone,
+          email: data.email || '',
+          address: data.customerAddress,
+        },
       },
       4: {
         codiceFiscaleVecchiaLinea: data.codiceFiscaleVecchiaLinea,
@@ -485,14 +623,190 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 3: ANAGRAFICA CLIENTE */}
+                {/* STEP 3: ANAGRAFICA CLIENTE (allineato a rete fissa) */}
                 {s.id === 3 && (
                   <div className="space-y-4">
-                    <CustomerAutocomplete
-                      value={{ firstName: data.firstName, lastName: data.lastName, fiscalCode: data.fiscalCode, phone: data.phone, email: data.email }}
-                      onPatch={(p) => patch(p)}
-                      onPick={(c: CustomerLite) => patch({ firstName: c.firstName, lastName: c.lastName, fiscalCode: c.fiscalCode, phone: c.phonePrimary || c.phone || '', email: c.email || '' })}
-                    />
+                    {/* CF */}
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Codice Fiscale <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={data.fiscalCode || ''}
+                          onChange={(e) => patch({ fiscalCode: e.target.value.toUpperCase().slice(0, 16) })}
+                          className={`w-full bg-slate-950 border rounded-xl px-4 py-3 text-slate-200 ${
+                            data.fiscalCode && !validateFiscalCode(data.fiscalCode) ? 'border-rose-600' : 'border-slate-700'
+                          }`}
+                          placeholder="RSSMRA85T10A562S"
+                        />
+                        {isSearchingCf && <MagnifyingGlass className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 animate-pulse" />}
+                      </div>
+                      {showCfSuggestions && cfSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                          {cfSuggestions.map((customer) => (
+                            <button
+                              key={customer.id}
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
+                            >
+                              <p className="text-white font-medium">{customer.fiscalCode}</p>
+                              <p className="text-sm text-slate-400">{customer.firstName} {customer.lastName}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Telefono */}
+                    <div className="relative">
+                      <label className="block text-sm font-medium text-slate-300 mb-2">
+                        Recapito cliente <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="tel"
+                          value={data.phone || ''}
+                          onChange={(e) => patch({ phone: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                          placeholder="3921234567"
+                        />
+                        {isSearchingPhone && <MagnifyingGlass className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 animate-pulse" />}
+                      </div>
+                      {showPhoneSuggestions && phoneSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                          {phoneSuggestions.map((customer) => (
+                            <button
+                              key={customer.id}
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
+                            >
+                              <p className="text-white font-medium">{customer.phonePrimary || customer.phone}</p>
+                              <p className="text-sm text-slate-400">{customer.firstName} {customer.lastName} - {customer.fiscalCode}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Nome/Cognome */}
+                    <div className="grid grid-cols-2 gap-4 relative">
+                      <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Nome <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          value={data.firstName || ''}
+                          onChange={(e) => patch({ firstName: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                          placeholder="Mario"
+                        />
+                      </div>
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-slate-300 mb-2">Cognome <span className="text-rose-500">*</span></label>
+                        <input
+                          type="text"
+                          value={data.lastName || ''}
+                          onChange={(e) => patch({ lastName: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                          placeholder="Rossi"
+                        />
+                        {isSearchingName && <MagnifyingGlass className="absolute right-4 top-[38px] w-5 h-5 text-slate-500 animate-pulse" />}
+                      </div>
+                      {showNameSuggestions && nameSuggestions.length > 0 && (
+                        <div className="absolute z-50 w-full mt-1 top-[80px] bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden col-span-2">
+                          {nameSuggestions.map((customer) => (
+                            <button
+                              key={customer.id}
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="w-full px-4 py-3 text-left hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-0"
+                            >
+                              <p className="text-white font-medium">{customer.firstName} {customer.lastName}</p>
+                              <p className="text-sm text-slate-400">CF: {customer.fiscalCode} - Tel: {customer.phonePrimary || customer.phone || 'N/D'}</p>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
+                      <input
+                        type="email"
+                        value={data.email || ''}
+                        onChange={(e) => patch({ email: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                        placeholder="email@esempio.com"
+                      />
+                    </div>
+
+                    {/* Indirizzo Cliente */}
+                    <div className="border-t border-slate-700 pt-4 mt-4">
+                      <h4 className="text-sm font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        Indirizzo Cliente
+                      </h4>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-300 mb-2">Via / Piazza</label>
+                          <input
+                            type="text"
+                            value={data.customerAddress?.street || ''}
+                            onChange={(e) => patch({ customerAddress: { ...data.customerAddress, street: e.target.value } })}
+                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                            placeholder="Via Roma"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Civico</label>
+                            <input
+                              type="text"
+                              value={data.customerAddress?.number || ''}
+                              onChange={(e) => patch({ customerAddress: { ...data.customerAddress, number: e.target.value } })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              placeholder="123"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">CAP</label>
+                            <input
+                              type="text"
+                              value={data.customerAddress?.zip || ''}
+                              onChange={(e) => patch({ customerAddress: { ...data.customerAddress, zip: e.target.value } })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              placeholder="00100"
+                              maxLength={5}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Città</label>
+                            <input
+                              type="text"
+                              value={data.customerAddress?.city || ''}
+                              onChange={(e) => patch({ customerAddress: { ...data.customerAddress, city: e.target.value } })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              placeholder="Roma"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Provincia</label>
+                            <input
+                              type="text"
+                              value={data.customerAddress?.province || ''}
+                              onChange={(e) => patch({ customerAddress: { ...data.customerAddress, province: e.target.value.toUpperCase() } })}
+                              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 uppercase"
+                              placeholder="RM"
+                              maxLength={2}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                     {data.fiscalCode && !validateFiscalCode(data.fiscalCode) && (
                       <p className="text-rose-400 text-sm">Codice fiscale non valido</p>
                     )}
@@ -572,89 +886,140 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 7: RIEPILOGO */}
+                {/* STEP 7: RIEPILOGO (allineato a rete fissa) */}
                 {s.id === 7 && (
                   <div className="space-y-4">
-                    <div className="rounded-xl p-5 bg-slate-950 border border-slate-800 space-y-3">
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <ClipboardText className="w-5 h-5 text-indigo-400" />
-                        Riepilogo Pratica Mobile
-                      </h3>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Gestore</p>
-                          <p className="text-sm font-medium text-slate-200">{data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}</p>
+                    {/* Card Offerta */}
+                    <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
+                      <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
+                        <Buildings className="w-5 h-5" />
+                        Dettaglio Offerta
+                      </h4>
+                      <div className="space-y-3 text-sm">
+                        <div className="flex justify-between items-start">
+                          <span className="text-slate-400">Gestore:</span>
+                          <span className="text-white text-right font-medium max-w-[60%]">
+                            {data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea}
+                          </span>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Offerta</p>
-                          <p className="text-sm font-medium text-slate-200">{data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}</p>
+                        <div className="flex justify-between items-start">
+                          <span className="text-slate-400">Offerta:</span>
+                          <span className="text-white text-right font-medium max-w-[60%]">
+                            {data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}
+                          </span>
                         </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Data attivazione</p>
-                          <p className="text-sm font-medium text-slate-200">{data.dataAttivazione}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Venditore / Inseritore</p>
-                          <p className="text-sm font-medium text-slate-200">{data.soldBy} / {data.enteredBy}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Cliente</p>
-                          <p className="text-sm font-medium text-slate-200">{data.firstName} {data.lastName}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Codice Fiscale</p>
-                          <p className="text-sm font-medium text-slate-200">{data.fiscalCode}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Telefono</p>
-                          <p className="text-sm font-medium text-slate-200">{data.phone}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Numero da portare</p>
-                          <p className="text-sm font-medium text-slate-200">{data.numeroDaPortare}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Tipo linea</p>
-                          <p className="text-sm font-medium text-slate-200">{data.tipoLinea}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">Ricarica</p>
-                          <p className="text-sm font-medium text-slate-200">{data.ricarica === 'ALTRO' ? data.ricaricaAltro : data.ricarica}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">TIM Unica</p>
-                          <p className="text-sm font-medium text-slate-200">{data.timUnica === 'ALTRO' ? data.timUnicaAltro : data.timUnica}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 uppercase">IBAN / CDC</p>
-                          <p className="text-sm font-medium text-slate-200">{data.ibanCdc || '-'}</p>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Data attivazione:</span>
+                          <span className="text-white">{data.dataAttivazione}</span>
                         </div>
                       </div>
+                    </div>
 
-                      {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
-                        <div className="mt-4 pt-4 border-t border-slate-800 space-y-2">
+                    {/* Card Venditori */}
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                        <User className="w-5 h-5" />
+                        Venditori
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between"><span className="text-slate-400">Venduto da:</span><span className="text-white">{data.soldBy}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Inserito da:</span><span className="text-white">{data.enteredBy}</span></div>
+                      </div>
+                    </div>
+
+                    {/* Card Dati Cliente */}
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                        <User className="w-5 h-5" />
+                        Dati Cliente
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between"><span className="text-slate-400">Nome:</span><span className="text-white">{data.firstName} {data.lastName}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">CF:</span><span className="text-white font-mono text-xs">{data.fiscalCode}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Telefono:</span><span className="text-white">{data.phone}</span></div>
+                        {data.email && <div className="flex justify-between"><span className="text-slate-400">Email:</span><span className="text-white">{data.email}</span></div>}
+                        {data.customerAddress && (data.customerAddress.street || data.customerAddress.city) && (
+                          <div className="flex justify-between items-start">
+                            <span className="text-slate-400">Indirizzo:</span>
+                            <span className="text-white text-right max-w-[60%]">
+                              {data.customerAddress.street} {data.customerAddress.number}, {data.customerAddress.zip} {data.customerAddress.city} ({data.customerAddress.province})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Numero & MNP */}
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                        <Phone className="w-5 h-5" />
+                        Numero & MNP
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between"><span className="text-slate-400">CF vecchia linea:</span><span className="text-white font-mono text-xs">{data.codiceFiscaleVecchiaLinea}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Numero da portare:</span><span className="text-white">{data.numeroDaPortare}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Tipo linea:</span><span className="text-white">{data.tipoLinea}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-400">Gestore provenienza:</span><span className="text-white">{data.gestoreProvenienza === 'ALTRO' ? data.gestoreProvenienzaAltro : data.gestoreProvenienza}</span></div>
+                        {data.noteMnp && <div><span className="text-slate-400">Note MNP:</span><p className="text-slate-300 mt-1">{data.noteMnp}</p></div>}
+                      </div>
+                    </div>
+
+                    {/* Card Pagamento */}
+                    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                      <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                        <CreditCard className="w-5 h-5" />
+                        Pagamento & Ricarica
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between"><span className="text-slate-400">Ricarica:</span><span className="text-white">{data.ricarica === 'ALTRO' ? data.ricaricaAltro : data.ricarica}</span></div>
+                        {data.ibanCdc && <div className="flex justify-between"><span className="text-slate-400">IBAN / CDC:</span><span className="text-white font-mono text-xs">{data.ibanCdc}</span></div>}
+                        {data.noteMetodoPagamento && <div><span className="text-slate-400">Note:</span><p className="text-slate-300 mt-1">{data.noteMetodoPagamento}</p></div>}
+                      </div>
+                    </div>
+
+                    {/* Card TIM Unica */}
+                    {(data.timUnica && data.timUnica !== 'NO') && (
+                      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                        <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                          <DeviceMobile className="w-5 h-5" />
+                          TIM Unica
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between"><span className="text-slate-400">Stato:</span><span className="text-white">{data.timUnica === 'ALTRO' ? data.timUnicaAltro : data.timUnica}</span></div>
+                          {data.numeroReteFissaTimUnica && <div className="flex justify-between"><span className="text-slate-400">Numero rete fissa:</span><span className="text-white">{data.numeroReteFissaTimUnica}</span></div>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Card Note */}
+                    {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
+                      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
+                        <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
+                          <FileText className="w-5 h-5" />
+                          Note
+                        </h4>
+                        <div className="space-y-3 text-sm">
                           {data.noteGeneriche && (
                             <div>
-                              <p className="text-xs text-slate-500 uppercase">Note</p>
-                              <p className="text-sm text-slate-300">{data.noteGeneriche}</p>
+                              <span className="text-slate-400 block mb-1">Note generiche:</span>
+                              <p className="text-slate-300">{data.noteGeneriche}</p>
                             </div>
                           )}
                           {data.accordiCliente && (
                             <div>
-                              <p className="text-xs text-slate-500 uppercase">Accordi cliente</p>
-                              <p className="text-sm text-slate-300">{data.accordiCliente}</p>
+                              <span className="text-slate-400 block mb-1">Accordi con il cliente:</span>
+                              <p className="text-slate-300">{data.accordiCliente}</p>
                             </div>
                           )}
                           {data.lavorazioniPostAttivazione && (
                             <div>
-                              <p className="text-xs text-slate-500 uppercase">Lavorazioni post-attivazione</p>
-                              <p className="text-sm text-slate-300">{data.lavorazioniPostAttivazione}</p>
+                              <span className="text-slate-400 block mb-1">Lavorazioni post-attivazione:</span>
+                              <p className="text-slate-300">{data.lavorazioniPostAttivazione}</p>
                             </div>
                           )}
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
 
                     <WizardStepNav canAdvance={stepValid(7)} isLast onBack={() => setExpandedStep(6)} onAdvance={submit} loading={loading} />
                   </div>

@@ -13,8 +13,6 @@ import {
   CheckCircle,
   Calendar,
   Clock,
-  Gauge,
-  Lightning,
   Note,
   CaretRight,
 } from 'phosphor-react';

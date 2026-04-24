@@ -46,6 +46,7 @@ interface Practice {
   status: string;
   currentStep: number;
   createdAt: string;
+  category?: 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
 }
 
 // 🔥 NUOVA FUNZIONE: Formatta indirizzo da JSON a stringa leggibile

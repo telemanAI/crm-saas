@@ -1,227 +1,235 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
-  Plus,
-  MagnifyingGlass,
-  Funnel,
   Lightning,
-  FileText,
-  CheckCircle,
-  Clock,
-  XCircle,
+  Plus,
+  Calendar,
+  Search,
+  Funnel,
+  ArrowRight,
 } from 'phosphor-react';
+import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
+import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 
-interface EnergyPractice {
+interface Practice {
   id: string;
-  category: string;
+  type: string;
+  offerName: string;
   status: string;
-  operationalStatus?: string;
-  type?: string;
-  offerName?: string;
-  currentStep?: number;
-  customer?: { firstName?: string; lastName?: string; fiscalCode?: string };
-  customerSnapshot?: any;
-  energyData?: any;
+  currentStep: number;
   createdAt: string;
+  category?: 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
+  customerSnapshot?: {
+    firstName?: string;
+    lastName?: string;
+    fiscalCode?: string;
+    phone?: string;
+  };
 }
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'COMPLETED':
+      return 'text-emerald-400 bg-emerald-600/10';
+    case 'CANCELLED':
+      return 'text-rose-400 bg-rose-600/10';
+    case 'IN_PROGRESS':
+      return 'text-amber-400 bg-amber-600/10';
+    default:
+      return 'text-slate-400 bg-slate-600/10';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'COMPLETED':
+      return 'Completata';
+    case 'CANCELLED':
+      return 'Annullata';
+    case 'IN_PROGRESS':
+      return 'In corso';
+    default:
+      return 'Bozza';
+  }
+};
+
+const formatDate = (d: string) => {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('it-IT');
+};
 
 export default function EnergyPracticesList() {
   const router = useRouter();
-  const [practices, setPractices] = useState<EnergyPractice[]>([]);
+  const { token } = useAuthStore();
+  const [practices, setPractices] = useState<Practice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [opStatusFilter, setOpStatusFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const load = async () => {
-    setLoading(true);
+  const fetchPractices = async () => {
     try {
-      const res = await api.get('/practices?category=ENERGY');
-      setPractices(res.data || []);
+      const response = await api.get('/practices', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPractices(response.data || []);
+    } catch (err) {
+      console.error('Errore caricamento pratiche:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const filtered = useMemo(
-    () =>
-      practices.filter((p) => {
-        const name = `${p.customer?.firstName || p.customerSnapshot?.firstName || ''} ${p.customer?.lastName || p.customerSnapshot?.lastName || ''}`.toLowerCase();
-        const cf = (p.customer?.fiscalCode || p.customerSnapshot?.fiscalCode || '').toLowerCase();
-        const off = (p.offerName || '').toLowerCase();
-        const q = search.toLowerCase();
-        const matchSearch = !q || name.includes(q) || cf.includes(q) || off.includes(q);
-        const matchStatus = opStatusFilter === 'ALL' || p.operationalStatus === opStatusFilter;
-        return matchSearch && matchStatus;
-      }),
-    [practices, search, opStatusFilter],
-  );
+  useEffect(() => {
+    if (token) fetchPractices();
+  }, [token]);
 
-  const getStatusIcon = (s?: string) => {
-    const x = s?.toLowerCase();
-    if (x === 'completed') return <CheckCircle className="w-5 h-5 text-emerald-400" />;
-    if (x === 'in_progress') return <Clock className="w-5 h-5 text-amber-400" />;
-    if (x === 'cancelled') return <XCircle className="w-5 h-5 text-rose-400" />;
-    return <FileText className="w-5 h-5 text-slate-400" />;
-  };
-  const getStatusLabel = (s?: string) => {
-    const x = s?.toLowerCase();
-    if (x === 'completed') return 'Inserita';
-    if (x === 'in_progress') return 'In corso';
-    if (x === 'cancelled') return 'Annullata';
-    return 'Bozza';
-  };
-  const borderByOp = (s?: string) => {
-    switch (s) {
-      case 'ACTIVATED': return 'border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/30 bg-emerald-950/20';
-      case 'REJECTED': return 'border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30 bg-rose-950/20';
-      case 'IN_PROGRESS': return 'border-cyan-400 ring-2 ring-cyan-400/50 shadow-lg shadow-cyan-500/30 bg-cyan-950/20';
-      case 'PENDING': return 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30 bg-amber-950/20';
-      default: return 'border-slate-800';
-    }
-  };
+  // Filtra SOLO pratiche ENERGY
+  const energyPractices = practices.filter((p) => p.category === 'ENERGY');
 
-  if (loading) {
-    return (
-      <OperatorLayout title="Pratiche Luce e Gas">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full" />
-        </div>
-      </OperatorLayout>
-    );
-  }
+  // Applica filtri di ricerca e stato
+  const filtered = energyPractices.filter((p) => {
+    const matchesSearch =
+      !search ||
+      p.offerName?.toLowerCase().includes(search.toLowerCase()) ||
+      p.type?.toLowerCase().includes(search.toLowerCase()) ||
+      p.customerSnapshot?.lastName?.toLowerCase().includes(search.toLowerCase()) ||
+      p.customerSnapshot?.fiscalCode?.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter === 'ALL' || p.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <OperatorLayout title="Pratiche Luce e Gas">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Lightning className="w-7 h-7 text-amber-400" weight="duotone" />
-            Pratiche Luce e Gas
-          </h1>
-          <p className="text-slate-400">Gestisci switch, volture, subentri e posa contatori</p>
-        </div>
-        <Link href="/operator/practices/energy/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-600/25"
-            data-testid="energy-new-practice-btn"
-          >
-            <Plus className="w-5 h-5" />
-            Nuova Pratica Luce/Gas
-          </motion.button>
-        </Link>
-      </div>
-
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[260px] max-w-md">
-          <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Cerca per cliente, CF o offerta..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
-          <select
-            value={opStatusFilter}
-            onChange={(e) => setOpStatusFilter(e.target.value as any)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-          >
-            <option value="ALL">Tutti gli stati</option>
-            <option value="PENDING">In Attesa</option>
-            <option value="IN_PROGRESS">In Lavorazione</option>
-            <option value="ACTIVATED">Attivata</option>
-            <option value="REJECTED">KO</option>
-          </select>
-        </div>
-      </div>
-
-      {filtered.length === 0 ? (
-        <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
-          <Lightning className="w-16 h-16 text-slate-600 mx-auto mb-4" weight="duotone" />
-          <p className="text-slate-400 mb-2">Nessuna pratica luce/gas trovata</p>
-          <Link href="/operator/practices/energy/new" className="text-amber-400 hover:text-amber-300">
-            Crea la prima pratica luce/gas
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+              <Lightning className="w-6 h-6" weight="duotone" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-white">Pratiche Luce e Gas</h1>
+              <p className="text-slate-400 text-sm mt-1">
+                {energyPractices.length} pratiche in totale
+              </p>
+            </div>
+          </div>
+          <Link href="/operator/practices/energy/new">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center gap-2 px-5 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-amber-600/20"
+            >
+              <Plus className="w-5 h-5" weight="bold" />
+              Nuova Pratica
+            </motion.button>
           </Link>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {filtered.map((p, idx) => (
-            <motion.div
-              key={p.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: idx * 0.04 }}
-              onClick={() => router.push(`/operator/practices/energy/${p.id}`)}
-              className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-6 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
-              data-testid="energy-practice-card"
+
+        {/* Filtri */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cerca per offerta, gestore, cliente o codice fiscale..."
+              className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
+            />
+          </div>
+          <div className="relative">
+            <Funnel className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl pl-10 pr-8 py-3 text-slate-200 focus:outline-none focus:border-amber-500 appearance-none cursor-pointer"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-                    <Lightning className="w-6 h-6 text-amber-400" weight="duotone" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-white group-hover:text-amber-400 transition-colors">
-                      {p.energyData?.tipoAttivazione || 'Attivazione'} · {p.type || 'Gestore da definire'}
-                    </h3>
-                    <div className="text-sm text-slate-400 mt-1">
-                      <p>
-                        {p.customerSnapshot?.firstName || p.customer?.firstName} {' '}
-                        {p.customerSnapshot?.lastName || p.customer?.lastName}
-                      </p>
-                      {(p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode) && (
-                        <p className="text-xs text-slate-500 font-mono mt-1">
-                          CF: {p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode}
-                        </p>
-                      )}
-                      {p.energyData?.numeroContatore && (
-                        <p className="text-xs text-slate-500 mt-1">
-                          Contatore: {p.energyData.numeroContatore} {p.energyData.potenzaContatore ? `· ${p.energyData.potenzaContatore.replace('_', ' ')}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && (
-                    <Link href={`/operator/practices/energy/new?edit=${p.id}`}>
-                      <button
-                        onClick={(e) => e.stopPropagation()}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white text-sm font-medium rounded-lg transition-colors"
-                      >
-                        Continua
-                      </button>
-                    </Link>
-                  )}
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
-                      {getStatusIcon(p.status)}
-                      <span>{getStatusLabel(p.status)}</span>
-                    </div>
-                    <div className="text-xs text-slate-500">Step {p.currentStep || 1}/6</div>
-                  </div>
-                  <div className="text-right text-sm text-slate-500">
-                    {new Date(p.createdAt).toLocaleDateString('it-IT')}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              <option value="ALL">Tutti gli stati</option>
+              <option value="IN_PROGRESS">In corso</option>
+              <option value="COMPLETED">Completate</option>
+              <option value="CANCELLED">Annullate</option>
+              <option value="DRAFT">Bozza</option>
+            </select>
+          </div>
         </div>
-      )}
+
+        {/* Lista */}
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16 bg-slate-900/50 border border-slate-800 rounded-2xl"
+          >
+            <Lightning className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+            <p className="text-slate-400 text-lg">Nessuna pratica luce/gas trovata</p>
+            <p className="text-slate-500 text-sm mt-2">
+              {search || statusFilter !== 'ALL'
+                ? 'Prova a modificare i filtri di ricerca'
+                : 'Crea una nuova pratica per iniziare'}
+            </p>
+          </motion.div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((practice, idx) => (
+              <motion.div
+                key={practice.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.03 }}
+              >
+                <Link href={`/operator/practices/energy/${practice.id}`}>
+                  <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5 hover:border-amber-500/50 hover:bg-slate-800/80 transition-all cursor-pointer group">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <h3 className="font-semibold text-white truncate">
+                            {practice.offerName || 'Pratica senza nome'}
+                          </h3>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
+                              practice.status
+                            )}`}
+                          >
+                            {getStatusLabel(practice.status)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-slate-400">
+                          <span className="capitalize">{practice.type || 'Luce/Gas'}</span>
+                          <span>•</span>
+                          <span>Step {practice.currentStep || 0}/7</span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5" />
+                            {formatDate(practice.createdAt)}
+                          </span>
+                          {practice.customerSnapshot && (
+                            <>
+                              <span>•</span>
+                              <span className="text-slate-300">
+                                {practice.customerSnapshot.firstName}{' '}
+                                {practice.customerSnapshot.lastName}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-amber-400 transition-colors ml-4 flex-shrink-0" />
+                    </div>
+                  </div>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
     </OperatorLayout>
   );
 }

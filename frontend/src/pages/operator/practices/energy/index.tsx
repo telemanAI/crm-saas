@@ -5,7 +5,7 @@ import {
   Lightning,
   Plus,
   Calendar,
-  Search,
+  MagnifyingGlass,
   Funnel,
   ArrowRight,
 } from 'phosphor-react';
@@ -132,7 +132,7 @@ export default function EnergyPracticesList() {
         {/* Filtri */}
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
             <input
               type="text"
               value={search}

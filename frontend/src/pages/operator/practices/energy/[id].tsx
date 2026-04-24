@@ -13,12 +13,14 @@ import {
   CheckCircle,
   Note,
   Clock,
-  Calendar,
+  Shield,
+  NavigationArrow,
+  Check,
 } from 'phosphor-react';
+import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
 
-// ─── helpers ───────────────────────────────────────────
 function formatDate(date: string | undefined) {
   if (!date) return '—';
   return new Date(date).toLocaleDateString('it-IT', {
@@ -29,58 +31,84 @@ function formatDate(date: string | undefined) {
     minute: '2-digit'
   });
 }
+
 function safeString(value: any) {
-  if (value === null || value === undefined) return '—';
+  if (value === null || value === undefined) return '';
   if (typeof value === 'boolean') return value ? 'Sì' : 'No';
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') {
+    console.warn('[safeString] Tentativo di renderizzare oggetto:', value);
+    return '';
+  }
   return String(value);
 }
-// ──────────────────────────────────────────────────────
+
+const sanitizePracticeData = (data: any) => {
+  if (data.energyData && typeof data.energyData === 'string') {
+    try { data.energyData = JSON.parse(data.energyData); } catch { data.energyData = {}; }
+  }
+  if (data.energyData && typeof data.energyData !== 'object') data.energyData = {};
+  if (!data.customer || typeof data.customer !== 'object') data.customer = {};
+  return data;
+};
 
 export default function EnergyPracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
+  const { token } = useAuthStore();
   const [practice, setPractice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
-    if (!id || typeof id !== 'string') return;
-    (async () => {
-      try {
-        const res = await api.get(`/practices/${id}`);
-        setPractice(res.data);
-      } catch {
-        router.replace('/operator/practices/energy');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
+    if (!id || typeof id !== 'string' || !token) return;
+    fetchPractice();
+  }, [id, token]);
 
-  const updateOpStatus = async (status: string) => {
+  const fetchPractice = async () => {
     try {
-      const res = await api.put(`/practices/${id}/operational-status`, { status });
-      setPractice(res.data);
-    } catch (err: any) {
-      alert('Errore aggiornamento stato: ' + (err.response?.data?.message || err.message));
+      const res = await api.get(`/practices/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      let raw = res.data;
+      raw = sanitizePracticeData(raw);
+      setPractice(raw);
+    } catch {
+      router.replace('/operator/practices/energy');
+    } finally {
+      setLoading(false);
     }
   };
 
-  
+  const updateOpStatus = async (newStatus: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED') => {
+    if (!practice || statusLoading) return;
+    setStatusLoading(true);
+    try {
+      await api.put(`/practices/${id}/operational-status`, { status: newStatus }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchPractice();
+    } catch (err: any) {
+      alert('Errore aggiornamento stato: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   const addNote = async () => {
     if (!noteText.trim()) return;
     setSavingNote(true);
     try {
       await api.put(`/practices/${id}/step`, {
-        stepNumber: 6,
-        data: { note: noteText.trim() }
+        stepNumber: 3,
+        data: { notes: noteText.trim() }
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       setNoteText('');
-      const res = await api.get(`/practices/${id}`);
-      setPractice(res.data);
+      fetchPractice();
     } catch (err: any) {
       alert('Errore aggiunta nota: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -88,16 +116,57 @@ export default function EnergyPracticeDetail() {
     }
   };
 
-const handleDelete = async () => {
-    if (!confirm('Eliminare questa pratica?')) return;
+  const handleDeleteNote = async (noteIndex: number) => {
+    if (!confirm('Sei sicuro di voler eliminare questa nota?')) return;
+    try {
+      await api.delete(`/practices/${id}/notes/${noteIndex}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchPractice();
+    } catch {
+      alert('Errore durante l\'eliminazione della nota');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Eliminare questa pratica? L\'azione è irreversibile.')) return;
     setDeleting(true);
     try {
-      await api.delete(`/practices/${id}`);
+      await api.delete(`/practices/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
       router.push('/operator/practices/energy');
     } catch (err: any) {
       alert('Errore: ' + (err.response?.data?.message || err.message));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const getOperationalStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVATED': return 'bg-emerald-500 text-white border-emerald-500';
+      case 'REJECTED': return 'bg-rose-500 text-white border-rose-500';
+      case 'IN_PROGRESS': return 'bg-blue-500 text-white border-blue-500';
+      default: return 'bg-amber-500 text-white border-amber-500';
+    }
+  };
+
+  const getOperationalStatusLabel = (status: string) => {
+    switch (status) {
+      case 'ACTIVATED': return 'Attivata';
+      case 'REJECTED': return 'KO';
+      case 'IN_PROGRESS': return 'In Lavorazione';
+      default: return 'In Attesa';
+    }
+  };
+
+  const getBorderColorByStatus = (status: string) => {
+    switch (status) {
+      case 'ACTIVATED': return 'border-emerald-600/50';
+      case 'REJECTED': return 'border-rose-600/50';
+      case 'IN_PROGRESS': return 'border-blue-600/50';
+      default: return 'border-slate-800';
     }
   };
 
@@ -111,180 +180,243 @@ const handleDelete = async () => {
     );
   }
   if (!practice) return null;
+
   const e = practice.energyData || {};
   const customer = practice.customerSnapshot || practice.customer || {};
-
-  const showValue = (label: string, value: any) =>
-    value && (
-      <div>
-        <dt className="text-xs text-slate-500 uppercase tracking-wider">{label}</dt>
-        <dd className="text-slate-200 mt-1">{String(value)}</dd>
-      </div>
-    );
+  const opStatus = practice.operationalStatus || 'PENDING';
 
   return (
-    <OperatorLayout title="Dettaglio pratica luce/gas">
-      <div className="max-w-4xl mx-auto">
-        <Link href="/operator/practices/energy" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-4 text-sm">
-          <ArrowLeft className="w-4 h-4" /> Torna alla lista
-        </Link>
-
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 mb-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-500/10 border border-amber-500/30">
-                <Lightning className="w-6 h-6 text-amber-400" weight="duotone" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  {e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione || 'Pratica luce/gas'}
-                </h1>
-                <p className="text-slate-400 text-sm mt-1">
-                  Creata il {new Date(practice.createdAt).toLocaleString('it-IT')}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link href={`/operator/practices/energy/new?edit=${practice.id}`}>
-                <button className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-white rounded-lg text-sm font-medium">
-                  <PencilSimple className="w-4 h-4" /> Modifica
-                </button>
-              </Link>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                <Trash className="w-4 h-4" /> Elimina
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 mt-4">
-            <select
-              value={practice.operationalStatus || 'PENDING'}
-              onChange={(ev) => updateOpStatus(ev.target.value)}
-              className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"
-            >
-              <option value="PENDING">In Attesa</option>
-              <option value="IN_PROGRESS">In Lavorazione</option>
-              <option value="ACTIVATED">Attivata</option>
-              <option value="REJECTED">KO</option>
-            </select>
-            {practice.status === 'completed' && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600/20 text-emerald-400 text-xs rounded-full">
-                <CheckCircle className="w-3 h-3" /> Completata
+    <OperatorLayout title={`Pratica ${e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || 'Luce/Gas'}`}>
+      <div className={`flex items-center justify-between mb-8 p-6 bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByStatus(opStatus)} rounded-2xl`}>
+        <div className="flex items-center gap-4">
+          <Link href="/operator/practices/energy">
+            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-3 mb-2">
+              {practice.status === 'completed' && (
+                <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-600/20">
+                  Completata
+                </span>
+              )}
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getOperationalStatusColor(opStatus)}`}>
+                {getOperationalStatusLabel(opStatus)}
               </span>
-            )}
+              <span className="text-slate-500 text-sm">Step {practice.currentStep}/{practice.totalSteps || 7}</span>
+            </div>
+            <h1 className="text-3xl font-bold text-white">
+              {e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || 'Pratica Luce/Gas'}
+            </h1>
+            <div className="flex items-center gap-2 mt-3">
+              <span className="text-xs text-slate-400 mr-2">Cambia Stato:</span>
+              {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => updateOpStatus(s)}
+                  disabled={statusLoading || opStatus === s}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    opStatus === s
+                      ? getOperationalStatusColor(s)
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {getOperationalStatusLabel(s)}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+        <div className="flex items-center gap-3">
+          <Link href={`/operator/practices/energy/new?edit=${practice.id}`}>
+            <button className="flex items-center gap-2 px-4 py-2 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-600/30 rounded-xl transition-all">
+              <PencilSimple className="w-4 h-4" /> Modifica
+            </button>
+          </Link>
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
+          >
+            <Trash className="w-4 h-4" /> {deleting ? 'Eliminazione...' : 'Elimina'}
+          </button>
+        </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* LEFT COLUMN */}
-          <div className="lg:col-span-1 space-y-4">
-            <Section icon={Note} title="Note & Cronologia">
-              <div className="mb-4 space-y-2">
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder="Scrivi una nuova nota..."
-                  rows={3}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm"
-                />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Note & Cronologia — ALLINEATO A RETE FISSA */}
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-white">Note & Cronologia</h2>
+                <p className="text-xs text-slate-500 mt-1">{(practice.notesHistory?.length || 0)} note inserite</p>
+              </div>
+            </div>
+
+            <div className="mb-6 p-4 bg-slate-800/80 rounded-xl border border-slate-600">
+              <label className="block text-sm text-slate-200 mb-2 font-medium">Aggiungi nuova nota</label>
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Scrivi qui la tua nota..."
+                rows={4}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none text-sm transition-all"
+              />
+              <div className="flex justify-end mt-3">
                 <button
                   onClick={addNote}
                   disabled={savingNote || !noteText.trim()}
-                  className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    savingNote || !noteText.trim()
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-400'
+                      : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30'
+                  }`}
                 >
+                  <Check className="w-4 h-4" />
                   {savingNote ? 'Salvataggio...' : 'Aggiungi Nota'}
                 </button>
               </div>
-              {practice.notesHistory && practice.notesHistory.length > 0 ? (
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
-                  {practice.notesHistory.map((note: any, idx: number) => (
-                    <div key={idx} className="bg-slate-950 rounded-xl p-3 border border-slate-800">
-                      <p className="text-sm text-slate-300">{note.note}</p>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                        <Clock className="w-3 h-3" />
-                        {formatDate(note.createdAt)}
-                        {note.createdBy && <span>• {note.createdBy}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-slate-500 text-sm">Nessuna nota registrata</p>
-              )}
-            </Section>
-          </div>
-
-          {/* RIGHT COLUMN */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Info Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-                <p className="text-xs text-slate-500 uppercase mb-1">Offerta</p>
-                <p className="text-sm font-semibold text-white">{safeString(e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || practice.offerName)}</p>
-              </div>
-              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-                <p className="text-xs text-slate-500 uppercase mb-1">Gestore</p>
-                <p className="text-sm font-semibold text-white">{safeString(e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto || practice.type)}</p>
-              </div>
-              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-                <p className="text-xs text-slate-500 uppercase mb-1">Attivazione</p>
-                <p className="text-sm font-semibold text-white">{safeString(e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}</p>
-              </div>
-              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
-                <p className="text-xs text-slate-500 uppercase mb-1">Data Attivazione</p>
-                <p className="text-sm font-semibold text-white">{safeString(e.dataAttivazione)}</p>
-              </div>
             </div>
 
-            <Section icon={User} title="Cliente">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('Nome', customer.firstName)}
-                {showValue('Cognome', customer.lastName)}
-                {showValue('Codice fiscale', customer.fiscalCode)}
-                {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
-                {showValue('Telefono', customer.phonePrimary || customer.phone)}
-                {showValue('Email', customer.email)}
-              </dl>
-            </Section>
-
-            <Section icon={Gauge} title="Attivazione & Contatore">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('Tipo attivazione', e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}
-                {showValue('Numero contatore (POD/PDR)', e.numeroContatore)}
-                {showValue('Potenza', e.potenzaContatore === 'ALTRO' ? e.potenzaContatoreAltro : e.potenzaContatore?.replace('_', ' '))}
-                {showValue('Gestore provenienza', e.gestoreProvenienza === 'ALTRO' ? e.gestoreProvenienzaAltro : e.gestoreProvenienza)}
-                {showValue('Gestore nuovo contratto', e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto)}
-              </dl>
-            </Section>
-
-            <Section icon={CreditCard} title="Pagamento">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('IBAN/CDC', e.ibanCdc)}
-                {showValue('Note metodo pagamento', e.noteMetodoPagamento)}
-              </dl>
-            </Section>
-
-            <Section icon={FileText} title="Note & Accordi">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('Note generiche', e.noteGeneriche)}
-                {showValue('Accordi con cliente', e.accordiCliente)}
-                {showValue('Lavorazioni post-attivazione', practice.lavorazioniPostAttivazione)}
-              </dl>
-            </Section>
-
-            <Section icon={User} title="Venditori & Date">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('Venduto da', practice.soldBy)}
-                {showValue('Inserito da', practice.enteredBy)}
-                {showValue('Data creazione', formatDate(practice.createdAt))}
-                {showValue('Ultima modifica', formatDate(practice.updatedAt))}
-              </dl>
-            </Section>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              {practice.notesHistory && practice.notesHistory.length > 0 ? (
+                practice.notesHistory
+                  .slice()
+                  .reverse()
+                  .map((note: any, index: number) => (
+                    <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
+                      <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-amber-500" />
+                      <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-amber-400">
+                            {safeString(note.createdBy) || 'Operatore'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-500">
+                              {new Date(note.createdAt).toLocaleString('it-IT', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            <button
+                              onClick={() => {
+                                const historyLength = practice.notesHistory?.length || 0;
+                                handleDeleteNote(historyLength - 1 - index);
+                              }}
+                              className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                              title="Elimina nota"
+                            >
+                              <Trash className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                          {safeString(note.text)}
+                        </p>
+                      </div>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <Note className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Nessuna nota presente</p>
+                  <p className="text-xs mt-1">Aggiungi la prima nota usando il form sopra</p>
+                </div>
+              )}
+            </div>
           </div>
+
+          <Section icon={User} title="Cliente">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {showValue('Nome', customer.firstName)}
+              {showValue('Cognome', customer.lastName)}
+              {showValue('Codice fiscale', customer.fiscalCode)}
+              {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
+              {showValue('Telefono', customer.phonePrimary || customer.phone)}
+              {showValue('Email', customer.email)}
+              {customer.address && (customer.address.street || customer.address.city) && (
+                <div className="col-span-2">
+                  <dt className="text-xs text-slate-500 uppercase tracking-wider">Indirizzo</dt>
+                  <dd className="text-slate-200 mt-1">
+                    {safeString(customer.address.street)} {safeString(customer.address.number)}, {safeString(customer.address.zip)} {safeString(customer.address.city)} ({safeString(customer.address.province)})
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </Section>
+
+          <Section icon={Gauge} title="Attivazione & Contatore">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {showValue('Tipo attivazione', e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}
+              {showValue('Numero contatore (POD/PDR)', e.numeroContatore)}
+              {showValue('Potenza', e.potenzaContatore === 'ALTRO' ? e.potenzaContatoreAltro : e.potenzaContatore?.replace('_', ' '))}
+              {showValue('Gestore provenienza', e.gestoreProvenienza === 'ALTRO' ? e.gestoreProvenienzaAltro : e.gestoreProvenienza)}
+              {showValue('Gestore nuovo contratto', e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto)}
+            </dl>
+          </Section>
+
+          <Section icon={CreditCard} title="Pagamento">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {showValue('IBAN / CDC', e.ibanCdc)}
+              {showValue('Note metodo pagamento', e.noteMetodoPagamento)}
+            </dl>
+          </Section>
+
+          <Section icon={FileText} title="Note & Accordi">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+              {showValue('Note generiche', e.noteGeneriche)}
+              {showValue('Accordi con cliente', e.accordiCliente)}
+              {showValue('Lavorazioni post-attivazione', practice.lavorazioniPostAttivazione)}
+            </dl>
+          </Section>
+        </div>
+
+        <div className="space-y-6">
+          <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Info Pratica</h2>
+            </div>
+            <div className="space-y-4">
+              {showValue('Gestore', e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto || practice.type)}
+              {showValue('Offerta', e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || practice.offerName)}
+              {showValue('Data attivazione', e.dataAttivazione)}
+              {showValue('Venduto da', practice.soldBy)}
+              {showValue('Inserito da', practice.enteredBy)}
+              <div className="pt-4 border-t border-slate-800">
+                <label className="text-sm text-slate-500 block mb-1">Data Creazione</label>
+                <p className="text-white text-sm">{formatDate(practice.createdAt)}</p>
+              </div>
+              {practice.updatedAt !== practice.createdAt && (
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Ultima Modifica</label>
+                  <p className="text-white text-sm">{formatDate(practice.updatedAt)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {practice.customerId && (
+            <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+              <Link href={`/operator/customers/${practice.customerId}`}>
+                <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/30 rounded-xl transition-all text-sm font-medium group">
+                  <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                  Vai al Cliente
+                  <NavigationArrow className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </OperatorLayout>
@@ -293,12 +425,24 @@ const handleDelete = async () => {
 
 function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <Icon className="w-5 h-5 text-amber-400" weight="duotone" />
+    <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+          <Icon className="w-5 h-5" weight="duotone" />
+        </div>
         <h3 className="text-white font-semibold">{title}</h3>
       </div>
       {children}
+    </div>
+  );
+}
+
+function showValue(label: string, value: any) {
+  if (value === null || value === undefined || value === '') return null;
+  return (
+    <div>
+      <dt className="text-xs text-slate-500 uppercase tracking-wider">{label}</dt>
+      <dd className="text-slate-200 mt-1">{String(value)}</dd>
     </div>
   );
 }

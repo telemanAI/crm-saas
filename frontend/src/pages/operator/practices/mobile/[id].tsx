@@ -18,6 +18,25 @@ import {
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
 
+// ─── helpers ───────────────────────────────────────────
+function formatDate(date: string | undefined) {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+function safeString(value: any) {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Sì' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+// ──────────────────────────────────────────────────────
+
 export default function MobilePracticeDetail() {
   const router = useRouter();
   const { id } = router.query;

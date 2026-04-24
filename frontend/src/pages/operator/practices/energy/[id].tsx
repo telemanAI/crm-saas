@@ -11,9 +11,46 @@ import {
   PencilSimple,
   Trash,
   CheckCircle,
+  Calendar,
+  Clock,
+  Gauge,
+  Lightning,
+  Note,
+  CaretRight,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
+
+
+// ─── helpers ───────────────────────────────────────────
+function formatDate(date: string | undefined) {
+  if (!date) return '—';
+  return new Date(date).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+function getStatusColor(status: string) {
+  const map: Record<string, string> = {
+    PENDING: 'bg-amber-600/20 text-amber-400',
+    IN_PROGRESS: 'bg-indigo-600/20 text-indigo-400',
+    ACTIVATED: 'bg-emerald-600/20 text-emerald-400',
+    REJECTED: 'bg-rose-600/20 text-rose-400',
+    COMPLETED: 'bg-emerald-600/20 text-emerald-400',
+    CANCELLED: 'bg-slate-600/20 text-slate-400',
+  };
+  return map[status] || 'bg-slate-600/20 text-slate-400';
+}
+function safeString(value: any) {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'boolean') return value ? 'Sì' : 'No';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+// ──────────────────────────────────────────────────────
 
 export default function EnergyPracticeDetail() {
   const router = useRouter();
@@ -136,50 +173,119 @@ export default function EnergyPracticeDetail() {
           </div>
         </div>
 
-        <div className="grid gap-4">
-          <Section icon={User} title="Cliente">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {showValue('Nome', customer.firstName)}
-              {showValue('Cognome', customer.lastName)}
-              {showValue('Codice fiscale', customer.fiscalCode)}
-              {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
-              {showValue('Telefono', customer.phonePrimary || customer.phone)}
-              {showValue('Email', customer.email)}
-            </dl>
-          </Section>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* LEFT COLUMN - Note & Cronologia */}
+          <div className="lg:col-span-1 space-y-4">
+            <Section icon={Note} title="Note & Cronologia">
+              {practice.notesHistory && practice.notesHistory.length > 0 ? (
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
+                  {practice.notesHistory.map((note: any, idx: number) => (
+                    <div key={idx} className="bg-slate-950 rounded-xl p-3 border border-slate-800">
+                      <p className="text-sm text-slate-300">{note.note}</p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(note.createdAt)}
+                        {note.createdBy && <span>• {note.createdBy}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm">Nessuna nota registrata</p>
+              )}
+            </Section>
 
-          <Section icon={Gauge} title="Attivazione & Contatore">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {showValue('Tipo attivazione', e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}
-              {showValue('Numero contatore', e.numeroContatore)}
-              {showValue('Potenza', e.potenzaContatore === 'ALTRO' ? e.potenzaContatoreAltro : e.potenzaContatore?.replace('_', ' '))}
-              {showValue('Gestore provenienza', e.gestoreProvenienza === 'ALTRO' ? e.gestoreProvenienzaAltro : e.gestoreProvenienza)}
-              {showValue('Gestore nuovo contratto', e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto)}
-              {showValue('Tipo offerta', e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta)}
-            </dl>
-          </Section>
+            <Section icon={CheckCircle} title="Progresso Step">
+              <div className="space-y-2">
+                {Array.from({ length: 6 }, (_, i) => i + 1).map((step) => {
+                  const completed = practice.completedSteps?.includes(step);
+                  return (
+                    <div key={step} className={`flex items-center gap-3 p-2 rounded-lg ${completed ? 'bg-emerald-600/10' : 'bg-slate-950'}`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${completed ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                        {completed ? '✓' : step}
+                      </div>
+                      <span className={`text-sm ${completed ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {step === 1 && 'Tipo Offerta'}
+                        {step === 2 && 'Venditori'}
+                        {step === 3 && 'Anagrafica'}
+                        {step === 4 && 'Attivazione & Contatore'}
+                        {step === 5 && 'Pagamento'}
+                        {step === 6 && 'Note & Conferma'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </Section>
+          </div>
 
-          <Section icon={CreditCard} title="Pagamento">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {showValue('IBAN/CDC', e.ibanCdc)}
-              {showValue('Note metodo pagamento', e.noteMetodoPagamento)}
-            </dl>
-          </Section>
+          {/* RIGHT COLUMN - Info Pratica */}
+          <div className="lg:col-span-2 space-y-4">
+            <Section icon={User} title="Cliente">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('Nome', customer.firstName)}
+                {showValue('Cognome', customer.lastName)}
+                {showValue('Codice fiscale', customer.fiscalCode)}
+                {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
+                {showValue('Telefono', customer.phonePrimary || customer.phone)}
+                {showValue('Email', customer.email)}
+              </dl>
+            </Section>
 
-          <Section icon={FileText} title="Note & Accordi">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {showValue('Note generiche', e.noteGeneriche)}
-              {showValue('Accordi con cliente', e.accordiCliente)}
-              {showValue('Lavorazioni post-attivazione', practice.lavorazioniPostAttivazione)}
-            </dl>
-          </Section>
+            {/* Info Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+                <p className="text-xs text-slate-500 uppercase mb-1">Offerta</p>
+                <p className="text-sm font-semibold text-white">{safeString(e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || practice.offerName)}</p>
+              </div>
+              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+                <p className="text-xs text-slate-500 uppercase mb-1">Gestore</p>
+                <p className="text-sm font-semibold text-white">{safeString(e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto || practice.type)}</p>
+              </div>
+              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+                <p className="text-xs text-slate-500 uppercase mb-1">Attivazione</p>
+                <p className="text-sm font-semibold text-white">{safeString(e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}</p>
+              </div>
+              <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
+                <p className="text-xs text-slate-500 uppercase mb-1">Data Attivazione</p>
+                <p className="text-sm font-semibold text-white">{safeString(e.dataAttivazione)}</p>
+              </div>
+            </div>
 
-          <Section icon={User} title="Venditori">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-              {showValue('Venduto da', practice.soldBy)}
-              {showValue('Inserito da', practice.enteredBy)}
-            </dl>
-          </Section>
+            <Section icon={Gauge} title="Attivazione & Contatore">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('Tipo attivazione', e.tipoAttivazione === 'ALTRO' ? e.tipoAttivazioneAltro : e.tipoAttivazione)}
+                {showValue('Numero contatore (POD/PDR)', e.numeroContatore)}
+                {showValue('Potenza', e.potenzaContatore === 'ALTRO' ? e.potenzaContatoreAltro : e.potenzaContatore?.replace('_', ' '))}
+                {showValue('Gestore provenienza', e.gestoreProvenienza === 'ALTRO' ? e.gestoreProvenienzaAltro : e.gestoreProvenienza)}
+                {showValue('Gestore nuovo contratto', e.gestoreNuovoContratto === 'ALTRO' ? e.gestoreNuovoContrattoAltro : e.gestoreNuovoContratto)}
+              </dl>
+            </Section>
+
+            <Section icon={CreditCard} title="Pagamento">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('IBAN/CDC', e.ibanCdc)}
+                {showValue('Note metodo pagamento', e.noteMetodoPagamento)}
+              </dl>
+            </Section>
+
+            <Section icon={FileText} title="Note & Accordi">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('Note generiche', e.noteGeneriche)}
+                {showValue('Accordi con cliente', e.accordiCliente)}
+                {showValue('Lavorazioni post-attivazione', practice.lavorazioniPostAttivazione)}
+              </dl>
+            </Section>
+
+            <Section icon={User} title="Venditori & Date">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('Venduto da', practice.soldBy)}
+                {showValue('Inserito da', practice.enteredBy)}
+                {showValue('Data creazione', formatDate(practice.createdAt))}
+                {showValue('Ultima modifica', formatDate(practice.updatedAt))}
+              </dl>
+            </Section>
+          </div>
         </div>
       </div>
     </OperatorLayout>

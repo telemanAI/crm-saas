@@ -83,6 +83,7 @@ export default function PracticesList() {
                      p.offerName?.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'ALL' || p.type === filter;
     const matchesOperationalStatus = operationalStatusFilter === 'ALL' || p.operationalStatus === operationalStatusFilter;
+    const matchesCategory = (p as any).category === 'FIXED_LINE' || !(p as any).category;
     
     // FILTRO STATO GLOBALE
     let matchesStatoGlobale = true;
@@ -94,7 +95,7 @@ export default function PracticesList() {
       }
     }
     
-    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesStatoGlobale;
+    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesCategory && matchesStatoGlobale;
   });
 
   const getStatusIcon = (status: PracticeStatus | string) => {

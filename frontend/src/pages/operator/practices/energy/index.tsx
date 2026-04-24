@@ -59,7 +59,8 @@ export default function EnergyPracticesList() {
         const q = search.toLowerCase();
         const matchSearch = !q || name.includes(q) || cf.includes(q) || off.includes(q);
         const matchStatus = opStatusFilter === 'ALL' || p.operationalStatus === opStatusFilter;
-        return matchSearch && matchStatus;
+        const matchCategory = p.category === 'ENERGY';
+        return matchSearch && matchStatus && matchCategory;
       }),
     [practices, search, opStatusFilter],
   );

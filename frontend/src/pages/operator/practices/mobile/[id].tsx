@@ -11,6 +11,9 @@ import {
   PencilSimple,
   Trash,
   CheckCircle,
+  Calendar,
+  Clock,
+  Note,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';

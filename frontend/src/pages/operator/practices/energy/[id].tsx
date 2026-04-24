@@ -11,44 +11,9 @@ import {
   PencilSimple,
   Trash,
   CheckCircle,
-  Calendar,
-  Clock,
-  Note,
-  CaretRight,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
-
-
-// ─── helpers ───────────────────────────────────────────
-function formatDate(date: string | undefined) {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-}
-function getStatusColor(status: string) {
-  const map: Record<string, string> = {
-    PENDING: 'bg-amber-600/20 text-amber-400',
-    IN_PROGRESS: 'bg-indigo-600/20 text-indigo-400',
-    ACTIVATED: 'bg-emerald-600/20 text-emerald-400',
-    REJECTED: 'bg-rose-600/20 text-rose-400',
-    COMPLETED: 'bg-emerald-600/20 text-emerald-400',
-    CANCELLED: 'bg-slate-600/20 text-slate-400',
-  };
-  return map[status] || 'bg-slate-600/20 text-slate-400';
-}
-function safeString(value: any) {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'boolean') return value ? 'Sì' : 'No';
-  if (typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-// ──────────────────────────────────────────────────────
 
 export default function EnergyPracticeDetail() {
   const router = useRouter();
@@ -56,6 +21,8 @@ export default function EnergyPracticeDetail() {
   const [practice, setPractice] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return;
@@ -80,7 +47,26 @@ export default function EnergyPracticeDetail() {
     }
   };
 
-  const handleDelete = async () => {
+  
+  const addNote = async () => {
+    if (!noteText.trim()) return;
+    setSavingNote(true);
+    try {
+      await api.put(`/practices/${id}/step`, {
+        stepNumber: 6,
+        data: { note: noteText.trim() }
+      });
+      setNoteText('');
+      const res = await api.get(`/practices/${id}`);
+      setPractice(res.data);
+    } catch (err: any) {
+      alert('Errore aggiunta nota: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
+const handleDelete = async () => {
     if (!confirm('Eliminare questa pratica?')) return;
     setDeleting(true);
     try {
@@ -172,9 +158,25 @@ export default function EnergyPracticeDetail() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* LEFT COLUMN - Note & Cronologia */}
+          {/* LEFT COLUMN */}
           <div className="lg:col-span-1 space-y-4">
             <Section icon={Note} title="Note & Cronologia">
+              <div className="mb-4 space-y-2">
+                <textarea
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  placeholder="Scrivi una nuova nota..."
+                  rows={3}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 text-sm"
+                />
+                <button
+                  onClick={addNote}
+                  disabled={savingNote || !noteText.trim()}
+                  className="w-full px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                >
+                  {savingNote ? 'Salvataggio...' : 'Aggiungi Nota'}
+                </button>
+              </div>
               {practice.notesHistory && practice.notesHistory.length > 0 ? (
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1 custom-scrollbar">
                   {practice.notesHistory.map((note: any, idx: number) => (
@@ -192,44 +194,10 @@ export default function EnergyPracticeDetail() {
                 <p className="text-slate-500 text-sm">Nessuna nota registrata</p>
               )}
             </Section>
-
-            <Section icon={CheckCircle} title="Progresso Step">
-              <div className="space-y-2">
-                {Array.from({ length: 6 }, (_, i) => i + 1).map((step) => {
-                  const completed = practice.completedSteps?.includes(step);
-                  return (
-                    <div key={step} className={`flex items-center gap-3 p-2 rounded-lg ${completed ? 'bg-emerald-600/10' : 'bg-slate-950'}`}>
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${completed ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-slate-400'}`}>
-                        {completed ? '✓' : step}
-                      </div>
-                      <span className={`text-sm ${completed ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {step === 1 && 'Tipo Offerta'}
-                        {step === 2 && 'Venditori'}
-                        {step === 3 && 'Anagrafica'}
-                        {step === 4 && 'Attivazione & Contatore'}
-                        {step === 5 && 'Pagamento'}
-                        {step === 6 && 'Note & Conferma'}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
           </div>
 
-          {/* RIGHT COLUMN - Info Pratica */}
+          {/* RIGHT COLUMN */}
           <div className="lg:col-span-2 space-y-4">
-            <Section icon={User} title="Cliente">
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-                {showValue('Nome', customer.firstName)}
-                {showValue('Cognome', customer.lastName)}
-                {showValue('Codice fiscale', customer.fiscalCode)}
-                {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
-                {showValue('Telefono', customer.phonePrimary || customer.phone)}
-                {showValue('Email', customer.email)}
-              </dl>
-            </Section>
-
             {/* Info Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-slate-950 rounded-xl p-4 border border-slate-800">
@@ -249,6 +217,17 @@ export default function EnergyPracticeDetail() {
                 <p className="text-sm font-semibold text-white">{safeString(e.dataAttivazione)}</p>
               </div>
             </div>
+
+            <Section icon={User} title="Cliente">
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {showValue('Nome', customer.firstName)}
+                {showValue('Cognome', customer.lastName)}
+                {showValue('Codice fiscale', customer.fiscalCode)}
+                {showValue('CF vecchio contratto', e.codiceFiscaleVecchioContratto)}
+                {showValue('Telefono', customer.phonePrimary || customer.phone)}
+                {showValue('Email', customer.email)}
+              </dl>
+            </Section>
 
             <Section icon={Gauge} title="Attivazione & Contatore">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3">

@@ -146,7 +146,7 @@ export function CustomerAutocomplete({ value, onPatch, onPick }: Props) {
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Email <span className="text-rose-400">*</span></label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
           <input
             type="email"
             value={value.email || ''}

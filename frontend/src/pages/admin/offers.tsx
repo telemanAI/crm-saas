@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import Link from 'next/link';
-import { ArrowLeft, Globe, DeviceMobile, Lightning } from 'phosphor-react';
+import { ArrowLeft, Globe, DeviceMobile, Lightning, ArrowsVertical } from 'phosphor-react';
 
 type OfferCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
 
@@ -23,43 +23,6 @@ interface Offer {
   sort_order: number;
   details?: Record<string, any> | null;
 }
-
-// Provider per categoria. Estendibile aggiungendo elementi all'array.
-const PROVIDERS_BY_CATEGORY: Record<OfferCategory, string[]> = {
-  FIXED_LINE: [
-    'TIM_FIBRA',
-    'VODAFONE',
-    'WINDTRE',
-    'ILIAD',
-    'OPTIMA',
-    'IREN',
-    'SKY',
-  ],
-  MOBILE: [
-    'TIM',
-    'VODAFONE',
-    'WIND3',
-    'ILIAD',
-    'KENA',
-    'HO',
-    'VERY',
-    'OPTIMA',
-    'ITALIA_POWER',
-    'EMOBILE24',
-    'FASTWEB',
-    'SKY_MOBILE',
-    'TISCALI',
-  ],
-  ENERGY: [
-    'OPTIMA',
-    'IREN',
-    'ITALIA POWER',
-    'WINDTRE',
-    'ACEA',
-    'FASTWEB',
-    'A2A',
-  ],
-};
 
 const META_BY_CATEGORY: Record<
   OfferCategory,
@@ -97,7 +60,6 @@ export default function OffersManagementPage() {
   }, [router.query.category]);
 
   const meta = META_BY_CATEGORY[category];
-  const PROVIDERS = PROVIDERS_BY_CATEGORY[category];
   const Icon = meta.icon;
 
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -106,11 +68,13 @@ export default function OffersManagementPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [filterProvider, setFilterProvider] = useState<string>('');
   const [detailsJson, setDetailsJson] = useState<string>('');
+  const [sortOrders, setSortOrders] = useState<Record<string, number>>({});
+  const [savingOrder, setSavingOrder] = useState(false);
 
   const emptyOffer: Offer = {
     id: '',
     category,
-    provider: PROVIDERS[0],
+    provider: '',
     name: '',
     canone: '',
     attivazione: '',
@@ -139,7 +103,12 @@ export default function OffersManagementPage() {
     setLoading(true);
     try {
       const res = await api.get(`/admin/offers?category=${category}`);
-      setOffers(res.data);
+      const data = res.data as Offer[];
+      // Inizializza sortOrders con i valori attuali
+      const initialSort: Record<string, number> = {};
+      data.forEach((o) => (initialSort[o.id] = o.sort_order));
+      setSortOrders(initialSort);
+      setOffers(data);
     } catch (error: any) {
       console.error('Errore caricamento offerte:', error);
       alert('Errore caricamento offerte: ' + (error?.response?.data?.message || error.message));
@@ -148,11 +117,28 @@ export default function OffersManagementPage() {
     }
   };
 
+  const handleSaveOrder = async () => {
+    const items = Object.entries(sortOrders).map(([id, sort_order]) => ({
+      id,
+      sort_order: Number(sort_order) || 0,
+    }));
+    if (items.length === 0) return;
+    setSavingOrder(true);
+    try {
+      await api.patch('/admin/offers/reorder', { items });
+      alert('Ordine salvato con successo!');
+      fetchOffers();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Errore salvataggio ordine');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!editingOffer) return;
     try {
       const { id, created_at, updated_at, ...rest } = editingOffer as any;
-      // Parse details JSON se presente
       let payload = { ...rest, category };
       if (detailsJson.trim()) {
         try {
@@ -220,17 +206,28 @@ export default function OffersManagementPage() {
               <ArrowLeft className="w-4 h-4" /> Torna alla Dashboard Admin
             </Link>
           </div>
-          <button
-            onClick={() => {
-              setEditingOffer({ ...emptyOffer });
-              setDetailsJson('');
-              setIsCreating(true);
-            }}
-            className="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-white font-medium"
-            data-testid="offer-new-btn"
-          >
-            + Nuova Offerta
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSaveOrder}
+              disabled={savingOrder}
+              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white font-medium flex items-center gap-2 disabled:opacity-50"
+              data-testid="offer-save-order-btn"
+            >
+              <ArrowsVertical className="w-4 h-4" />
+              {savingOrder ? 'Salvataggio...' : 'Salva ordine'}
+            </button>
+            <button
+              onClick={() => {
+                setEditingOffer({ ...emptyOffer });
+                setDetailsJson('');
+                setIsCreating(true);
+              }}
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-white font-medium"
+              data-testid="offer-new-btn"
+            >
+              + Nuova Offerta
+            </button>
+          </div>
         </div>
 
         <div className="mb-4 flex gap-2 bg-gray-800 p-1 rounded-lg w-fit">
@@ -264,7 +261,7 @@ export default function OffersManagementPage() {
             data-testid="offer-filter-provider"
           >
             <option value="">Tutti i provider</option>
-            {PROVIDERS.map((p) => (
+            {[...new Set(offers.map((o) => o.provider))].sort().map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
           </select>
@@ -287,9 +284,16 @@ export default function OffersManagementPage() {
                     onChange={(e) => setEditingOffer({ ...editingOffer, provider: e.target.value })}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   >
-                    {PROVIDERS.map((p) => (
+                    {[...new Set(offers.map((o) => o.provider))].sort().map((p) => (
                       <option key={p} value={p}>{p}</option>
                     ))}
+                    <option value="TIM_FIBRA">TIM_FIBRA</option>
+                    <option value="VODAFONE">VODAFONE</option>
+                    <option value="WINDTRE">WINDTRE</option>
+                    <option value="ILIAD">ILIAD</option>
+                    <option value="OPTIMA">OPTIMA</option>
+                    <option value="IREN">IREN</option>
+                    <option value="SKY">SKY</option>
                   </select>
                 </div>
                 <div>
@@ -379,7 +383,6 @@ export default function OffersManagementPage() {
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   />
                 </div>
-                {/* Campo Details JSON */}
                 <div className="md:col-span-2">
                   <label className="block text-sm text-gray-300 mb-1">
                     Details JSON {category === 'MOBILE' ? '(minutes, sms, gb, has_5g...)' : category === 'ENERGY' ? '(fornitura, f1, pcv, pagamento...)' : ''}
@@ -451,6 +454,7 @@ ${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Nome</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Canone</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Tipo</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Ordine</th>
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Stato</th>
                 <th className="px-4 py-3 text-right text-sm font-medium text-gray-300">Azioni</th>
               </tr>
@@ -458,7 +462,7 @@ ${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has
             <tbody className="divide-y divide-gray-700 bg-gray-900">
               {filteredOffers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                     Nessuna offerta {category === 'FIXED_LINE' ? 'rete fissa' : category === 'MOBILE' ? 'mobile' : 'luce/gas'}. Creane una nuova.
                   </td>
                 </tr>
@@ -469,6 +473,18 @@ ${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has
                     <td className="px-4 py-3 text-sm text-gray-200 font-medium">{o.name}</td>
                     <td className="px-4 py-3 text-sm text-gray-200">{o.canone}</td>
                     <td className="px-4 py-3 text-sm text-gray-400 uppercase text-xs">{o.type}</td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number"
+                        value={sortOrders[o.id] ?? o.sort_order}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          setSortOrders((prev) => ({ ...prev, [o.id]: val }));
+                        }}
+                        className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm text-center"
+                        data-testid={`offer-sort-${o.id}`}
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => handleToggle(o.id)}

@@ -16,6 +16,7 @@ import {
   Shield,
   NavigationArrow,
   Check,
+  Buildings,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
@@ -56,6 +57,7 @@ export default function EnergyPracticeDetail() {
   const { id } = router.query;
   const { token } = useAuthStore();
   const [practice, setPractice] = useState<any>(null);
+  const [offerDetails, setOfferDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -66,6 +68,12 @@ export default function EnergyPracticeDetail() {
     if (!id || typeof id !== 'string' || !token) return;
     fetchPractice();
   }, [id, token]);
+
+  useEffect(() => {
+    if (!practice?.offerName || !practice?.type) return;
+    loadOfferDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practice?.offerName, practice?.type]);
 
   const fetchPractice = async () => {
     try {
@@ -79,6 +87,20 @@ export default function EnergyPracticeDetail() {
       router.replace('/operator/practices/energy');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOfferDetails = async () => {
+    try {
+      const res = await api.get(`/offers?category=ENERGY`);
+      const offers = res.data || [];
+      const match = offers.find((o: any) =>
+        o.name === practice.offerName &&
+        (o.provider === practice.type || o.provider === practice.type?.replace(/ /g, '_'))
+      );
+      if (match) setOfferDetails(match);
+    } catch {
+      // Silenzioso
     }
   };
 
@@ -184,6 +206,7 @@ export default function EnergyPracticeDetail() {
   const e = practice.energyData || {};
   const customer = practice.customerSnapshot || practice.customer || {};
   const opStatus = practice.operationalStatus || 'PENDING';
+  const d = offerDetails?.details || {};
 
   return (
     <OperatorLayout title={`Pratica ${e.tipoOfferta === 'ALTRO' ? e.tipoOffertaAltro : e.tipoOfferta || 'Luce/Gas'}`}>
@@ -246,7 +269,6 @@ export default function EnergyPracticeDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Note & Cronologia — ALLINEATO A RETE FISSA */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
@@ -380,6 +402,47 @@ export default function EnergyPracticeDetail() {
         </div>
 
         <div className="space-y-6">
+          {offerDetails && (
+            <div className="bg-amber-900/20 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                  <Buildings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{offerDetails.name}</h2>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    offerDetails.type === 'business'
+                      ? 'bg-purple-600/20 text-purple-400'
+                      : 'bg-blue-600/20 text-blue-400'
+                  }`}>
+                    {offerDetails.type === 'business' ? 'Business' : 'Consumer'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-3 text-sm">
+                {d.fornitura && <div className="flex justify-between"><span className="text-slate-400">Fornitura:</span><span className="text-amber-400 font-bold">{d.fornitura}</span></div>}
+                {d.tipologia && <div className="flex justify-between"><span className="text-slate-400">Tipologia:</span><span className="text-white">{d.tipologia}</span></div>}
+                {d.tipo_offerta && <div className="flex justify-between"><span className="text-slate-400">Tipo offerta:</span><span className="text-white">{d.tipo_offerta}</span></div>}
+                {d.f1 && <div className="flex justify-between"><span className="text-slate-400">F1 / PUN:</span><span className="text-emerald-400 font-bold">{d.f1}</span></div>}
+                {d.pcv && <div className="flex justify-between"><span className="text-slate-400">PCV:</span><span className="text-white">{d.pcv}</span></div>}
+                <div className="flex justify-between"><span className="text-slate-400">Canone:</span><span className="text-cyan-400 font-bold">{offerDetails.canone || '-'}</span></div>
+                {d.durata && <div className="flex justify-between"><span className="text-slate-400">Durata:</span><span className="text-amber-400">{d.durata}</span></div>}
+                {d.scadenza_offerta && <div className="flex justify-between"><span className="text-slate-400">Scadenza:</span><span className="text-white">{d.scadenza_offerta}</span></div>}
+                {d.pagamento && <div className="flex justify-between"><span className="text-slate-400">Pagamento:</span><span className="text-white">{d.pagamento}</span></div>}
+                {d.cauzione && <div className="flex justify-between"><span className="text-slate-400">Cauzione:</span><span className="text-white">{d.cauzione}</span></div>}
+                {d.fatturazione && <div className="flex justify-between"><span className="text-slate-400">Fatturazione:</span><span className="text-white">{d.fatturazione}</span></div>}
+                {d.switch_voltura && <div className="flex justify-between"><span className="text-slate-400">Switch/Voltura:</span><span className={d.switch_voltura === 'SI' ? 'text-emerald-400' : 'text-rose-400'}>{d.switch_voltura}</span></div>}
+                {d.subentro && <div className="flex justify-between"><span className="text-slate-400">Subentro:</span><span className={d.subentro === 'SI' ? 'text-emerald-400' : 'text-rose-400'}>{d.subentro}</span></div>}
+                {d.note_raw && (
+                  <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
+                    <span className="text-slate-500 text-xs block mb-1">Note:</span>
+                    <p className="text-slate-300 text-sm">{d.note_raw}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">

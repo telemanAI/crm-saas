@@ -16,6 +16,7 @@ import {
   Shield,
   NavigationArrow,
   Check,
+  Buildings,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
@@ -56,6 +57,7 @@ export default function MobilePracticeDetail() {
   const { id } = router.query;
   const { token } = useAuthStore();
   const [practice, setPractice] = useState<any>(null);
+  const [offerDetails, setOfferDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -66,6 +68,13 @@ export default function MobilePracticeDetail() {
     if (!id || typeof id !== 'string' || !token) return;
     fetchPractice();
   }, [id, token]);
+
+  // Carica dettagli offerta quando la pratica è disponibile
+  useEffect(() => {
+    if (!practice?.offerName || !practice?.type) return;
+    loadOfferDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [practice?.offerName, practice?.type]);
 
   const fetchPractice = async () => {
     try {
@@ -79,6 +88,20 @@ export default function MobilePracticeDetail() {
       router.replace('/operator/practices/mobile');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOfferDetails = async () => {
+    try {
+      const res = await api.get(`/offers?category=MOBILE`);
+      const offers = res.data || [];
+      const match = offers.find((o: any) =>
+        o.name === practice.offerName &&
+        (o.provider === practice.type || o.provider === practice.type?.replace(/ /g, '_'))
+      );
+      if (match) setOfferDetails(match);
+    } catch {
+      // Silenzioso: se l'offerta non si trova, non mostriamo nulla
     }
   };
 
@@ -184,6 +207,7 @@ export default function MobilePracticeDetail() {
   const m = practice.mobileData || {};
   const customer = practice.customerSnapshot || practice.customer || {};
   const opStatus = practice.operationalStatus || 'PENDING';
+  const d = offerDetails?.details || {};
 
   return (
     <OperatorLayout title={`Pratica ${practice.offerName || 'Mobile'}`}>
@@ -244,7 +268,7 @@ export default function MobilePracticeDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Note & Cronologia — ALLINEATO A RETE FISSA */}
+          {/* Note & Cronologia */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
@@ -380,6 +404,45 @@ export default function MobilePracticeDetail() {
         </div>
 
         <div className="space-y-6">
+          {/* Card Dettaglio Offerta MOBILE */}
+          {offerDetails && (
+            <div className="bg-indigo-900/20 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                  <Buildings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">{offerDetails.name}</h2>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    offerDetails.type === 'business'
+                      ? 'bg-purple-600/20 text-purple-400'
+                      : 'bg-blue-600/20 text-blue-400'
+                  }`}>
+                    {offerDetails.type === 'business' ? 'Business' : 'Consumer'}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between"><span className="text-slate-400">Canone:</span><span className="text-cyan-400 font-bold">{offerDetails.canone || '-'}</span></div>
+                {d.attivazione && <div className="flex justify-between"><span className="text-slate-400">Attivazione:</span><span className="text-white">{d.attivazione}</span></div>}
+                {d.minutes && <div className="flex justify-between"><span className="text-slate-400">Minuti:</span><span className="text-white">{d.minutes}</span></div>}
+                {d.sms && <div className="flex justify-between"><span className="text-slate-400">SMS:</span><span className="text-white">{d.sms}</span></div>}
+                {d.gb && <div className="flex justify-between"><span className="text-slate-400">GB:</span><span className="text-emerald-400 font-bold">{d.gb}</span></div>}
+                <div className="flex justify-between"><span className="text-slate-400">5G:</span><span className={d.has_5g ? 'text-emerald-400' : 'text-rose-400'}>{d.has_5g ? 'SI' : 'NO'}</span></div>
+                {d.abroad_gb && <div className="flex justify-between"><span className="text-slate-400">Estero:</span><span className="text-white">{d.abroad_gb}</span></div>}
+                {d.postepay && <div className="flex justify-between"><span className="text-slate-400">PostePay:</span><span className="text-emerald-400">SI</span></div>}
+                {d.vincolo && <div className="flex justify-between"><span className="text-slate-400">Vincolo:</span><span className="text-amber-400">{d.vincolo}</span></div>}
+                {d.exit_costs && <div className="flex justify-between"><span className="text-slate-400">Costi disattivazione:</span><span className="text-rose-400">{d.exit_costs}</span></div>}
+                {d.note_raw && (
+                  <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
+                    <span className="text-slate-500 text-xs block mb-1">Note:</span>
+                    <p className="text-slate-300 text-sm">{d.note_raw}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center">

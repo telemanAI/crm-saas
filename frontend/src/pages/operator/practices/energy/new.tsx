@@ -377,7 +377,7 @@ export default function NewEnergyPractice() {
       case 2:
         return !!(data.soldById && data.enteredById);
       case 3:
-        return !!(data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.codiceFiscaleVecchioContratto && data.phone?.trim());
+        return !!(data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.phone?.trim());
       case 4:
         return !!(data.tipoAttivazione && (data.tipoAttivazione !== 'ALTRO' || data.tipoAttivazioneAltro?.trim()) && data.numeroContatore?.trim() && data.potenzaContatore && (data.potenzaContatore !== 'ALTRO' || data.potenzaContatoreAltro?.trim()) && data.gestoreProvenienza && (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim()));
       case 5:
@@ -920,7 +920,7 @@ export default function NewEnergyPractice() {
                     </div>
 
                     <div className="pt-2">
-                      <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchio contratto <span className="text-rose-500">*</span></label>
+                      <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchio contratto</label>
                       <input type="text" value={data.codiceFiscaleVecchioContratto || ''} onChange={(e) => patch({ codiceFiscaleVecchioContratto: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-cf-vecchio" />
                     </div>
 

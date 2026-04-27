@@ -69,6 +69,18 @@ export class AdminOffersController {
     return this.offersService.create(createOfferDto);
   }
 
+  /**
+   * Bulk update sort_order per riordinare le offerte.
+   * IMPORTANTE: deve essere dichiarato PRIMA di `@Patch(':id')` per evitare
+   * che il ParseUUIDPipe intercetti la stringa "reorder" come id.
+   */
+  @Patch('reorder')
+  @HttpCode(HttpStatus.OK)
+  async reorder(@Body() body: { items: { id: string; sort_order: number }[] }) {
+    await this.offersService.updateSortOrders(body.items);
+    return { message: 'Ordine aggiornato' };
+  }
+
   @Patch(':id')
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -80,16 +92,6 @@ export class AdminOffersController {
   @Patch(':id/toggle')
   toggleActive(@Param('id', ParseUUIDPipe) id: string) {
     return this.offersService.toggleActive(id);
-  }
-
-  /**
-   * Bulk update sort_order per riordinare le offerte.
-   */
-  @Patch('reorder')
-  @HttpCode(HttpStatus.OK)
-  async reorder(@Body() body: { items: { id: string; sort_order: number }[] }) {
-    await this.offersService.updateSortOrders(body.items);
-    return { message: 'Ordine aggiornato' };
   }
 
   @Delete(':id')

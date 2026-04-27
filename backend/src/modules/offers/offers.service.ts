@@ -20,11 +20,6 @@ export class OffersService {
     return this.offersRepository.save(offer);
   }
 
-  /**
-   * Lista offerte ATTIVE, filtrabile per categoria.
-   * Senza filtro ritorna SOLO FIXED_LINE (retrocompat: il vecchio frontend
-   * chiamava /offers senza specificare category).
-   */
   async findAll(category?: OfferCategory): Promise<Offer[]> {
     const where: FindOptionsWhere<Offer> = { is_active: true };
     where.category = category || 'FIXED_LINE';
@@ -34,10 +29,6 @@ export class OffersService {
     });
   }
 
-  /**
-   * Lista offerte ADMIN (attive + disattivate), filtrabile per categoria.
-   * Senza filtro ritorna FIXED_LINE per non rompere /admin/offers legacy.
-   */
   async findAllAdmin(category?: OfferCategory): Promise<Offer[]> {
     const where: FindOptionsWhere<Offer> = {};
     where.category = category || 'FIXED_LINE';
@@ -83,15 +74,25 @@ export class OffersService {
 
   /**
    * Offerte raggruppate per provider, filtrabili per categoria.
-   * Default FIXED_LINE per retrocompat.
+   * FIX: normalizza TIM_FIBRA → TIM per compatibilità wizard rete fissa.
+   * Gli altri provider non vengono toccati (se non hanno offerte nel DB,
+   * il wizard usa il fallback hardcoded come prima).
    */
   async findAllGrouped(category?: OfferCategory): Promise<Record<string, Offer[]>> {
     const offers = await this.findAll(category);
+
+    // Solo TIM ha nome diverso nel DB vs wizard. Gli altri provider
+    // o non esistono nel DB (usa fallback) o hanno nome già compatibile.
+    const providerDisplayMap: Record<string, string> = {
+      'TIM_FIBRA': 'TIM',
+    };
+
     return offers.reduce((acc, offer) => {
-      if (!acc[offer.provider]) {
-        acc[offer.provider] = [];
+      const providerKey = providerDisplayMap[offer.provider] || offer.provider;
+      if (!acc[providerKey]) {
+        acc[providerKey] = [];
       }
-      acc[offer.provider].push(offer);
+      acc[providerKey].push(offer);
       return acc;
     }, {} as Record<string, Offer[]>);
   }

@@ -28,7 +28,6 @@ import {
 } from '@/constants/practiceCategories';
 import api from '@/lib/axios';
 
-// Helpers (come wizard rete fissa)
 const formatDateToItalian = (d: string | undefined) => {
   if (!d) return '';
   const [y, m, day] = d.split('-');
@@ -110,7 +109,6 @@ interface MobileWizardData {
   lavorazioniPostAttivazione?: string;
 }
 
-// Steps dinamici in base al gestore (TIM = step TIM Unica, altrimenti no)
 const getSteps = (gestore?: string) => {
   const resolved = (gestore || '').toUpperCase();
   const isTim = resolved.includes('TIM');
@@ -138,7 +136,6 @@ export default function NewMobilePractice() {
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // Ricerca cliente (come rete fissa)
   const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
   const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
   const [nameSuggestions, setNameSuggestions] = useState<CustomerSuggestion[]>([]);
@@ -150,24 +147,20 @@ export default function NewMobilePractice() {
   const [isSearchingName, setIsSearchingName] = useState(false);
   const [lockedCustomer, setLockedCustomer] = useState<CustomerSuggestion | null>(null);
 
-  // Offerte dinamiche caricate dal backend
   const [allOffers, setAllOffers] = useState<any[]>([]);
   const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
   const offerteList = offerteBackend && offerteBackend.length > 0 ? offerteBackend : (OFFERTE_MOBILE as any);
 
-  // Steps dinamici
   const resolvedGestore = data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea;
   const steps = useMemo(() => getSteps(resolvedGestore), [resolvedGestore]);
   const totalSteps = steps.length;
 
-  // Offerta selezionata (lookup runtime)
   const selectedOffer = useMemo(() => {
     if (!data.offerName || data.offerName === 'ALTRO') return null;
     return allOffers.find((o: any) => o.name === data.offerName) || null;
   }, [allOffers, data.offerName]);
 
-  // Sincronizza completedSteps/expandedStep quando cambia la composizione degli step
   useEffect(() => {
     const validIds = new Set(steps.map(s => s.id));
     setCompletedSteps(prev => prev.filter(id => validIds.has(id)));
@@ -222,7 +215,6 @@ export default function NewMobilePractice() {
 
   const patch = (p: Partial<MobileWizardData>) => setData((prev) => ({ ...prev, ...p }));
 
-  // Ricerche anagrafica
   useEffect(() => {
     const searchFiscalCode = async () => {
       if (lockedCustomer && data.fiscalCode === lockedCustomer.fiscalCode) {
@@ -297,7 +289,6 @@ export default function NewMobilePractice() {
     setLockedCustomer(customer);
   };
 
-  // Carica edit
   useEffect(() => {
     if (!router.isReady) return;
     if (!edit || typeof edit !== 'string') {
@@ -363,7 +354,7 @@ export default function NewMobilePractice() {
         return !!baseOk;
       }
       case 'mnp':
-        return true; // STEP 4 TOTALMENTE OPZIONALE
+        return true;
       case 'payment':
         return !!(data.ricarica && (data.ricarica !== 'ALTRO' || data.ricaricaAltro?.trim()));
       case 'timUnica':
@@ -572,7 +563,6 @@ export default function NewMobilePractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
-                {/* STEP 1: OFFERTA */}
                 {s.stepId === 'offer' && (
                   <div className="space-y-4">
                     <div>
@@ -644,7 +634,7 @@ export default function NewMobilePractice() {
                       </motion.div>
                     )}
 
-                    {/* Card riepilogo offerta selezionata */}
+                    {/* Card riepilogo offerta MOBILE con details */}
                     {data.offerName && data.offerName !== 'ALTRO' && selectedOffer && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
@@ -666,38 +656,63 @@ export default function NewMobilePractice() {
                             </span>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+
+                        {/* Griglia dettagli */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                            <label className="text-xs text-slate-500 block mb-1">Canone Mensile</label>
+                            <label className="text-xs text-slate-500 block mb-1">Canone</label>
                             <p className="text-cyan-400 font-bold text-lg">{selectedOffer.canone || '-'}</p>
                           </div>
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
                             <label className="text-xs text-slate-500 block mb-1">Attivazione</label>
-                            <p className="text-white font-medium">{selectedOffer.attivazione || '-'}</p>
+                            <p className="text-white font-medium">{selectedOffer.details?.attivazione || selectedOffer.attivazione || '-'}</p>
                           </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Minuti</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.minutes || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">SMS</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.sms || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">GB</label>
+                            <p className="text-emerald-400 font-bold">{selectedOffer.details?.gb || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">5G</label>
+                            <p className={`font-bold ${selectedOffer.details?.has_5g ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {selectedOffer.details?.has_5g ? 'SI' : 'NO'}
+                            </p>
+                          </div>
+                          {selectedOffer.details?.abroad_gb && (
+                            <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                              <label className="text-xs text-slate-500 block mb-1">Estero</label>
+                              <p className="text-white font-medium">{selectedOffer.details.abroad_gb}</p>
+                            </div>
+                          )}
+                          {selectedOffer.details?.postepay && (
+                            <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                              <label className="text-xs text-slate-500 block mb-1">PostePay</label>
+                              <p className="text-emerald-400 font-bold">SI</p>
+                            </div>
+                          )}
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
                             <label className="text-xs text-slate-500 block mb-1">Vincolo</label>
-                            <p className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</p>
+                            <p className="text-amber-400 font-medium">{selectedOffer.details?.vincolo || selectedOffer.vincolo || '-'}</p>
                           </div>
-                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                            <label className="text-xs text-slate-500 block mb-1">Disattivazione</label>
-                            <p className="text-rose-400 font-medium text-sm">{selectedOffer.disattivazione || '-'}</p>
-                          </div>
+                          {selectedOffer.details?.exit_costs && (
+                            <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                              <label className="text-xs text-slate-500 block mb-1">Costi disattivazione</label>
+                              <p className="text-rose-400 font-medium">{selectedOffer.details.exit_costs}</p>
+                            </div>
+                          )}
                         </div>
-                        {(selectedOffer.note || selectedOffer.scadenza) && (
-                          <div className="space-y-2">
-                            {selectedOffer.scadenza && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="w-4 h-4 text-slate-400" />
-                                <span className="text-slate-300">Scadenza: <span className="text-amber-400">{selectedOffer.scadenza}</span></span>
-                              </div>
-                            )}
-                            {selectedOffer.note && (
-                              <div className="bg-amber-900/20 border border-amber-600/30 rounded-xl p-3">
-                                <label className="text-xs text-amber-500 block mb-1">Note Importanti</label>
-                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
-                              </div>
-                            )}
+
+                        {selectedOffer.details?.note_raw && (
+                          <div className="bg-amber-900/20 border border-amber-600/30 rounded-xl p-3">
+                            <label className="text-xs text-amber-500 block mb-1">Note Importanti</label>
+                            <p className="text-slate-300 text-sm">{selectedOffer.details.note_raw}</p>
                           </div>
                         )}
                       </motion.div>
@@ -715,7 +730,6 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 2: VENDITORI */}
                 {s.stepId === 'sellers' && (
                   <div className="space-y-4">
                     <OperatorsDropdown label="Venduto da *" value={data.soldById} onChange={(id, name) => patch({ soldById: id, soldBy: name })} testId="mobile-soldby" />
@@ -725,7 +739,6 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 3: ANAGRAFICA CLIENTE */}
                 {s.stepId === 'customer' && (
                   <div className="space-y-4">
                     <div className="relative">
@@ -911,7 +924,6 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 4: NUMERO & MNP — TUTTO OPZIONALE */}
                 {s.stepId === 'mnp' && (
                   <div className="space-y-4">
                     <div>
@@ -940,7 +952,6 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 5: PAGAMENTO / RICARICA */}
                 {s.stepId === 'payment' && (
                   <div className="space-y-4">
                     <SelectWithOther label="Ricarica" required value={data.ricarica} otherValue={data.ricaricaAltro} onChange={(v) => patch({ ricarica: v })} onOtherChange={(v) => patch({ ricaricaAltro: v })} options={RICARICA_OPTIONS} testId="mobile-ricarica" />
@@ -957,7 +968,6 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP 6: TIM UNICA — SOLO SE GESTORE È TIM */}
                 {s.stepId === 'timUnica' && (
                   <div className="space-y-4">
                     <SelectWithOther label="TIM Unica" required value={data.timUnica} otherValue={data.timUnicaAltro} onChange={(v) => patch({ timUnica: v })} onOtherChange={(v) => patch({ timUnicaAltro: v })} options={TIM_UNICA_OPTIONS} testId="mobile-tim-unica" />
@@ -983,10 +993,9 @@ export default function NewMobilePractice() {
                   </div>
                 )}
 
-                {/* STEP FINALE: RIEPILOGO */}
                 {s.stepId === 'summary' && (
                   <div className="space-y-4">
-                    {/* Card Offerta */}
+                    {/* Card Offerta con details */}
                     <div className="bg-indigo-900/20 border border-indigo-500/30 rounded-xl p-6">
                       <h4 className="font-semibold text-indigo-400 mb-4 flex items-center gap-2">
                         <Buildings className="w-5 h-5" />
@@ -1011,32 +1020,64 @@ export default function NewMobilePractice() {
                               <span className="text-slate-400">Canone:</span>
                               <span className="text-cyan-400 font-medium">{selectedOffer.canone || '-'}</span>
                             </div>
-                            {selectedOffer.attivazione && (
+                            {selectedOffer.details?.attivazione && (
                               <div className="flex justify-between">
                                 <span className="text-slate-400">Attivazione:</span>
-                                <span className="text-white">{selectedOffer.attivazione}</span>
+                                <span className="text-white">{selectedOffer.details.attivazione}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.minutes && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Minuti:</span>
+                                <span className="text-white">{selectedOffer.details.minutes}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.sms && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">SMS:</span>
+                                <span className="text-white">{selectedOffer.details.sms}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.gb && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">GB:</span>
+                                <span className="text-emerald-400 font-medium">{selectedOffer.details.gb}</span>
                               </div>
                             )}
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Vincolo:</span>
-                              <span className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</span>
+                              <span className="text-slate-400">5G:</span>
+                              <span className={selectedOffer.details?.has_5g ? 'text-emerald-400' : 'text-rose-400'}>
+                                {selectedOffer.details?.has_5g ? 'SI' : 'NO'}
+                              </span>
                             </div>
-                            {selectedOffer.disattivazione && (
+                            {selectedOffer.details?.abroad_gb && (
                               <div className="flex justify-between">
-                                <span className="text-slate-400">Disattivazione:</span>
-                                <span className="text-rose-400">{selectedOffer.disattivazione}</span>
+                                <span className="text-slate-400">Estero:</span>
+                                <span className="text-white">{selectedOffer.details.abroad_gb}</span>
                               </div>
                             )}
-                            {selectedOffer.scadenza && (
+                            {selectedOffer.details?.postepay && (
                               <div className="flex justify-between">
-                                <span className="text-slate-400">Scadenza:</span>
-                                <span className="text-white">{selectedOffer.scadenza}</span>
+                                <span className="text-slate-400">PostePay:</span>
+                                <span className="text-emerald-400">SI</span>
                               </div>
                             )}
-                            {selectedOffer.note && (
+                            {selectedOffer.details?.vincolo && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Vincolo:</span>
+                                <span className="text-amber-400">{selectedOffer.details.vincolo}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.exit_costs && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Costi disattivazione:</span>
+                                <span className="text-rose-400">{selectedOffer.details.exit_costs}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.note_raw && (
                               <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
                                 <span className="text-slate-500 text-xs block mb-1">Note:</span>
-                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                                <p className="text-slate-300 text-sm">{selectedOffer.details.note_raw}</p>
                               </div>
                             )}
                           </>
@@ -1048,7 +1089,6 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    {/* Card Venditori */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <User className="w-5 h-5" />
@@ -1060,7 +1100,6 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    {/* Card Dati Cliente */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <User className="w-5 h-5" />
@@ -1082,7 +1121,6 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    {/* Card Numero & MNP */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <Phone className="w-5 h-5" />
@@ -1097,7 +1135,6 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    {/* Card Pagamento */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <CreditCard className="w-5 h-5" />
@@ -1110,7 +1147,6 @@ export default function NewMobilePractice() {
                       </div>
                     </div>
 
-                    {/* Card TIM Unica — solo se TIM */}
                     {isTim && (data.timUnica && data.timUnica !== 'NO') && (
                       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                         <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
@@ -1124,7 +1160,6 @@ export default function NewMobilePractice() {
                       </div>
                     )}
 
-                    {/* Card Note */}
                     {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
                       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                         <h4 className="font-semibold text-white mb-4 flex items-center gap-2">

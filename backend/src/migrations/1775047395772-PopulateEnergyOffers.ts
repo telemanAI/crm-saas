@@ -3,9 +3,11 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 /**
  * Migration 1775047395772 - PopulateEnergyOffers
  *
- * Popola il DB con tutte le offerte Energy (luce/gas) dei 7 provider reali.
- * Idempotente: per ogni offerta verifica se esiste già (name + provider + category)
- * prima di inserire. Nessun duplicato.
+ * 1. Allarga le colonne `note` e `scadenza` della tabella `offers` da varchar(50)
+ *    a varchar(1000) per poter ospitare descrizioni lunghe delle offerte Energy.
+ * 2. Popola il DB con tutte le offerte Energy (luce/gas) dei 7 provider reali.
+ *    Idempotente: per ogni offerta verifica se esiste già (name + provider + category)
+ *    prima di inserire. Nessun duplicato.
  * 
  * Se vuoi eliminare tutti i record importati da questa migration:
  *   npx typeorm migration:revert -d src/data-source.ts
@@ -14,6 +16,11 @@ export class PopulateEnergyOffers1775047395772 implements MigrationInterface {
   name = 'PopulateEnergyOffers1775047395772';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // === 1. Allarga colonne note e scadenza ===
+    await queryRunner.query(`ALTER TABLE offers ALTER COLUMN note TYPE VARCHAR(1000)`);
+    await queryRunner.query(`ALTER TABLE offers ALTER COLUMN scadenza TYPE VARCHAR(1000)`);
+
+    // === 2. Popola offerte Energy ===
     const offers = [
       { provider: 'OPTIMA', name: 'SUPER CASA SMART LUCE', canone: '0,22', vincolo: '', scadenza: '', type: 'consumer', note: 'PCV: 12 | Pagamento: RID | Switch: SI | Subentro: NO' },
       { provider: 'OPTIMA', name: 'SUER CASA SMART LUCE', canone: '60% VARIABILE PUN +0,044(INCLUSE PERDITE DI RETE) 40% FISSA 0,195 KWH', vincolo: '12 MESI POI PASSA A VARIABILE', scadenza: '', type: 'consumer', note: 'PCV: 9 | Pagamento: RID | Switch: SI | Subentro: NO' },
@@ -97,5 +104,9 @@ export class PopulateEnergyOffers1775047395772 implements MigrationInterface {
     await queryRunner.query(
       `DELETE FROM offers WHERE category = 'ENERGY' AND provider IN ('OPTIMA','IREN','ITALIA POWER','WINDTRE','ACEA','FASTWEB','A2A')`
     );
+
+    // Ripristina dimensioni colonne (opzionale, sicuro se non ci sono altri dati lunghi)
+    await queryRunner.query(`ALTER TABLE offers ALTER COLUMN note TYPE VARCHAR(50)`);
+    await queryRunner.query(`ALTER TABLE offers ALTER COLUMN scadenza TYPE VARCHAR(50)`);
   }
 }

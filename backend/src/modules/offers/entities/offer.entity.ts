@@ -59,6 +59,15 @@ export class Offer {
   @Column({ default: 0 })
   sort_order: number;
 
+  /**
+   * Campo JSONB flessibile per dettagli specifici per categoria:
+   *  - MOBILE: minutes, sms, gb, has_5g, abroad_gb, postepay, provenienza...
+   *  - ENERGY: fornitura, tipologia, tipo_offerta, f1, f2, f3, pcv, pagamento...
+   *  - FIXED_LINE: qualsiasi campo extra
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  details: Record<string, any> | null;
+
   @CreateDateColumn()
   created_at: Date;
 

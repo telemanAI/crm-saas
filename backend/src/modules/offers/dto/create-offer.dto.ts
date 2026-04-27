@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber, IsIn, IsEnum, IsObject } from 'class-validator';
 
 export class CreateOfferDto {
   /**
@@ -49,4 +49,13 @@ export class CreateOfferDto {
   @IsNumber()
   @IsOptional()
   sort_order?: number;
+
+  /**
+   * Dettagli strutturati specifici per categoria (JSONB).
+   * Es. per MOBILE: { minutes, sms, gb, has_5g, abroad_gb, postepay... }
+   * Es. per ENERGY: { fornitura, tipologia, tipo_offerta, f1, pcv, pagamento... }
+   */
+  @IsObject()
+  @IsOptional()
+  details?: Record<string, any>;
 }

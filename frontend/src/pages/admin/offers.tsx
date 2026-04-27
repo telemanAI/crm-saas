@@ -21,6 +21,7 @@ interface Offer {
   scadenza?: string;
   is_active: boolean;
   sort_order: number;
+  details?: Record<string, any> | null;
 }
 
 // Provider per categoria. Estendibile aggiungendo elementi all'array.
@@ -88,7 +89,6 @@ export default function OffersManagementPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
 
-  // Categoria derivata dal query param. Default FIXED_LINE (retrocompat).
   const category: OfferCategory = useMemo(() => {
     const raw = (router.query.category as string) || 'FIXED_LINE';
     return ['FIXED_LINE', 'MOBILE', 'ENERGY'].includes(raw)
@@ -105,6 +105,7 @@ export default function OffersManagementPage() {
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [filterProvider, setFilterProvider] = useState<string>('');
+  const [detailsJson, setDetailsJson] = useState<string>('');
 
   const emptyOffer: Offer = {
     id: '',
@@ -120,6 +121,7 @@ export default function OffersManagementPage() {
     scadenza: '',
     is_active: true,
     sort_order: 0,
+    details: null,
   };
 
   useEffect(() => {
@@ -129,7 +131,7 @@ export default function OffersManagementPage() {
     }
     if (!router.isReady) return;
     fetchOffers();
-    setFilterProvider(''); // reset filtro al cambio categoria
+    setFilterProvider('');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, router.isReady, category]);
 
@@ -149,9 +151,19 @@ export default function OffersManagementPage() {
   const handleSave = async () => {
     if (!editingOffer) return;
     try {
-      // Rimuove id vuoto per POST e normalizza category
       const { id, created_at, updated_at, ...rest } = editingOffer as any;
-      const payload = { ...rest, category };
+      // Parse details JSON se presente
+      let payload = { ...rest, category };
+      if (detailsJson.trim()) {
+        try {
+          payload.details = JSON.parse(detailsJson);
+        } catch {
+          alert('JSON Details non valido');
+          return;
+        }
+      } else {
+        payload.details = null;
+      }
       if (isCreating) {
         await api.post('/admin/offers', payload);
       } else {
@@ -159,6 +171,7 @@ export default function OffersManagementPage() {
       }
       setEditingOffer(null);
       setIsCreating(false);
+      setDetailsJson('');
       fetchOffers();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Errore durante il salvataggio');
@@ -193,7 +206,6 @@ export default function OffersManagementPage() {
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
@@ -211,6 +223,7 @@ export default function OffersManagementPage() {
           <button
             onClick={() => {
               setEditingOffer({ ...emptyOffer });
+              setDetailsJson('');
               setIsCreating(true);
             }}
             className="w-full sm:w-auto bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-white font-medium"
@@ -220,7 +233,6 @@ export default function OffersManagementPage() {
           </button>
         </div>
 
-        {/* Tab Categoria */}
         <div className="mb-4 flex gap-2 bg-gray-800 p-1 rounded-lg w-fit">
           {(['FIXED_LINE', 'MOBILE', 'ENERGY'] as OfferCategory[]).map((cat) => {
             const m = META_BY_CATEGORY[cat];
@@ -244,7 +256,6 @@ export default function OffersManagementPage() {
           })}
         </div>
 
-        {/* Filtro Provider */}
         <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:items-center">
           <select
             value={filterProvider}
@@ -260,7 +271,6 @@ export default function OffersManagementPage() {
           <span className="text-gray-300 text-sm">{filteredOffers.length} offerte</span>
         </div>
 
-        {/* Modal Editing */}
         {editingOffer && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-gray-800 p-4 md:p-6 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -369,6 +379,21 @@ export default function OffersManagementPage() {
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   />
                 </div>
+                {/* Campo Details JSON */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm text-gray-300 mb-1">
+                    Details JSON {category === 'MOBILE' ? '(minutes, sms, gb, has_5g...)' : category === 'ENERGY' ? '(fornitura, f1, pcv, pagamento...)' : ''}
+                  </label>
+                  <textarea
+                    value={detailsJson}
+                    onChange={(e) => setDetailsJson(e.target.value)}
+                    rows={5}
+                    className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-green-400 font-mono text-xs"
+                    placeholder={`Esempio ${category}:
+${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has_5g":true}' : category === 'ENERGY' ? '{"fornitura":"LUCE","tipo_offerta":"FISSO","f1":"0,22","pcv":"12"}' : '{}'}`}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Lascia vuoto per non usare details. Deve essere JSON valido.</p>
+                </div>
                 <div>
                   <label className="block text-sm text-gray-300 mb-1">Ordine</label>
                   <input
@@ -400,6 +425,7 @@ export default function OffersManagementPage() {
                   onClick={() => {
                     setEditingOffer(null);
                     setIsCreating(false);
+                    setDetailsJson('');
                   }}
                   className="px-4 py-2 text-gray-300 hover:text-white"
                 >
@@ -417,7 +443,6 @@ export default function OffersManagementPage() {
           </div>
         )}
 
-        {/* Tabella */}
         <div className="overflow-x-auto rounded-xl border border-gray-700">
           <table className="w-full">
             <thead className="bg-gray-800">
@@ -458,6 +483,7 @@ export default function OffersManagementPage() {
                       <button
                         onClick={() => {
                           setEditingOffer(o);
+                          setDetailsJson(o.details ? JSON.stringify(o.details, null, 2) : '');
                           setIsCreating(false);
                         }}
                         className="text-indigo-400 hover:text-indigo-300 mr-3"

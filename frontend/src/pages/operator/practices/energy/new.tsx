@@ -27,7 +27,6 @@ import {
 } from '@/constants/practiceCategories';
 import api from '@/lib/axios';
 
-// Helpers (come wizard rete fissa)
 const formatDateToItalian = (d: string | undefined) => {
   if (!d) return '';
   const [y, m, day] = d.split('-');
@@ -44,7 +43,6 @@ const validateFiscalCode = (cf: string): boolean => {
   return /^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$/.test(cf.toUpperCase());
 };
 
-// Helper per renderizzare l'icona del provider evitando il type narrowing TS
 function ProviderIcon({ provider }: { provider: any }) {
   if (provider.logo && provider.logo.length > 0) {
     return (
@@ -77,18 +75,15 @@ interface CustomerSuggestion {
 }
 
 interface EnergyWizardData {
-  // Step 1: gestore + offerta
   gestoreNuovoContratto?: string;
   gestoreNuovoContrattoAltro?: string;
   tipoOfferta?: string;
   tipoOffertaAltro?: string;
   dataAttivazione?: string;
-  // Step 2: venditori
   soldById?: string;
   soldBy?: string;
   enteredById?: string;
   enteredBy?: string;
-  // Step 3: cliente
   firstName?: string;
   lastName?: string;
   fiscalCode?: string;
@@ -96,7 +91,6 @@ interface EnergyWizardData {
   email?: string;
   customerAddress?: { street?: string; number?: string; zip?: string; city?: string; province?: string };
   codiceFiscaleVecchioContratto?: string;
-  // Step 4: attivazione + contatore
   tipoAttivazione?: string;
   tipoAttivazioneAltro?: string;
   numeroContatore?: string;
@@ -104,10 +98,8 @@ interface EnergyWizardData {
   potenzaContatoreAltro?: string;
   gestoreProvenienza?: string;
   gestoreProvenienzaAltro?: string;
-  // Step 5: pagamento
   ibanCdc?: string;
   noteMetodoPagamento?: string;
-  // Step 6: note finali
   noteGeneriche?: string;
   accordiCliente?: string;
   lavorazioniPostAttivazione?: string;
@@ -134,10 +126,8 @@ export default function NewEnergyPractice() {
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
-  // Toggle LUCE / GAS
   const [energyType, setEnergyType] = useState<'LUCE' | 'GAS'>('LUCE');
 
-  // Ricerca cliente (come rete fissa)
   const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
   const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
   const [nameSuggestions, setNameSuggestions] = useState<CustomerSuggestion[]>([]);
@@ -149,18 +139,15 @@ export default function NewEnergyPractice() {
   const [isSearchingName, setIsSearchingName] = useState(false);
   const [lockedCustomer, setLockedCustomer] = useState<CustomerSuggestion | null>(null);
 
-  // Offerte dinamiche caricate dal backend
   const [allOffers, setAllOffers] = useState<any[]>([]);
   const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
-  // Filtro offerte per gestore — match ESATTO sul provider per evitare falsi positivi
   const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
 
   const getFilteredOffers = useCallback((provider?: string, energyTypeFilter?: 'LUCE' | 'GAS') => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
-    // 1. Offerte dal backend: match ESATTO sul campo provider + filtro LUCE/GAS
     let backendNames = allOffers
       .filter((o: any) => {
         if (typeof o === 'string') return false;
@@ -175,7 +162,6 @@ export default function NewEnergyPractice() {
       })
       .map((o: any) => o.name || '');
 
-    // 2. Offerte hardcoded: match preciso per nome (inizia con PROVIDER + spazio) + filtro LUCE/GAS
     let hardcodedNames = offerteList
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
@@ -188,7 +174,6 @@ export default function NewEnergyPractice() {
       })
       .map((o: any) => typeof o === 'string' ? o : o.value || o.label || o || '');
 
-    // 3. Merge senza duplicati
     const merged = [...backendNames];
     hardcodedNames.forEach((h: string) => {
       if (h && !merged.some((b: string) => b.toUpperCase() === h.toUpperCase())) {
@@ -199,7 +184,6 @@ export default function NewEnergyPractice() {
     return merged;
   }, [allOffers, offerteList]);
 
-  // Provider visibili in base al tipo selezionato (LUCE/GAS)
   const visibleProviders = useMemo(() => {
     if (!allOffers.length) return ENERGY_PROVIDER_CARDS;
     return ENERGY_PROVIDER_CARDS.filter(provider => {
@@ -213,13 +197,11 @@ export default function NewEnergyPractice() {
     });
   }, [allOffers, energyType]);
 
-  // Offerta selezionata (lookup runtime)
   const selectedOffer = useMemo(() => {
     if (!data.tipoOfferta || data.tipoOfferta === 'ALTRO') return null;
     return allOffers.find((o: any) => o.name === data.tipoOfferta) || null;
   }, [allOffers, data.tipoOfferta]);
 
-  // Carica offerte dal backend
   useEffect(() => {
     (async () => {
       try {
@@ -238,7 +220,6 @@ export default function NewEnergyPractice() {
 
   const patch = (p: Partial<EnergyWizardData>) => setData((prev) => ({ ...prev, ...p }));
 
-  // Ricerca CF
   useEffect(() => {
     const searchFiscalCode = async () => {
       if (lockedCustomer && data.fiscalCode === lockedCustomer.fiscalCode) {
@@ -266,7 +247,6 @@ export default function NewEnergyPractice() {
     return () => clearTimeout(timeoutId);
   }, [data.fiscalCode, lockedCustomer]);
 
-  // Ricerca Telefono
   useEffect(() => {
     const searchPhone = async () => {
       if (lockedCustomer && data.phone === (lockedCustomer.phonePrimary || lockedCustomer.phone || '')) {
@@ -295,7 +275,6 @@ export default function NewEnergyPractice() {
     return () => clearTimeout(timeoutId);
   }, [data.phone, lockedCustomer]);
 
-  // Ricerca Nome
   useEffect(() => {
     const searchName = async () => {
       const searchTerm = `${data.firstName || ''} ${data.lastName || ''}`.trim();
@@ -343,7 +322,6 @@ export default function NewEnergyPractice() {
     setLockedCustomer(customer);
   };
 
-  // Carica in modalita edit
   useEffect(() => {
     if (!router.isReady) return;
     if (!edit || typeof edit !== 'string') {
@@ -399,24 +377,9 @@ export default function NewEnergyPractice() {
       case 2:
         return !!(data.soldById && data.enteredById);
       case 3:
-        return !!(
-          data.firstName?.trim() &&
-          data.lastName?.trim() &&
-          data.fiscalCode &&
-          validateFiscalCode(data.fiscalCode) &&
-          data.codiceFiscaleVecchioContratto &&
-          data.phone?.trim()
-        );
+        return !!(data.firstName?.trim() && data.lastName?.trim() && data.fiscalCode && validateFiscalCode(data.fiscalCode) && data.codiceFiscaleVecchioContratto && data.phone?.trim());
       case 4:
-        return !!(
-          data.tipoAttivazione &&
-          (data.tipoAttivazione !== 'ALTRO' || data.tipoAttivazioneAltro?.trim()) &&
-          data.numeroContatore?.trim() &&
-          data.potenzaContatore &&
-          (data.potenzaContatore !== 'ALTRO' || data.potenzaContatoreAltro?.trim()) &&
-          data.gestoreProvenienza &&
-          (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim())
-        );
+        return !!(data.tipoAttivazione && (data.tipoAttivazione !== 'ALTRO' || data.tipoAttivazioneAltro?.trim()) && data.numeroContatore?.trim() && data.potenzaContatore && (data.potenzaContatore !== 'ALTRO' || data.potenzaContatoreAltro?.trim()) && data.gestoreProvenienza && (data.gestoreProvenienza !== 'ALTRO' || data.gestoreProvenienzaAltro?.trim()));
       case 5:
         return !!data.ibanCdc?.trim();
       case 6:
@@ -581,10 +544,8 @@ export default function NewEnergyPractice() {
                 canAccess={canAccess}
                 onToggle={() => handleStepClick(s.id)}
               >
-                {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
-                    {/* Toggle LUCE / GAS */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-3">
                         Tipo fornitura <span className="text-rose-400">*</span>
@@ -665,7 +626,7 @@ export default function NewEnergyPractice() {
                       </motion.div>
                     )}
 
-                    {/* Card riepilogo offerta selezionata */}
+                    {/* Card riepilogo offerta ENERGY con details */}
                     {data.tipoOfferta && data.tipoOfferta !== 'ALTRO' && selectedOffer && (
                       <motion.div
                         initial={{ opacity: 0, y: 10 }}
@@ -687,30 +648,74 @@ export default function NewEnergyPractice() {
                             </span>
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
+
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                            <label className="text-xs text-slate-500 block mb-1">Canone / Prezzo Energia</label>
-                            <p className="text-emerald-400 font-bold text-lg">{selectedOffer.canone || '-'}</p>
+                            <label className="text-xs text-slate-500 block mb-1">Fornitura</label>
+                            <p className="text-amber-400 font-bold">{selectedOffer.details?.fornitura || '-'}</p>
                           </div>
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                            <label className="text-xs text-slate-500 block mb-1">Vincolo</label>
-                            <p className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</p>
-                          </div>
-                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                            <label className="text-xs text-slate-500 block mb-1">Scadenza</label>
-                            <p className="text-white font-medium">{selectedOffer.scadenza || '-'}</p>
+                            <label className="text-xs text-slate-500 block mb-1">Tipologia</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.tipologia || '-'}</p>
                           </div>
                           <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
                             <label className="text-xs text-slate-500 block mb-1">Tipo Offerta</label>
-                            <p className="text-white font-medium text-sm">
-                              {selectedOffer.note?.includes('FISSO') ? 'FISSO' : selectedOffer.note?.includes('VARIABILE') ? 'VARIABILE' : selectedOffer.note?.includes('MISTA') ? 'MISTA' : '-'}
+                            <p className="text-white font-medium">{selectedOffer.details?.tipo_offerta || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">F1 / PUN</label>
+                            <p className="text-emerald-400 font-bold">{selectedOffer.details?.f1 || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">PCV</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.pcv || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Canone</label>
+                            <p className="text-cyan-400 font-bold">{selectedOffer.canone || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Durata</label>
+                            <p className="text-amber-400 font-medium">{selectedOffer.details?.durata || selectedOffer.vincolo || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Scadenza</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.scadenza_offerta || selectedOffer.scadenza || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Pagamento</label>
+                            <p className="text-white font-medium">{selectedOffer.details?.pagamento || '-'}</p>
+                          </div>
+                          {selectedOffer.details?.cauzione && (
+                            <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                              <label className="text-xs text-slate-500 block mb-1">Cauzione</label>
+                              <p className="text-white font-medium">{selectedOffer.details.cauzione}</p>
+                            </div>
+                          )}
+                          {selectedOffer.details?.fatturazione && (
+                            <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                              <label className="text-xs text-slate-500 block mb-1">Fatturazione</label>
+                              <p className="text-white font-medium">{selectedOffer.details.fatturazione}</p>
+                            </div>
+                          )}
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Switch/Voltura</label>
+                            <p className={`font-bold ${selectedOffer.details?.switch_voltura === 'SI' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {selectedOffer.details?.switch_voltura || '-'}
+                            </p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Subentro</label>
+                            <p className={`font-bold ${selectedOffer.details?.subentro === 'SI' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {selectedOffer.details?.subentro || '-'}
                             </p>
                           </div>
                         </div>
-                        {selectedOffer.note && (
+
+                        {selectedOffer.details?.note_raw && (
                           <div className="bg-amber-900/20 border border-amber-600/30 rounded-xl p-3">
-                            <label className="text-xs text-amber-500 block mb-1">Dettagli & Condizioni</label>
-                            <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                            <label className="text-xs text-amber-500 block mb-1">Note & Condizioni</label>
+                            <p className="text-slate-300 text-sm">{selectedOffer.details.note_raw}</p>
                           </div>
                         )}
                       </motion.div>
@@ -728,7 +733,6 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 2: VENDITORI */}
                 {s.id === 2 && (
                   <div className="space-y-4">
                     <OperatorsDropdown label="Venduto da *" value={data.soldById} onChange={(id, name) => patch({ soldById: id, soldBy: name })} testId="energy-soldby" />
@@ -737,10 +741,8 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 3: ANAGRAFICA CLIENTE (allineato a rete fissa) */}
                 {s.id === 3 && (
                   <div className="space-y-4">
-                    {/* CF */}
                     <div className="relative">
                       <label className="block text-sm font-medium text-slate-300 mb-2">
                         Codice Fiscale <span className="text-rose-500">*</span>
@@ -773,7 +775,6 @@ export default function NewEnergyPractice() {
                       )}
                     </div>
 
-                    {/* Telefono */}
                     <div className="relative">
                       <label className="block text-sm font-medium text-slate-300 mb-2">
                         Recapito cliente <span className="text-rose-500">*</span>
@@ -804,7 +805,6 @@ export default function NewEnergyPractice() {
                       )}
                     </div>
 
-                    {/* Nome/Cognome */}
                     <div className="grid grid-cols-2 gap-4 relative">
                       <div>
                         <label className="block text-sm font-medium text-slate-300 mb-2">Nome <span className="text-rose-500">*</span></label>
@@ -843,7 +843,6 @@ export default function NewEnergyPractice() {
                       )}
                     </div>
 
-                    {/* Email */}
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Email</label>
                       <input
@@ -855,7 +854,6 @@ export default function NewEnergyPractice() {
                       />
                     </div>
 
-                    {/* Indirizzo Cliente */}
                     <div className="border-t border-slate-700 pt-4 mt-4">
                       <h4 className="text-sm font-semibold text-indigo-400 mb-4 flex items-center gap-2">
                         <MapPin className="w-4 h-4" />
@@ -921,7 +919,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* CF Vecchio Contratto (specifico energy) */}
                     <div className="pt-2">
                       <label className="block text-sm font-medium text-slate-300 mb-2">Codice fiscale vecchio contratto <span className="text-rose-500">*</span></label>
                       <input type="text" value={data.codiceFiscaleVecchioContratto || ''} onChange={(e) => patch({ codiceFiscaleVecchioContratto: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="energy-cf-vecchio" />
@@ -934,7 +931,6 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 4: ATTIVAZIONE & CONTATORE */}
                 {s.id === 4 && (
                   <div className="space-y-4">
                     <SelectWithOther label="Tipo di attivazione" required value={data.tipoAttivazione} otherValue={data.tipoAttivazioneAltro} onChange={(v) => patch({ tipoAttivazione: v })} onOtherChange={(v) => patch({ tipoAttivazioneAltro: v })} options={TIPI_ATTIVAZIONE_ENERGY} testId="energy-tipo-attivazione" />
@@ -956,7 +952,6 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 5: PAGAMENTO */}
                 {s.id === 5 && (
                   <div className="space-y-4">
                     <div>
@@ -972,7 +967,6 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 6: NOTE */}
                 {s.id === 6 && (
                   <div className="space-y-4">
                     <div>
@@ -991,10 +985,9 @@ export default function NewEnergyPractice() {
                   </div>
                 )}
 
-                {/* STEP 7: RIEPILOGO (allineato a rete fissa) */}
                 {s.id === 7 && (
                   <div className="space-y-4">
-                    {/* Card Offerta */}
+                    {/* Card Offerta con details */}
                     <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-6">
                       <h4 className="font-semibold text-amber-400 mb-4 flex items-center gap-2">
                         <Buildings className="w-5 h-5" />
@@ -1016,23 +1009,73 @@ export default function NewEnergyPractice() {
                         {selectedOffer && (
                           <>
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Canone:</span>
-                              <span className="text-emerald-400 font-medium">{selectedOffer.canone || '-'}</span>
+                              <span className="text-slate-400">Fornitura:</span>
+                              <span className="text-amber-400 font-medium">{selectedOffer.details?.fornitura || '-'}</span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-slate-400">Vincolo:</span>
-                              <span className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</span>
+                              <span className="text-slate-400">Tipologia:</span>
+                              <span className="text-white">{selectedOffer.details?.tipologia || '-'}</span>
                             </div>
-                            {selectedOffer.scadenza && (
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Tipo offerta:</span>
+                              <span className="text-white">{selectedOffer.details?.tipo_offerta || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">F1 / PUN:</span>
+                              <span className="text-emerald-400 font-medium">{selectedOffer.details?.f1 || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">PCV:</span>
+                              <span className="text-white">{selectedOffer.details?.pcv || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Canone:</span>
+                              <span className="text-cyan-400 font-medium">{selectedOffer.canone || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Durata:</span>
+                              <span className="text-amber-400">{selectedOffer.details?.durata || selectedOffer.vincolo || '-'}</span>
+                            </div>
+                            {selectedOffer.details?.scadenza_offerta && (
                               <div className="flex justify-between">
                                 <span className="text-slate-400">Scadenza:</span>
-                                <span className="text-white">{selectedOffer.scadenza}</span>
+                                <span className="text-white">{selectedOffer.details.scadenza_offerta}</span>
                               </div>
                             )}
-                            {selectedOffer.note && (
+                            {selectedOffer.details?.pagamento && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Pagamento:</span>
+                                <span className="text-white">{selectedOffer.details.pagamento}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.cauzione && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Cauzione:</span>
+                                <span className="text-white">{selectedOffer.details.cauzione}</span>
+                              </div>
+                            )}
+                            {selectedOffer.details?.fatturazione && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Fatturazione:</span>
+                                <span className="text-white">{selectedOffer.details.fatturazione}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Switch/Voltura:</span>
+                              <span className={selectedOffer.details?.switch_voltura === 'SI' ? 'text-emerald-400' : 'text-rose-400'}>
+                                {selectedOffer.details?.switch_voltura || '-'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Subentro:</span>
+                              <span className={selectedOffer.details?.subentro === 'SI' ? 'text-emerald-400' : 'text-rose-400'}>
+                                {selectedOffer.details?.subentro || '-'}
+                              </span>
+                            </div>
+                            {selectedOffer.details?.note_raw && (
                               <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
                                 <span className="text-slate-500 text-xs block mb-1">Note:</span>
-                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                                <p className="text-slate-300 text-sm">{selectedOffer.details.note_raw}</p>
                               </div>
                             )}
                           </>
@@ -1044,7 +1087,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* Card Venditori */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <User className="w-5 h-5" />
@@ -1056,7 +1098,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* Card Dati Cliente */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <User className="w-5 h-5" />
@@ -1084,7 +1125,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* Card Attivazione & Contatore */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <Gauge className="w-5 h-5" />
@@ -1098,7 +1138,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* Card Pagamento */}
                     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                       <h4 className="font-semibold text-white mb-4 flex items-center gap-2">
                         <CreditCard className="w-5 h-5" />
@@ -1110,7 +1149,6 @@ export default function NewEnergyPractice() {
                       </div>
                     </div>
 
-                    {/* Card Note */}
                     {(data.noteGeneriche || data.accordiCliente || data.lavorazioniPostAttivazione) && (
                       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700">
                         <h4 className="font-semibold text-white mb-4 flex items-center gap-2">

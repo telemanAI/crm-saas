@@ -73,16 +73,24 @@ export class OffersService {
   }
 
   /**
+   * Aggiorna sort_order di più offerte in bulk.
+   */
+  async updateSortOrders(items: { id: string; sort_order: number }[]): Promise<void> {
+    for (const item of items) {
+      await this.offersRepository.update(
+        { id: item.id },
+        { sort_order: item.sort_order },
+      );
+    }
+  }
+
+  /**
    * Offerte raggruppate per provider, filtrabili per categoria.
    * FIX: normalizza TIM_FIBRA → TIM per compatibilità wizard rete fissa.
-   * Gli altri provider non vengono toccati (se non hanno offerte nel DB,
-   * il wizard usa il fallback hardcoded come prima).
    */
   async findAllGrouped(category?: OfferCategory): Promise<Record<string, Offer[]>> {
     const offers = await this.findAll(category);
 
-    // Solo TIM ha nome diverso nel DB vs wizard. Gli altri provider
-    // o non esistono nel DB (usa fallback) o hanno nome già compatibile.
     const providerDisplayMap: Record<string, string> = {
       'TIM_FIBRA': 'TIM',
     };

@@ -24,10 +24,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class OffersController {
   constructor(private readonly offersService: OffersService) {}
 
-  /**
-   * Lista offerte attive (per operatori durante wizard).
-   * Filtro ?category=FIXED_LINE|MOBILE|ENERGY. Default FIXED_LINE (retrocompat).
-   */
   @Get()
   @UseGuards(JwtAuthGuard)
   findAll(@Query('category') category?: string) {
@@ -62,10 +58,6 @@ export class OffersController {
 export class AdminOffersController {
   constructor(private readonly offersService: OffersService) {}
 
-  /**
-   * Lista offerte ADMIN (tutte, anche disattivate).
-   * Filtro ?category=FIXED_LINE|MOBILE|ENERGY. Default FIXED_LINE.
-   */
   @Get()
   findAllAdmin(@Query('category') category?: string) {
     return this.offersService.findAllAdmin(category as OfferCategory);
@@ -88,6 +80,16 @@ export class AdminOffersController {
   @Patch(':id/toggle')
   toggleActive(@Param('id', ParseUUIDPipe) id: string) {
     return this.offersService.toggleActive(id);
+  }
+
+  /**
+   * Bulk update sort_order per riordinare le offerte.
+   */
+  @Patch('reorder')
+  @HttpCode(HttpStatus.OK)
+  async reorder(@Body() body: { items: { id: string; sort_order: number }[] }) {
+    await this.offersService.updateSortOrders(body.items);
+    return { message: 'Ordine aggiornato' };
   }
 
   @Delete(':id')

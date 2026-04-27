@@ -52,19 +52,35 @@ export default function CompleteRegistration() {
 
   useEffect(() => {
     if (!router.isReady) return;
-    const pending = String(router.query.pending || '');
+
+    // FIX: recovery da storage se i query params sono stati persi su mobile (browser swap)
+    let pending = String(router.query.pending || '');
+    let invite = String(router.query.invite || '');
+
+    if (!pending && typeof window !== 'undefined') {
+      const storedPending = sessionStorage.getItem('pendingRegistrationToken');
+      if (storedPending) pending = storedPending;
+    }
+
+    if (!invite && typeof window !== 'undefined') {
+      const storedInvite =
+        localStorage.getItem('pendingInviteToken') ||
+        sessionStorage.getItem('pendingInviteToken');
+      if (storedInvite) invite = storedInvite;
+    }
+
     if (!pending) {
       router.replace('/login');
       return;
     }
-    // 🔒 SICUREZZA: pulisci qualsiasi sessione precedente.
+
     clearAuth();
     setPendingToken(pending);
-    setEmail(String(router.query.email || ''));
+    setEmail(String(router.query.email || sessionStorage.getItem('pendingRegistrationEmail') || ''));
     setFirstName(String(router.query.firstName || ''));
     setLastName(String(router.query.lastName || ''));
-    // Se Google/Facebook ha propagato un invite via state → accettiamolo automaticamente
-    const invite = String(router.query.invite || '');
+
+    // Se c'è un invite (da query o storage), auto-accept come operator
     if (invite) {
       setInviteToken(invite);
       (async () => {
@@ -75,6 +91,7 @@ export default function CompleteRegistration() {
             role: 'operator',
             inviteToken: invite,
           });
+          cleanupPendingStorage();
           setAuth(res.user, res.token, res.shops || []);
           if ((res.shops || []).length > 1) return router.replace('/select-shop');
           return router.replace('/operator/dashboard');
@@ -107,6 +124,7 @@ export default function CompleteRegistration() {
         legalName: legalName.trim() || shopName.trim(),
         vatNumber: vatNumber.trim() || undefined,
       });
+      cleanupPendingStorage();
       setAuth(res.user, res.token, res.shops || []);
       if ((res.shops || []).length > 1) return router.replace('/select-shop');
       return router.replace('/operator/dashboard');
@@ -114,6 +132,31 @@ export default function CompleteRegistration() {
       setError(err.message || 'Errore nel completamento');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // FIX: se l'utente sceglie "operator" manualmente ma c'è un invite in storage, usa quello
+  const handleChooseOperator = () => {
+    if (inviteToken) {
+      setLoading(true);
+      (async () => {
+        try {
+          const res: any = await authApi.completeRegistration({
+            pendingToken,
+            role: 'operator',
+            inviteToken,
+          });
+          cleanupPendingStorage();
+          setAuth(res.user, res.token, res.shops || []);
+          if ((res.shops || []).length > 1) return router.replace('/select-shop');
+          return router.replace('/operator/dashboard');
+        } catch (err: any) {
+          setError(err?.message || 'Invito non valido o scaduto');
+          setLoading(false);
+        }
+      })();
+    } else {
+      setRole('operator');
     }
   };
 
@@ -143,7 +186,7 @@ export default function CompleteRegistration() {
           {inviteToken && error && !role && (
             <div className="text-center py-3">
               <p className="text-rose-400 text-sm mb-3" data-testid="invite-auto-error">{error}</p>
-              <button onClick={() => { clearAuth(); router.replace('/login'); }} className="text-cyan-400 text-sm hover:underline">
+              <button onClick={() => { clearAuth(); cleanupPendingStorage(); router.replace('/login'); }} className="text-cyan-400 text-sm hover:underline">
                 Torna al login
               </button>
             </div>
@@ -159,7 +202,7 @@ export default function CompleteRegistration() {
                 </div>
                 <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400" />
               </button>
-              <button onClick={() => setRole('operator')} data-testid="complete-role-operator" className="flex items-center gap-4 p-5 bg-slate-950/50 hover:bg-slate-900/80 border border-slate-800 hover:border-cyan-500/50 rounded-2xl text-left transition-all group">
+              <button onClick={handleChooseOperator} data-testid="complete-role-operator" className="flex items-center gap-4 p-5 bg-slate-950/50 hover:bg-slate-900/80 border border-slate-800 hover:border-cyan-500/50 rounded-2xl text-left transition-all group">
                 <UserCircle weight="duotone" className="w-8 h-8 text-cyan-400" />
                 <div className="flex-1">
                   <h3 className="text-white font-semibold">Sono un operatore</h3>
@@ -185,7 +228,7 @@ export default function CompleteRegistration() {
             </div>
           )}
 
-          {role === 'operator' && (
+          {role === 'operator' && !inviteToken && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="text-center space-y-4 py-2">
               <div className="w-14 h-14 bg-cyan-500/10 border border-cyan-500/30 rounded-2xl mx-auto flex items-center justify-center">
                 <Envelope weight="duotone" className="w-7 h-7 text-cyan-400" />
@@ -200,7 +243,7 @@ export default function CompleteRegistration() {
                 </p>
               </div>
               <div className="pt-2 space-y-2">
-                <button onClick={() => { clearAuth(); router.replace('/login'); }} data-testid="back-to-login-btn" className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold py-3 rounded-xl text-sm">
+                <button onClick={() => { clearAuth(); cleanupPendingStorage(); router.replace('/login'); }} data-testid="back-to-login-btn" className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-semibold py-3 rounded-xl text-sm">
                   Torna al login
                 </button>
                 <button type="button" onClick={() => { setRole(null); setError(''); }} className="w-full text-slate-500 text-xs hover:text-slate-300 py-1">
@@ -213,4 +256,13 @@ export default function CompleteRegistration() {
       </motion.div>
     </div>
   );
+}
+
+function cleanupPendingStorage() {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem('pendingRegistrationToken');
+  sessionStorage.removeItem('pendingRegistrationEmail');
+  localStorage.removeItem('pendingInviteToken');
+  localStorage.removeItem('pendingInviteTimestamp');
+  sessionStorage.removeItem('pendingInviteToken');
 }

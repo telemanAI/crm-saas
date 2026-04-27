@@ -368,18 +368,11 @@ export class AuthService {
       companyId: s.shop.companyId,
     }));
 
-    if (shops.length === 0 && user.tenantId) {
-      const legacy = await this.shopRepo.findOne({ where: { id: user.tenantId } });
-      if (legacy) {
-        shops.push({
-          shopId: legacy.id,
-          name: legacy.name,
-          subscriptionCode: legacy.subscriptionCode,
-          role: user.role as any,
-          permissions: {} as any,
-          companyId: legacy.companyId,
-        });
-      }
+    // FIX: blocca il login se l'utente non ha alcun negozio attivo (revocato da tutti)
+    if (shops.length === 0) {
+      throw new UnauthorizedException(
+        'Nessun negozio attivo associato a questo account. Contatta l\'amministratore.'
+      );
     }
 
     const activeShopId = shops[0]?.shopId || user.tenantId || null;
@@ -520,9 +513,13 @@ export class AuthService {
       role: 'FOUNDER',
     });
 
-    // Ri-emetti il JWT puntando al nuovo shop come tenantId attivo e ritorna
-    // la lista shops aggiornata così il frontend può sincronizzarsi senza reload.
+    // FIX: allinea il legacy tenantId al nuovo shop così il re-login è coerente
     const user = await this.userRepo.findOne({ where: { id: params.userId } });
+    if (user) {
+      user.tenantId = shop.id;
+      await this.userRepo.save(user);
+    }
+
     const shopsData = await this.membershipsService.findActiveShopsForUser(params.userId);
     const access_token = this.jwtService.sign({
       sub: params.userId,

@@ -82,8 +82,6 @@ export class AuthFlowsController {
 
   /**
    * Switch shop attivo: ritorna token + user + shops aggiornati.
-   * Il frontend deve usare TUTTI i campi per mantenere lo store coerente
-   * (altrimenti activeShopId rimane disallineato dal JWT → account swap bug).
    */
   @Post('switch-shop')
   @UseGuards(JwtAuthGuard)
@@ -96,7 +94,7 @@ export class AuthFlowsController {
     );
     return {
       token: result.token,
-      access_token: result.token, // alias per compat frontend axios/fetch
+      access_token: result.token,
       user: result.user,
       shops: result.shops,
     };
@@ -165,14 +163,8 @@ export class AuthFlowsController {
   /**
    * Flusso callback OAuth comune a Google e Facebook.
    *
-   * 1. Estrae invite token dallo "state" OAuth (format: "invite:TOKEN").
-   * 2. Se user già esiste: applica eventuale invito + redirect a /auth/callback con token+user+shops.
-   * 3. Se user nuovo: crea pending registration e redirect a /auth/complete-registration
-   *    passando pending token + dati profile + invite (se presente).
-   *
-   * Prima google e facebook usavano URL di redirect diversi per il caso pending
-   * (una differenza che rompeva il flusso invite via Google per utenti nuovi).
-   * Ora sono allineati.
+   * FIX: aggiunge inviteToken anche nei query params del redirect come backup,
+   * nel caso lo state OAuth venga perso o alterato da browser in-app su mobile.
    */
   private async handleSocialCallback(
     providerLabel: 'google' | 'facebook',
@@ -190,7 +182,6 @@ export class AuthFlowsController {
     const result = await this.socialAuthService.handleSocialOrOtpLogin(profile);
 
     if (result.status === 'logged_in') {
-      // Applica invito se presente (user già loggato che clicca un link invite)
       let finalToken = result.token;
       let finalUser = result.user as any;
       let finalShops = result.shops;
@@ -200,7 +191,6 @@ export class AuthFlowsController {
             inviteToken,
             finalUser.id,
           );
-          // Dopo l'accept, il JWT è posizionato sul nuovo shop invitato.
           finalToken = session.access_token;
           finalUser = session.user;
           finalShops = session.shops;
@@ -210,8 +200,10 @@ export class AuthFlowsController {
       }
       const shopsEncoded = encodeURIComponent(JSON.stringify(finalShops));
       const userEncoded = encodeURIComponent(JSON.stringify(finalUser));
+      // FIX: include inviteToken anche in query params come backup per mobile
+      const inviteParam = inviteToken ? `&invite=${encodeURIComponent(inviteToken)}` : '';
       return res.redirect(
-        `${frontendUrl}/auth/callback?token=${finalToken}&user=${userEncoded}&shops=${shopsEncoded}`,
+        `${frontendUrl}/auth/callback?token=${finalToken}&user=${userEncoded}&shops=${shopsEncoded}${inviteParam}`,
       );
     }
 

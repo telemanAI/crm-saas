@@ -321,7 +321,7 @@ export class EmailService {
   }
 
   // =============================================================
-  // NUOVO: Invite operatore via link one-time
+  // NUOVO: Invite operatore via link one-time  (FIX MOBILE)
   // =============================================================
   async sendInviteEmail(
     to: string,
@@ -333,7 +333,7 @@ export class EmailService {
   ): Promise<boolean> {
     const roleLabel = role === 'OPERATOR' ? 'Operatore' : role === 'ADMIN' ? 'Amministratore' : 'Founder';
     const noteBlock = adminNote
-      ? `<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:16px;border-radius:8px;margin:16px 0;"><p style="margin:0 0 6px;color:#92400e;font-size:12px;font-weight:600;text-transform:uppercase;">Nota dall'amministratore</p><p style="margin:0;color:#78350f;font-size:14px;font-style:italic;">"${adminNote}"</p></div>`
+      ? `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:16px 0;"><tr><td style="background:#fef3c7;border-left:4px solid #f59e0b;padding:16px;border-radius:8px;"><p style="margin:0 0 6px;color:#92400e;font-size:12px;font-weight:600;text-transform:uppercase;">Nota dall'amministratore</p><p style="margin:0;color:#78350f;font-size:14px;font-style:italic;">"${adminNote}"</p></td></tr></table>`
       : '';
     try {
       await this.resend.emails.send({
@@ -343,30 +343,58 @@ export class EmailService {
         html: `
           <!DOCTYPE html>
           <html lang="it">
-          <head><meta charset="utf-8"></head>
-          <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc;">
-            <table width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;">
-              <tr><td align="center" style="padding:40px 20px;">
-                <table width="600" cellspacing="0" cellpadding="0" style="max-width:600px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.06);">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <meta name="color-scheme" content="light">
+            <meta name="supported-color-schemes" content="light">
+          </head>
+          <body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f8fafc;-webkit-font-smoothing:antialiased;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f8fafc;">
+              <tr><td align="center" style="padding:40px 16px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:600px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.06);">
                   <tr><td style="background:linear-gradient(135deg,#4f46e5,#7c3aed);padding:40px;text-align:center;">
                     <h1 style="margin:0;color:#fff;font-size:28px;letter-spacing:-0.5px;">Invito TELEMANAI</h1>
                   </td></tr>
-                  <tr><td style="padding:40px;">
+                  <tr><td style="padding:40px 32px;">
                     <p style="color:#475569;font-size:16px;line-height:1.6;margin:0 0 20px;">Sei stato invitato a unirti al team di:</p>
-                    <div style="background:#eef2ff;border-radius:12px;padding:20px;margin:20px 0;">
-                      <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Negozio</p>
-                      <p style="margin:4px 0 12px;color:#0f172a;font-size:22px;font-weight:700;">${shopName}</p>
-                      <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Codice negozio</p>
-                      <p style="margin:4px 0 12px;color:#4f46e5;font-size:18px;font-weight:700;font-family:'Courier New',monospace;">${shopCode}</p>
-                      <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Ruolo</p>
-                      <p style="margin:4px 0 0;color:#0f172a;font-size:16px;font-weight:600;">${roleLabel}</p>
-                    </div>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#eef2ff;border-radius:12px;">
+                      <tr><td style="padding:20px;">
+                        <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Negozio</p>
+                        <p style="margin:4px 0 12px;color:#0f172a;font-size:22px;font-weight:700;">${shopName}</p>
+                        <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Codice negozio</p>
+                        <p style="margin:4px 0 12px;color:#4f46e5;font-size:18px;font-weight:700;font-family:'Courier New',monospace;">${shopCode}</p>
+                        <p style="margin:0;color:#6366f1;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Ruolo</p>
+                        <p style="margin:4px 0 0;color:#0f172a;font-size:16px;font-weight:600;">${roleLabel}</p>
+                      </td></tr>
+                    </table>
                     ${noteBlock}
-                    <div style="text-align:center;margin:32px 0;">
-                      <a href="${inviteUrl}" style="display:inline-block;padding:16px 40px;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;text-decoration:none;border-radius:10px;font-weight:600;font-size:16px;">Accetta invito e accedi</a>
-                    </div>
+                    
+                    <!-- CTA BUTTON: table-based per compatibilità client email mobile -->
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:32px auto;">
+                      <tr>
+                        <td style="border-radius:10px;background:linear-gradient(135deg,#4f46e5,#7c3aed);text-align:center;">
+                          <a href="${inviteUrl}" 
+                             target="_blank" 
+                             rel="noopener noreferrer"
+                             style="display:inline-block;padding:16px 40px;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:16px;-webkit-text-size-adjust:none;mso-hide:all;">
+                            Accetta invito e accedi
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+                    
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:24px 0;border-top:1px solid #e2e8f0;padding-top:24px;">
+                      <tr><td>
+                        <p style="color:#64748b;font-size:14px;margin:0 0 8px 0;">Se il pulsante non funziona sul tuo telefono, copia e incolla questo link nel tuo browser:</p>
+                        <p style="margin:0;word-break:break-all;font-family:monospace;font-size:13px;color:#4f46e5;background-color:#f8fafc;padding:12px;border-radius:6px;border:1px solid #e2e8f0;">
+                          <a href="${inviteUrl}" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;text-decoration:underline;">${inviteUrl}</a>
+                        </p>
+                      </td></tr>
+                    </table>
+                    
                     <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin:0;">Questo link è valido per 72 ore. Se non riconosci questo invito, ignora pure l'email.</p>
-                    <p style="color:#64748b;font-size:12px;margin:24px 0 0;word-break:break-all;">${inviteUrl}</p>
                   </td></tr>
                   <tr><td style="background:#f8fafc;padding:20px;text-align:center;border-top:1px solid #e2e8f0;">
                     <p style="margin:0;color:#94a3b8;font-size:12px;">© ${new Date().getFullYear()} TELEMANAI</p>

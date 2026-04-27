@@ -34,11 +34,6 @@ export class SocialAuthService {
     private readonly invitesService: InvitesService,
   ) {}
 
-  /**
-   * Entry dopo il callback OAuth (Google/Facebook) o dopo verifica OTP.
-   * Se user esiste → emette JWT e ritorna { status: 'logged_in', token, shops }.
-   * Se NON esiste → crea pending registration e ritorna { status: 'pending', pendingToken }.
-   */
   async handleSocialOrOtpLogin(profile: SocialProfile): Promise<
     | { status: 'logged_in'; token: string; user: any; shops: any[] }
     | { status: 'pending'; pendingToken: string; email: string; firstName?: string; lastName?: string }
@@ -67,11 +62,26 @@ export class SocialAuthService {
       if (updated || true) await this.userRepo.save(user);
 
       const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+
+      // FIX: se non ci sono membership attive, verifica fallback legacy o blocca
+      if (shopsData.length === 0) {
+        if (user.tenantId) {
+          const legacyMembership = await this.membershipsService.findActiveForUserAndShop(user.id, user.tenantId);
+          if (!legacyMembership) {
+            throw new UnauthorizedException('Accesso revocato a tutti i negozi. Contatta l\'amministratore.');
+          }
+          const legacyShop = await this.shopRepo.findOne({ where: { id: user.tenantId } });
+          if (legacyShop) {
+            shopsData.push({ membership: legacyMembership, shop: legacyShop });
+          }
+        } else {
+          throw new UnauthorizedException('Nessun negozio attivo associato a questo account.');
+        }
+      }
+
       const activeShopId = shopsData[0]?.shop.id || user.tenantId || null;
       const activeRole = shopsData[0]?.membership.role || user.role;
 
-      // Il JWT deve SEMPRE contenere il tenantId dello shop attivo effettivo
-      // (non lo user.tenantId legacy, che può essere stantio).
       const token = this.signToken({
         sub: user.id,
         email: user.email,
@@ -82,14 +92,7 @@ export class SocialAuthService {
         status: 'logged_in',
         token,
         user: { ...this.sanitizeUser(user), role: activeRole, tenantId: activeShopId },
-        shops: shopsData.map(s => ({
-          shopId: s.shop.id,
-          name: s.shop.name,
-          subscriptionCode: s.shop.subscriptionCode,
-          role: s.membership.role,
-          permissions: s.membership.permissions,
-          companyId: s.shop.companyId,
-        })),
+        shops: this.serializeShops(shopsData),
       };
     }
 
@@ -117,11 +120,6 @@ export class SocialAuthService {
     };
   }
 
-  /**
-   * Completa la registrazione dopo social/OTP con scelta ruolo.
-   * - role='shop_owner' → crea Company (o link esistente) + Shop + FOUNDER membership.
-   * - role='operator' → richiede inviteToken valido, applica l'invito.
-   */
   async completeRegistration(dto: CompleteRegistrationDto): Promise<{ token: string; user: any; shops: any[] }> {
     const pending = await this.pendingRepo.findOne({ where: { token: dto.pendingToken } });
     if (!pending) throw new UnauthorizedException('Sessione di registrazione non valida o scaduta');
@@ -198,13 +196,6 @@ export class SocialAuthService {
     return { token, user: { ...this.sanitizeUser(user), role: activeRole, tenantId: activeShopId }, shops: this.serializeShops(shopsData) };
   }
 
-  /**
-   * Cambia shop attivo: ritorna JWT NUOVO + user aggiornato + shops aggiornata.
-   *
-   * Prima restituiva solo { token } e il frontend doveva "indovinare" il ruolo
-   * nello shop nuovo. Adesso diamo tutto così il client non ha mai uno stato
-   * incoerente fra activeShopId / user.role / permissions.
-   */
   async switchActiveShop(
     userId: string,
     shopId: string,
@@ -226,7 +217,7 @@ export class SocialAuthService {
       token,
       user: {
         ...this.sanitizeUser(user),
-        role: membership.role, // ruolo nello shop appena attivato
+        role: membership.role,
         tenantId: shopId,
       },
       shops: this.serializeShops(shopsData),
@@ -282,7 +273,6 @@ export class SocialAuthService {
     return this.jwtService.sign(payload);
   }
 
-  /** Cleanup job: elimina pending scaduti */
   async cleanupExpiredPending(): Promise<number> {
     const res = await this.pendingRepo.delete({ expiresAt: LessThan(new Date()) });
     return res.affected || 0;

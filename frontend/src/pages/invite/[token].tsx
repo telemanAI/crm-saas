@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo } from 'phosphor-react';
+import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo, Warning, SignOut } from 'phosphor-react';
 import { authApi, invitesApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -39,7 +39,7 @@ function Input({ icon, type = 'text', placeholder, value, onChange, required, te
 export default function InviteAccept() {
   const router = useRouter();
   const token = router.query.token as string | undefined;
-  const { user, token: authToken, setAuth } = useAuthStore();
+  const { user, token: authToken, setAuth, clearAuth } = useAuthStore();
 
   const [invite, setInvite] = useState<any>(null);
   const [error, setError] = useState<string>('');
@@ -49,6 +49,14 @@ export default function InviteAccept() {
   const [password, setPassword] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  // FIX: salva il token in sessionStorage per recovery se OAuth cambia browser (mobile)
+  useEffect(() => {
+    if (token && typeof window !== 'undefined') {
+      sessionStorage.setItem('pendingInviteToken', token);
+    }
+  }, [token]);
+
+  // FIX: se l'utente torna loggato con lo stesso email dell'invito, propone accettazione diretta
   useEffect(() => {
     if (!router.isReady || !token) return;
     (async () => {
@@ -76,18 +84,14 @@ export default function InviteAccept() {
     setSubmitting(true);
     try {
       const res: any = await invitesApi.acceptAuthenticated(token);
-      // Backend ora restituisce access_token fresco con tenantId = shop invitato
       if (res?.access_token && res?.user) {
         setAuth(res.user, res.access_token, res.shops || []);
-        // Se l'utente ha più di un negozio lo mandiamo al selettore così
-        // sa di poter switchare, altrimenti dritto in dashboard.
         if ((res.shops || []).length > 1) {
           router.push('/select-shop');
         } else {
           router.push('/operator/dashboard');
         }
       } else {
-        // Fallback legacy (vecchio backend senza access_token nel response)
         const shops: any = await authApi.myShops();
         if (user && authToken) setAuth(user, authToken, shops);
         router.push('/select-shop');
@@ -114,7 +118,21 @@ export default function InviteAccept() {
   };
 
   const openSocial = (provider: 'google' | 'facebook') => {
+    if (token && typeof window !== 'undefined') {
+      // Backup anche in localStorage con timestamp per cross-browser recovery
+      localStorage.setItem('pendingInviteToken', token);
+      localStorage.setItem('pendingInviteTimestamp', Date.now().toString());
+      // FIX: salva anche l'email per recovery in complete-registration se il browser cambia
+      if (invite?.email) {
+        sessionStorage.setItem('pendingRegistrationEmail', invite.email);
+      }
+    }
     window.location.href = `${API_BASE}/auth/${provider}?invite=${token}`;
+  };
+
+  const handleLogoutAndRetry = () => {
+    clearAuth();
+    setMode('choose');
   };
 
   if (error && !invite) {
@@ -165,10 +183,15 @@ export default function InviteAccept() {
 
           {mode !== 'existing' && user?.email && user.email.toLowerCase() !== invite.email?.toLowerCase() && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-center">
-              <p className="text-amber-300 text-xs">
+              <p className="text-amber-300 text-xs mb-2">
                 Sei attualmente loggato come <b>{user.email}</b>. Questo invito è per <b>{invite.email}</b>.
-                <br />Completa la registrazione con l'email dell'invito per accettare.
               </p>
+              <button
+                onClick={handleLogoutAndRetry}
+                className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium"
+              >
+                <SignOut className="w-3.5 h-3.5" /> Esci e accedi con l'email dell'invito
+              </button>
             </div>
           )}
 
@@ -192,6 +215,15 @@ export default function InviteAccept() {
               <button onClick={() => openSocial('facebook')} className="w-full flex items-center justify-center gap-3 bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium py-3 rounded-xl" data-testid="invite-facebook-btn">
                 <FacebookLogo weight="fill" className="w-5 h-5" /> Continua con Facebook
               </button>
+              
+              {/* FIX: avviso mobile per problemi OAuth su browser in-app */}
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-center">
+                <p className="text-slate-400 text-xs flex items-center justify-center gap-1.5">
+                  <Warning className="w-3.5 h-3.5 text-amber-400" />
+                  Se i bottoni sopra non funzionano sul tuo telefono, usa l'opzione qui sotto.
+                </p>
+              </div>
+
               <div className="flex items-center gap-3 my-2">
                 <div className="flex-1 h-px bg-slate-800" />
                 <span className="text-xs text-slate-500">o</span>

@@ -2,15 +2,12 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { CircleNotch } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
+import { invitesApi } from '@/lib/api';
 
 /**
  * Callback dopo OAuth/social login.
- * Il backend ora UNIFICA Google e Facebook:
- *  - Utente già esistente   → redirect qui con ?token&user&shops (+applica invito se presente).
- *  - Utente nuovo             → redirect a /auth/complete-registration (non qui) con ?pending&email...
- *
- * Quindi questa pagina gestisce SOLO il caso logged_in. Se per qualche ragione
- * legacy arriva un pending, facciamo fallback a complete-registration.
+ * FIX: gestisce recovery invite token da storage se il browser cambia su mobile
+ * (es. da browser in-app Gmail a Chrome/Safari dopo OAuth).
  */
 export default function AuthCallback() {
   const router = useRouter();
@@ -43,9 +40,56 @@ export default function AuthCallback() {
       router.replace('/login');
       return;
     }
+
     try {
       const parsedUser = JSON.parse(decodeURIComponent(String(user)));
       const parsedShops = shops ? JSON.parse(decodeURIComponent(String(shops))) : [];
+
+      // FIX: se c'è un invite token (da query params o da storage recovery),
+      // tentiamo di applicarlo prima del redirect. Se fallisce, procediamo
+      // comunque con i dati originali.
+      const inviteToken =
+        (invite ? String(invite) : null) ||
+        (typeof window !== 'undefined'
+          ? localStorage.getItem('pendingInviteToken') ||
+            sessionStorage.getItem('pendingInviteToken')
+          : null);
+
+      if (inviteToken) {
+        (async () => {
+          try {
+            const res: any = await invitesApi.acceptAuthenticated(inviteToken);
+            if (res?.access_token && res?.user) {
+              setAuth(res.user, res.access_token, res.shops || []);
+              cleanupInviteStorage();
+              if (res.user.role === 'SUPER_ADMIN') {
+                router.replace('/admin/dashboard');
+              } else if ((res.shops || []).length > 1) {
+                router.replace('/select-shop');
+              } else {
+                router.replace('/operator/dashboard');
+              }
+              return;
+            }
+          } catch (e: any) {
+            console.error('[callback] accept invite failed:', e.message);
+            // Non bloccare: procedi con i dati originali
+          }
+          // Fallback: usa dati originali dal callback
+          setAuth(parsedUser, String(token), parsedShops);
+          cleanupInviteStorage();
+          if (parsedUser.role === 'SUPER_ADMIN') {
+            router.replace('/admin/dashboard');
+          } else if (parsedShops.length > 1) {
+            router.replace('/select-shop');
+          } else {
+            router.replace('/operator/dashboard');
+          }
+        })();
+        return;
+      }
+
+      // Flusso normale senza invite
       setAuth(parsedUser, String(token), parsedShops);
       if (parsedUser.role === 'SUPER_ADMIN') {
         router.replace('/admin/dashboard');
@@ -69,4 +113,11 @@ export default function AuthCallback() {
       </div>
     </div>
   );
+}
+
+function cleanupInviteStorage() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('pendingInviteToken');
+  localStorage.removeItem('pendingInviteTimestamp');
+  sessionStorage.removeItem('pendingInviteToken');
 }

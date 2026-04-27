@@ -13,7 +13,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
-    // ← VALIDAZIONE: il token deve contenere l'ID utente
     if (!payload.sub) {
       throw new UnauthorizedException('Token non contiene ID utente');
     }
@@ -24,6 +23,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: payload.email,
       tenantId: payload.tenantId,
       role: payload.role,
+      isSuperAdmin: payload.isSuperAdmin === true,      // FIX: allineato al payload
+      isImpersonated: payload.isImpersonated === true,  // FIX: allineato al payload
     };
   }
 }

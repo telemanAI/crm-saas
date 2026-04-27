@@ -12,6 +12,7 @@ import {
   ClipboardText,
   MapPin,
   MagnifyingGlass,
+  Calendar,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { PracticeStepCard, WizardStepNav } from '@/components/practices/PracticeStepCard';
@@ -133,6 +134,9 @@ export default function NewEnergyPractice() {
   const [loading, setLoading] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
 
+  // Toggle LUCE / GAS
+  const [energyType, setEnergyType] = useState<'LUCE' | 'GAS'>('LUCE');
+
   // Ricerca cliente (come rete fissa)
   const [cfSuggestions, setCfSuggestions] = useState<CustomerSuggestion[]>([]);
   const [phoneSuggestions, setPhoneSuggestions] = useState<CustomerSuggestion[]>([]);
@@ -149,27 +153,38 @@ export default function NewEnergyPractice() {
   const [allOffers, setAllOffers] = useState<any[]>([]);
   const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
-
   // Filtro offerte per gestore — match ESATTO sul provider per evitare falsi positivi
   const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
-  const getFilteredOffers = useCallback((provider?: string) => {
+
+  const getFilteredOffers = useCallback((provider?: string, energyTypeFilter?: 'LUCE' | 'GAS') => {
     if (!provider) return offerteList;
     const provUpper = provider.toUpperCase();
 
-    // 1. Offerte dal backend: match ESATTO sul campo provider
-    const backendNames = allOffers
+    // 1. Offerte dal backend: match ESATTO sul campo provider + filtro LUCE/GAS
+    let backendNames = allOffers
       .filter((o: any) => {
         if (typeof o === 'string') return false;
         const prov = (o.provider || '').toUpperCase();
-        return prov === provUpper || prov.replace(/_/g, ' ') === provUpper;
+        const provMatch = prov === provUpper || prov.replace(/_/g, ' ') === provUpper;
+        if (!provMatch) return false;
+        if (energyTypeFilter) {
+          const nameUpper = (o.name || '').toUpperCase();
+          return energyTypeFilter === 'LUCE' ? nameUpper.includes('LUCE') : nameUpper.includes('GAS');
+        }
+        return true;
       })
       .map((o: any) => o.name || '');
 
-    // 2. Offerte hardcoded: match preciso per nome (inizia con PROVIDER + spazio)
-    const hardcodedNames = offerteList
+    // 2. Offerte hardcoded: match preciso per nome (inizia con PROVIDER + spazio) + filtro LUCE/GAS
+    let hardcodedNames = offerteList
       .filter((o: any) => {
         const name = (typeof o === 'string' ? o : o.value || o.label || o || '').toUpperCase();
-        return name.startsWith(provUpper + ' ');
+        const nameMatch = name.startsWith(provUpper + ' ');
+        if (!nameMatch) return false;
+        if (energyTypeFilter) {
+          return energyTypeFilter === 'LUCE' ? name.includes('LUCE') : name.includes('GAS');
+        }
+        return true;
       })
       .map((o: any) => typeof o === 'string' ? o : o.value || o.label || o || '');
 
@@ -183,6 +198,26 @@ export default function NewEnergyPractice() {
 
     return merged;
   }, [allOffers, offerteList]);
+
+  // Provider visibili in base al tipo selezionato (LUCE/GAS)
+  const visibleProviders = useMemo(() => {
+    if (!allOffers.length) return ENERGY_PROVIDER_CARDS;
+    return ENERGY_PROVIDER_CARDS.filter(provider => {
+      const provUpper = provider.key.toUpperCase();
+      return allOffers.some((o: any) => {
+        const provMatch = (o.provider || '').toUpperCase() === provUpper;
+        if (!provMatch) return false;
+        const nameUpper = (o.name || '').toUpperCase();
+        return energyType === 'LUCE' ? nameUpper.includes('LUCE') : nameUpper.includes('GAS');
+      });
+    });
+  }, [allOffers, energyType]);
+
+  // Offerta selezionata (lookup runtime)
+  const selectedOffer = useMemo(() => {
+    if (!data.tipoOfferta || data.tipoOfferta === 'ALTRO') return null;
+    return allOffers.find((o: any) => o.name === data.tipoOfferta) || null;
+  }, [allOffers, data.tipoOfferta]);
 
   // Carica offerte dal backend
   useEffect(() => {
@@ -549,12 +584,47 @@ export default function NewEnergyPractice() {
                 {/* STEP 1: GESTORE + OFFERTA + DATA */}
                 {s.id === 1 && (
                   <div className="space-y-4">
+                    {/* Toggle LUCE / GAS */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-3">
+                        Tipo fornitura <span className="text-rose-400">*</span>
+                      </label>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => {
+                            setEnergyType('LUCE');
+                            patch({ tipoOfferta: undefined, tipoOffertaAltro: undefined });
+                          }}
+                          className={`flex-1 py-2.5 rounded-xl border-2 font-semibold text-sm transition-all ${
+                            energyType === 'LUCE'
+                              ? 'border-amber-500 bg-amber-600/20 text-amber-400 shadow-lg shadow-amber-500/10'
+                              : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          ⚡ LUCE
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEnergyType('GAS');
+                            patch({ tipoOfferta: undefined, tipoOffertaAltro: undefined });
+                          }}
+                          className={`flex-1 py-2.5 rounded-xl border-2 font-semibold text-sm transition-all ${
+                            energyType === 'GAS'
+                              ? 'border-orange-500 bg-orange-600/20 text-orange-400 shadow-lg shadow-orange-500/10'
+                              : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:bg-slate-800'
+                          }`}
+                        >
+                          🔥 GAS
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-3">
                         Seleziona gestore <span className="text-rose-400">*</span>
                       </label>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                        {ENERGY_PROVIDER_CARDS.map((provider) => {
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {visibleProviders.map((provider) => {
                           const isSelected = data.gestoreNuovoContratto === provider.key;
                           return (
                             <motion.button
@@ -591,7 +661,58 @@ export default function NewEnergyPractice() {
 
                     {data.gestoreNuovoContratto && (
                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <SelectWithOther label={`Offerta ${data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto} *`} required value={data.tipoOfferta} otherValue={data.tipoOffertaAltro} onChange={(v) => patch({ tipoOfferta: v })} onOtherChange={(v) => patch({ tipoOffertaAltro: v })} options={getFilteredOffers(data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto)} testId="energy-tipo-offerta" />
+                        <SelectWithOther label={`Offerta ${data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto} *`} required value={data.tipoOfferta} otherValue={data.tipoOffertaAltro} onChange={(v) => patch({ tipoOfferta: v })} onOtherChange={(v) => patch({ tipoOffertaAltro: v })} options={getFilteredOffers(data.gestoreNuovoContratto === 'ALTRO' ? data.gestoreNuovoContrattoAltro : data.gestoreNuovoContratto, energyType)} testId="energy-tipo-offerta" />
+                      </motion.div>
+                    )}
+
+                    {/* Card riepilogo offerta selezionata */}
+                    {data.tipoOfferta && data.tipoOfferta !== 'ALTRO' && selectedOffer && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-amber-900/20 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-6"
+                      >
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                            <CheckCircle className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">{selectedOffer.name}</h3>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              selectedOffer.type === 'business'
+                                ? 'bg-purple-600/20 text-purple-400'
+                                : 'bg-blue-600/20 text-blue-400'
+                            }`}>
+                              {selectedOffer.type === 'business' ? 'Business' : 'Consumer'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Canone / Prezzo Energia</label>
+                            <p className="text-emerald-400 font-bold text-lg">{selectedOffer.canone || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Vincolo</label>
+                            <p className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Scadenza</label>
+                            <p className="text-white font-medium">{selectedOffer.scadenza || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Tipo Offerta</label>
+                            <p className="text-white font-medium text-sm">
+                              {selectedOffer.note?.includes('FISSO') ? 'FISSO' : selectedOffer.note?.includes('VARIABILE') ? 'VARIABILE' : selectedOffer.note?.includes('MISTA') ? 'MISTA' : '-'}
+                            </p>
+                          </div>
+                        </div>
+                        {selectedOffer.note && (
+                          <div className="bg-amber-900/20 border border-amber-600/30 rounded-xl p-3">
+                            <label className="text-xs text-amber-500 block mb-1">Dettagli & Condizioni</label>
+                            <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                          </div>
+                        )}
                       </motion.div>
                     )}
 
@@ -887,11 +1008,35 @@ export default function NewEnergyPractice() {
                           </span>
                         </div>
                         <div className="flex justify-between items-start">
-                          <span className="text-slate-400">Tipo offerta:</span>
+                          <span className="text-slate-400">Offerta:</span>
                           <span className="text-white text-right font-medium max-w-[60%]">
                             {data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta}
                           </span>
                         </div>
+                        {selectedOffer && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Canone:</span>
+                              <span className="text-emerald-400 font-medium">{selectedOffer.canone || '-'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Vincolo:</span>
+                              <span className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</span>
+                            </div>
+                            {selectedOffer.scadenza && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Scadenza:</span>
+                                <span className="text-white">{selectedOffer.scadenza}</span>
+                              </div>
+                            )}
+                            {selectedOffer.note && (
+                              <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
+                                <span className="text-slate-500 text-xs block mb-1">Note:</span>
+                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
                         <div className="flex justify-between">
                           <span className="text-slate-400">Data attivazione:</span>
                           <span className="text-white">{data.dataAttivazione}</span>

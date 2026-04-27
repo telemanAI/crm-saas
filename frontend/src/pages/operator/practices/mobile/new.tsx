@@ -12,6 +12,7 @@ import {
   ClipboardText,
   MapPin,
   MagnifyingGlass,
+  Calendar,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { PracticeStepCard, WizardStepNav } from '@/components/practices/PracticeStepCard';
@@ -159,6 +160,12 @@ export default function NewMobilePractice() {
   const resolvedGestore = data.gestoreNuovaLinea === 'ALTRO' ? data.gestoreNuovaLineaAltro : data.gestoreNuovaLinea;
   const steps = useMemo(() => getSteps(resolvedGestore), [resolvedGestore]);
   const totalSteps = steps.length;
+
+  // Offerta selezionata (lookup runtime)
+  const selectedOffer = useMemo(() => {
+    if (!data.offerName || data.offerName === 'ALTRO') return null;
+    return allOffers.find((o: any) => o.name === data.offerName) || null;
+  }, [allOffers, data.offerName]);
 
   // Sincronizza completedSteps/expandedStep quando cambia la composizione degli step
   useEffect(() => {
@@ -637,6 +644,65 @@ export default function NewMobilePractice() {
                       </motion.div>
                     )}
 
+                    {/* Card riepilogo offerta selezionata */}
+                    {data.offerName && data.offerName !== 'ALTRO' && selectedOffer && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-indigo-900/20 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
+                      >
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                            <CheckCircle className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-white">{selectedOffer.name}</h3>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              selectedOffer.type === 'business'
+                                ? 'bg-purple-600/20 text-purple-400'
+                                : 'bg-blue-600/20 text-blue-400'
+                            }`}>
+                              {selectedOffer.type === 'business' ? 'Business' : 'Consumer'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Canone Mensile</label>
+                            <p className="text-cyan-400 font-bold text-lg">{selectedOffer.canone || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Attivazione</label>
+                            <p className="text-white font-medium">{selectedOffer.attivazione || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Vincolo</label>
+                            <p className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</p>
+                          </div>
+                          <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
+                            <label className="text-xs text-slate-500 block mb-1">Disattivazione</label>
+                            <p className="text-rose-400 font-medium text-sm">{selectedOffer.disattivazione || '-'}</p>
+                          </div>
+                        </div>
+                        {(selectedOffer.note || selectedOffer.scadenza) && (
+                          <div className="space-y-2">
+                            {selectedOffer.scadenza && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-4 h-4 text-slate-400" />
+                                <span className="text-slate-300">Scadenza: <span className="text-amber-400">{selectedOffer.scadenza}</span></span>
+                              </div>
+                            )}
+                            {selectedOffer.note && (
+                              <div className="bg-amber-900/20 border border-amber-600/30 rounded-xl p-3">
+                                <label className="text-xs text-amber-500 block mb-1">Note Importanti</label>
+                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
                     <div>
                       <label className="block text-sm font-medium text-slate-300 mb-2">Data attivazione <span className="text-rose-400">*</span></label>
                       <input type="date" value={parseItalianDate(data.dataAttivazione)} onChange={(e) => patch({ dataAttivazione: formatDateToItalian(e.target.value) })} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200" data-testid="mobile-data-attivazione" />
@@ -939,6 +1005,42 @@ export default function NewMobilePractice() {
                             {data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName}
                           </span>
                         </div>
+                        {selectedOffer && (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Canone:</span>
+                              <span className="text-cyan-400 font-medium">{selectedOffer.canone || '-'}</span>
+                            </div>
+                            {selectedOffer.attivazione && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Attivazione:</span>
+                                <span className="text-white">{selectedOffer.attivazione}</span>
+                              </div>
+                            )}
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Vincolo:</span>
+                              <span className="text-amber-400 font-medium">{selectedOffer.vincolo || '-'}</span>
+                            </div>
+                            {selectedOffer.disattivazione && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Disattivazione:</span>
+                                <span className="text-rose-400">{selectedOffer.disattivazione}</span>
+                              </div>
+                            )}
+                            {selectedOffer.scadenza && (
+                              <div className="flex justify-between">
+                                <span className="text-slate-400">Scadenza:</span>
+                                <span className="text-white">{selectedOffer.scadenza}</span>
+                              </div>
+                            )}
+                            {selectedOffer.note && (
+                              <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 mt-2">
+                                <span className="text-slate-500 text-xs block mb-1">Note:</span>
+                                <p className="text-slate-300 text-sm">{selectedOffer.note}</p>
+                              </div>
+                            )}
+                          </>
+                        )}
                         <div className="flex justify-between">
                           <span className="text-slate-400">Data attivazione:</span>
                           <span className="text-white">{data.dataAttivazione}</span>

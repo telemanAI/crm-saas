@@ -21,6 +21,9 @@ import {
   Lightning,
   ShieldWarning,
   ClipboardText,
+  Storefront,
+  Tag,
+  Receipt,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -46,6 +49,16 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
   useEffect(() => {
     if (isOnPracticesRoute) setPracticesMenuOpen(true);
   }, [isOnPracticesRoute]);
+
+  // Menu collassabile "Vendite" (auto-apre sulle rotte vendite/catalogo)
+  const isOnSalesRoute =
+    router.pathname.startsWith('/operator/products') ||
+    router.pathname.startsWith('/operator/sales');
+  const [salesMenuOpen, setSalesMenuOpen] = useState(isOnSalesRoute);
+
+  useEffect(() => {
+    if (isOnSalesRoute) setSalesMenuOpen(true);
+  }, [isOnSalesRoute]);
 
   const activeMembership = shops.find((s) => s.shopId === activeShopId);
   const effectiveRole = activeMembership?.role || user?.role;
@@ -88,6 +101,22 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
     { href: '/operator/practices', icon: Globe, label: 'Rete fissa' },
     { href: '/operator/practices/mobile', icon: DeviceMobile, label: 'Rete mobile' },
     { href: '/operator/practices/energy', icon: Lightning, label: 'Luce e Gas' },
+  ];
+
+  // ===== Tappa 2: Vendite (Catalogo + Storico) =====
+  const perms = activeMembership?.permissions || ({} as any);
+  const canViewProducts =
+    isSuperAdmin || isFounder || perms.canViewProducts === true;
+  const canSellDevices =
+    isSuperAdmin || isFounder || perms.canSellDevices === true;
+
+  const salesSubmenu = [
+    ...(canViewProducts
+      ? [{ href: '/operator/products', icon: Tag, label: 'Catalogo' }]
+      : []),
+    ...(canSellDevices
+      ? [{ href: '/operator/sales', icon: Receipt, label: 'Storico vendite' }]
+      : []),
   ];
 
   const navItems = [
@@ -255,6 +284,59 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
               </div>
             )}
           </div>
+
+          {/* ===== Tappa 2: Menu collassabile Vendite ===== */}
+          {salesSubmenu.length > 0 && (
+            <div>
+              <button
+                onClick={() => setSalesMenuOpen((v) => !v)}
+                className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  isOnSalesRoute
+                    ? isDark
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                    : isDark
+                    ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+                data-testid="sidebar-sales-toggle"
+              >
+                <span className="flex items-center gap-3">
+                  <Storefront className="w-5 h-5" weight={isOnSalesRoute ? 'fill' : 'regular'} />
+                  Vendite
+                </span>
+                {salesMenuOpen ? <CaretDown className="w-4 h-4" /> : <CaretRight className="w-4 h-4" />}
+              </button>
+
+              {salesMenuOpen && (
+                <div className="mt-1 space-y-1">
+                  {salesSubmenu.map((sub) => {
+                    const Icon = sub.icon;
+                    const active = router.pathname === sub.href || router.pathname.startsWith(sub.href + '/');
+                    return (
+                      <Link
+                        key={sub.href}
+                        href={sub.href}
+                        className={`ml-4 flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
+                          active
+                            ? isDark
+                              ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                              : 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                            : isDark
+                            ? 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
+                            : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                        }`}
+                        data-testid={`sidebar-sales-${sub.label.toLowerCase().replace(/\s/g, '-')}`}
+                      >
+                        <Icon className="w-4 h-4" weight={active ? 'fill' : 'regular'} />
+                        {sub.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {afterPracticesItems.map((item) => {
             const Icon = item.icon;

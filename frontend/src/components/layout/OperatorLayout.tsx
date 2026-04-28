@@ -24,6 +24,7 @@ import {
   Storefront,
   Tag,
   Receipt,
+  Trophy,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
@@ -119,6 +120,10 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
       : []),
   ];
 
+  // ===== Tappa 4: Gare (Competitions) =====
+  const canViewCompetitions =
+    isSuperAdmin || isFounder || perms.canViewCompetitions === true;
+
   const navItems = [
     { href: '/operator/dashboard', icon: ChartLine, label: 'Dashboard' },
     { href: '/operator/customers', icon: Users, label: 'Clienti' },
@@ -126,6 +131,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
   const afterPracticesItems = [
     { href: '/operator/reports', icon: ChartLine, label: 'Report' },
+    ...(canViewCompetitions ? [{ href: '/operator/competitions', icon: Trophy, label: 'Gare' }] : []),
     ...(canManageTeam ? [{ href: '/operator/team', icon: UsersThree, label: 'Team' }] : []),
     { href: '/operator/imports', icon: UploadSimple, label: 'Import' },
     { href: '/operator/exports', icon: DownloadSimple, label: 'Export' },

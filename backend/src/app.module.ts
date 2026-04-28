@@ -39,6 +39,8 @@ import { CashRegister } from './modules/cash/entities/cash-register.entity';
 import { CashTransaction } from './modules/cash/entities/cash-transaction.entity';
 import { InventoryItem } from './modules/inventory/entities/inventory-item.entity';
 import { InventoryMovement } from './modules/inventory/entities/inventory-movement.entity';
+import { ProductGroup } from './modules/inventory/entities/product-group.entity';
+import { ProductCustomField } from './modules/inventory/entities/product-custom-field.entity';
 import { SalesPractice } from './modules/sales/entities/sales-practice.entity';
 import { Offer } from './modules/offers/entities/offer.entity';
 import { Company } from './modules/companies/entities/company.entity';
@@ -69,6 +71,8 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
         CashTransaction,
         InventoryItem,
         InventoryMovement,
+        ProductGroup,
+        ProductCustomField,
         SalesPractice,
         Offer,
         ImportJob,

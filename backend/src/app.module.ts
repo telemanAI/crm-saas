@@ -11,6 +11,12 @@ import { CustomFieldsModule } from './modules/custom-fields/custom-fields.module
 import { AuditModule } from './modules/audit/audit.module';
 import { CashModule } from './modules/cash/cash.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { CompetitionsModule } from './modules/competitions/competitions.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { Competition } from './modules/competitions/entities/competition.entity';
+import { CompetitionTarget } from './modules/competitions/entities/competition-target.entity';
+import { CompetitionPrize } from './modules/competitions/entities/competition-prize.entity';
+import { CompetitionEntry } from './modules/competitions/entities/competition-entry.entity';
 import { SalesModule } from './modules/sales/sales.module';
 import { StatsModule } from './modules/stats/stats.module';
 import { OffersModule } from './modules/offers/offers.module';
@@ -73,6 +79,10 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
         InventoryMovement,
         ProductGroup,
         ProductCustomField,
+        Competition,
+        CompetitionTarget,
+        CompetitionPrize,
+        CompetitionEntry,
         SalesPractice,
         Offer,
         ImportJob,
@@ -104,6 +114,8 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
     CashModule,
     ReportsModule,
     InventoryModule,
+    CompetitionsModule,
+    ScheduleModule.forRoot(),
     SalesModule,
     StatsModule,
     OffersModule,

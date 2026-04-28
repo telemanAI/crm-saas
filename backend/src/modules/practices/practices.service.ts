@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice, PracticeCategory } from './entities/practice.entity';
@@ -7,6 +7,7 @@ import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { PracticeResponseDto } from './dto/practice-response.dto';
 import { CustomersService } from '../customers/customers.service';
+import { CompetitionEntriesService } from '../competitions/services/competition-entries.service';
 
 @Injectable()
 export class PracticesService {
@@ -16,6 +17,8 @@ export class PracticesService {
     @InjectRepository(User)
     private userRepo: Repository<User>,
     private customersService: CustomersService,
+    @Inject(forwardRef(() => CompetitionEntriesService))
+    private competitionEntries: CompetitionEntriesService,
   ) {}
 
   private calculateStatoGlobale(
@@ -235,6 +238,9 @@ export class PracticesService {
     }
 
     await this.practiceRepo.save(practice);
+    // ===== Hook gare: sync entries ad ogni step per gestire cambi soldBy/offer =====
+    // (idempotente: niente entries se status non è completed/in_progress)
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
     const updated = await this.findById(tenantId, practiceId);
     return new PracticeResponseDto(updated);
   }
@@ -608,11 +614,15 @@ export class PracticesService {
     practice.operationalStatus = status;
     if (status === 'ACTIVATED' || status === 'REJECTED') practice.status = 'completed';
     await this.practiceRepo.save(practice);
+    // ===== Hook gare: sync entries dopo cambio stato operativo =====
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
     return new PracticeResponseDto(practice);
   }
 
   async delete(tenantId: string, practiceId: string): Promise<void> {
     const practice = await this.findById(tenantId, practiceId);
+    // ===== Hook gare: rimuovi entries prima della cancellazione =====
+    await this.competitionEntries.removeForPractice(practiceId).catch(() => {});
     await this.practiceRepo.remove(practice);
   }
 
@@ -649,6 +659,8 @@ export class PracticesService {
       practice.completedSteps = [...practice.completedSteps, maxStep];
     }
     await this.practiceRepo.save(practice);
+    // ===== Hook gare: sync entries dopo force-complete =====
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
     return new PracticeResponseDto(await this.findById(tenantId, practiceId));
   }
 }

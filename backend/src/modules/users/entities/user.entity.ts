@@ -43,6 +43,13 @@ export class User {
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant | null;
 
+  // ===== NUOVO: ultimo shop attivo (persistenza tra sessioni) =====
+  // Memorizza l'ultimo shop che l'utente ha selezionato nello switcher.
+  // Al login viene riusato come default (se la membership è ancora attiva),
+  // altrimenti si fallisce indietro a tenantId / primo shop disponibile.
+  @Column({ type: 'uuid', name: 'last_active_shop_id', nullable: true })
+  lastActiveShopId: string | null;
+
   // Stato utente
   @Column({ name: 'is_active', default: true })
   isActive: boolean;

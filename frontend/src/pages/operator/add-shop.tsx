@@ -42,8 +42,13 @@ export default function AddShopPage() {
     setError('');
     if (!name.trim()) return setError('Inserisci il nome del negozio');
     if (mode === 'same-company' && !selectedCompanyId) return setError('Seleziona una ragione sociale');
-    if (mode === 'new-company' && !legalName.trim() && !vatNumber.trim()) {
-      return setError('Per una nuova ragione sociale servono ragione sociale o P.IVA');
+    if (mode === 'new-company') {
+      // FIX M3: P.IVA obbligatoria per nuova ragione sociale
+      if (!legalName.trim()) return setError('Inserisci la ragione sociale');
+      if (!vatNumber.trim()) return setError('Inserisci la Partita IVA (obbligatoria per identificare univocamente la ragione sociale)');
+      if (!/^\d{11}$/.test(vatNumber.trim())) {
+        return setError('Partita IVA non valida: deve essere composta da 11 cifre numeriche');
+      }
     }
     setLoading(true);
     try {
@@ -197,24 +202,27 @@ export default function AddShopPage() {
             {mode === 'new-company' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">Ragione sociale</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">Ragione sociale *</label>
                   <input
                     data-testid="legal-name-input"
                     type="text"
                     value={legalName}
                     onChange={(e) => setLegalName(e.target.value)}
                     placeholder="Es. Rossi SRL"
+                    required
                     className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500/50"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">P.IVA</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">P.IVA *</label>
                   <input
                     data-testid="vat-input"
                     type="text"
                     value={vatNumber}
                     onChange={(e) => setVatNumber(e.target.value)}
-                    placeholder="Obbligatoria se omonima"
+                    placeholder="11 cifre — obbligatoria"
+                    maxLength={11}
+                    required
                     className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-500 text-sm focus:outline-none focus:border-indigo-500/50"
                   />
                 </div>

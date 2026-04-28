@@ -2,12 +2,16 @@
 /**
  * Company = Ragione Sociale (azienda legale).
  * Una Company può avere N Shop (negozi fisici/virtuali).
- * Identificata univocamente dalla combinazione legalName + vatNumber.
+ * Identificata univocamente dalla P.IVA (obbligatoria).
+ *
+ * NB: dalla Tappa 0 la P.IVA è OBBLIGATORIA e UNIQUE (vedi resolveOrCreateForNewShop).
+ * Il vecchio unique composito (legalName, vatNumber) era buggato perché in PostgreSQL
+ * NULL ≠ NULL e quindi due company con vatNumber=NULL non venivano viste come duplicate.
  */
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
 
 @Entity('companies')
-@Index(['legalName', 'vatNumber'], { unique: true })
+@Index(['vatNumber'], { unique: true, where: '"vat_number" IS NOT NULL' })
 export class Company {
   @PrimaryGeneratedColumn('uuid')
   id: string;

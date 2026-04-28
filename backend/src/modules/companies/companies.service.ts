@@ -27,63 +27,37 @@ export class CompaniesService {
     const legalName = (params.legalName || '').trim();
     const vat = (params.vatNumber || '').trim() || null;
 
-    if (!legalName && !vat) {
-      throw new BadRequestException('Inserisci ragione sociale o P.IVA');
+    // FIX M3: P.IVA obbligatoria per evitare ragioni sociali "gemelle" silenti
+    // (es. due "Mario Rossi" senza P.IVA che creano company duplicate
+    // perché PostgreSQL considera NULL ≠ NULL nell'unique index).
+    if (!legalName) {
+      throw new BadRequestException('Ragione sociale obbligatoria');
     }
-
-    // Se legalName assente ma vat presente: cerca per P.IVA
-    if (!legalName && vat) {
-      const existing = await this.repo.findOne({ where: { vatNumber: vat } });
-      if (existing) {
-        if (existing.ownerId !== params.currentUserId) {
-          throw new ForbiddenException('Esiste già una Company con questa P.IVA — chiedi al proprietario di invitarti');
-        }
-        return existing;
-      }
-      return this.repo.save(
-        this.repo.create({
-          legalName: `Company ${vat}`,
-          vatNumber: vat,
-          ownerId: params.currentUserId,
-          isActive: true,
-        }),
-      );
-    }
-
-    // legalName presente
-    const sameName = await this.repo.find({ where: { legalName } });
-    if (sameName.length === 0) {
-      // mai vista → se ne crea una nuova (vat opzionale)
-      return this.repo.save(
-        this.repo.create({
-          legalName,
-          vatNumber: vat,
-          ownerId: params.currentUserId,
-          isActive: true,
-        }),
-      );
-    }
-
-    // esiste almeno una Company con questo legalName
-    const ownedByCurrent = sameName.find(c => c.ownerId === params.currentUserId);
-    if (ownedByCurrent) {
-      // L'utente è già founder di questa ragione sociale → riusa
-      return ownedByCurrent;
-    }
-
-    // Ragione sociale esistente ma di altro proprietario → serve P.IVA per distinguere
     if (!vat) {
       throw new BadRequestException(
-        'Esiste già una ragione sociale con questo nome. Inserisci la P.IVA per distinguere le aziende.',
+        'Partita IVA obbligatoria. Necessaria per identificare univocamente la ragione sociale ed evitare duplicati.',
       );
     }
-    const sameVat = sameName.find(c => c.vatNumber === vat);
-    if (sameVat) {
-      throw new ForbiddenException(
-        'Questa Company (stessa ragione sociale + P.IVA) appartiene già ad un altro proprietario. Chiedigli di invitarti come operatore.',
+    // Validazione formato P.IVA italiana (11 cifre numeriche)
+    if (!/^\d{11}$/.test(vat)) {
+      throw new BadRequestException(
+        'Partita IVA non valida: deve essere composta da 11 cifre numeriche.',
       );
     }
-    // legalName coincide ma P.IVA diversa → aziende diverse, ok creare
+
+    // 1) Cerca prima per P.IVA: se esiste, è la fonte di verità
+    const byVat = await this.repo.findOne({ where: { vatNumber: vat } });
+    if (byVat) {
+      if (byVat.ownerId !== params.currentUserId) {
+        throw new ForbiddenException(
+          'Esiste già una Company con questa P.IVA — chiedi al proprietario di invitarti come operatore.',
+        );
+      }
+      // Se l'utente è già owner ma con legalName diverso, riusiamo la company esistente.
+      return byVat;
+    }
+
+    // 2) Nessuna company con questa P.IVA: ne creiamo una nuova.
     return this.repo.save(
       this.repo.create({
         legalName,

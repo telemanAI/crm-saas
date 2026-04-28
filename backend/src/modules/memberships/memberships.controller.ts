@@ -22,9 +22,10 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}
 
-  /** Elenco membri dello shop attivo (richiede ADMIN/FOUNDER). */
+  /** Elenco membri dello shop attivo (richiede canManageTeam). */
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission('canManageTeam')
   async list(@Req() req: any) {
     const shopId = req.user.tenantId;
     if (!shopId) throw new BadRequestException('Nessuno shop attivo');
@@ -52,7 +53,8 @@ export class MembershipsController {
     @Param('userId') userId: string,
     @Body() permissions: MembershipPermissions,
   ) {
-    return this.membershipsService.updatePermissions(userId, req.user.tenantId, permissions);
+    // FIX BUG: la signature del service è (shopId, userId, permissions)
+    return this.membershipsService.updatePermissions(req.user.tenantId, userId, permissions);
   }
 
   @Patch(':userId/role')
@@ -63,7 +65,8 @@ export class MembershipsController {
     @Param('userId') userId: string,
     @Body() body: { role: MembershipRole },
   ) {
-    return this.membershipsService.updateRole(userId, req.user.tenantId, body.role);
+    // FIX BUG: la signature del service è (shopId, userId, role)
+    return this.membershipsService.updateRole(req.user.tenantId, userId, body.role);
   }
 
   @Delete(':userId')
@@ -75,9 +78,10 @@ export class MembershipsController {
     @Param('userId') userId: string,
     @Body() body: { endOfRelationshipNote?: string },
   ) {
+    // FIX BUG: la signature del service è (shopId, userId, note)
     const m = await this.membershipsService.revokeAccess(
-      userId,
       req.user.tenantId,
+      userId,
       body?.endOfRelationshipNote,
     );
     return { message: 'Accesso revocato', membership: m };
@@ -85,6 +89,7 @@ export class MembershipsController {
 
   @Get('history/:userId')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission('canManageTeam')
   async history(@Req() req: any, @Param('userId') userId: string) {
     return this.membershipsService.getHistoryInShop(userId, req.user.tenantId);
   }

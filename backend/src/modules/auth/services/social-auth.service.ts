@@ -205,6 +205,12 @@ export class SocialAuthService {
     const user = await this.userRepo.findOne({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
 
+    // FIX M1: persiste l'ultimo shop attivo per la prossima sessione
+    if (user.lastActiveShopId !== shopId) {
+      user.lastActiveShopId = shopId;
+      await this.userRepo.save(user);
+    }
+
     const token = this.signToken({
       sub: user.id,
       email: user.email,

@@ -375,8 +375,17 @@ export class AuthService {
       );
     }
 
-    const activeShopId = shops[0]?.shopId || user.tenantId || null;
-    const activeRole = shops[0]?.role || user.role;
+    // FIX M1: preserva l'ultimo shop attivo (lastActiveShopId) tra le sessioni.
+    // Se l'utente aveva selezionato manualmente uno shop diverso dal primo,
+    // al re-login deve tornare a quello (se la membership è ancora attiva).
+    const preferredShopId = user.lastActiveShopId;
+    const preferredShop = preferredShopId
+      ? shops.find((s) => s.shopId === preferredShopId)
+      : null;
+
+    const activeShop = preferredShop || shops[0];
+    const activeShopId = activeShop?.shopId || user.tenantId || null;
+    const activeRole = activeShop?.role || user.role;
     const token = this.jwtService.sign({
       email: user.email,
       sub: user.id,
@@ -513,19 +522,21 @@ export class AuthService {
       role: 'FOUNDER',
     });
 
-    // FIX: allinea il legacy tenantId al nuovo shop così il re-login è coerente
+    // FIX M2: NON cambiare user.tenantId quando si aggiunge un nuovo shop.
+    // Prima il founder veniva "spostato" sull'ultimo shop creato, perdendo
+    // il negozio attivo precedente. Ora resta dove era: il founder potrà
+    // switchare manualmente al nuovo shop con lo ShopSwitcher se vuole.
     const user = await this.userRepo.findOne({ where: { id: params.userId } });
-    if (user) {
-      user.tenantId = shop.id;
-      await this.userRepo.save(user);
-    }
+    // (intentionally non modifichiamo user.tenantId)
 
     const shopsData = await this.membershipsService.findActiveShopsForUser(params.userId);
+    // Il token rilasciato resta ancorato allo shop ATTIVO corrente, non al nuovo.
+    const currentActiveShopId = user?.tenantId || shop.id;
     const access_token = this.jwtService.sign({
       sub: params.userId,
       email: user?.email,
       role: 'FOUNDER',
-      tenantId: shop.id,
+      tenantId: currentActiveShopId,
     });
 
     return {

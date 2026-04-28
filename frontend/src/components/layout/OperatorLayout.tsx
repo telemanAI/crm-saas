@@ -49,10 +49,16 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
   const activeMembership = shops.find((s) => s.shopId === activeShopId);
   const effectiveRole = activeMembership?.role || user?.role;
-  const canManageTeam =
-    effectiveRole === 'FOUNDER' || effectiveRole === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  // FIX P1: canManageTeam ora deriva dai PERMESSI granulari della membership,
+  // non hard-coded sul ruolo. Così un FOUNDER può togliere "gestione team" a
+  // un singolo ADMIN se vuole (es. nuovo ADMIN ancora in prova).
+  // SUPER_ADMIN e FOUNDER hanno sempre bypass.
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isFounder = effectiveRole === 'FOUNDER';
+  const canManageTeam =
+    isSuperAdmin ||
+    isFounder ||
+    activeMembership?.permissions?.canManageTeam === true;
 
   useEffect(() => {
     const loadConfig = async () => {

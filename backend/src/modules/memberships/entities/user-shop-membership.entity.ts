@@ -6,6 +6,7 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 export type MembershipRole = 'FOUNDER' | 'ADMIN' | 'OPERATOR';
 
 export interface MembershipPermissions {
+  // ===== Clienti & Pratiche =====
   canViewAllCustomers?: boolean;
   canViewReports?: boolean;
   canCreatePractices?: boolean;
@@ -17,10 +18,25 @@ export interface MembershipPermissions {
   canImportData?: boolean;
   canManageCashRegister?: boolean;
   canChangeUserRoles?: boolean;
+
+  // ===== Team (NUOVO — fix anomalia P1) =====
+  canManageTeam?: boolean;
+
+  // ===== Vendite & Gare (NUOVO — preparazione tappe successive) =====
+  canViewCompetitions?: boolean;
+  canManageCompetitions?: boolean;
+  canViewProducts?: boolean;
+  canManageProducts?: boolean;
+  canSellDevices?: boolean;
+  canViewAllDeviceSales?: boolean;
 }
 
 /**
  * Default permissions in base al ruolo.
+ *
+ * NB: ADMIN e FOUNDER hanno DEFAULT_PERMISSIONS identici per design:
+ * l'ADMIN gestisce il negozio e poi sarà il FOUNDER a limitare i permessi
+ * granulari di un singolo ADMIN se necessario.
  */
 export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> = {
   FOUNDER: {
@@ -35,6 +51,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canImportData: true,
     canManageCashRegister: true,
     canChangeUserRoles: true,
+    canManageTeam: true,
+    canViewCompetitions: true,
+    canManageCompetitions: true,
+    canViewProducts: true,
+    canManageProducts: true,
+    canSellDevices: true,
+    canViewAllDeviceSales: true,
   },
   ADMIN: {
     canViewAllCustomers: true,
@@ -48,6 +71,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canImportData: true,
     canManageCashRegister: true,
     canChangeUserRoles: true,
+    canManageTeam: true,
+    canViewCompetitions: true,
+    canManageCompetitions: true,
+    canViewProducts: true,
+    canManageProducts: true,
+    canSellDevices: true,
+    canViewAllDeviceSales: true,
   },
   OPERATOR: {
     canViewAllCustomers: true,
@@ -61,6 +91,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canImportData: false,
     canManageCashRegister: true,
     canChangeUserRoles: false,
+    canManageTeam: false,
+    canViewCompetitions: true,
+    canManageCompetitions: false,
+    canViewProducts: true,
+    canManageProducts: false,
+    canSellDevices: true,
+    canViewAllDeviceSales: true,
   },
 };
 

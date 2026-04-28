@@ -93,6 +93,25 @@ export class MembershipsService {
     if (membership.role === 'ADMIN' && this.hasEmptyPermissions(membership)) {
       membership.permissions = { ...DEFAULT_PERMISSIONS.ADMIN };
       await this.repo.save(membership);
+    } else {
+      // Self-healing soft per OPERATOR/ADMIN:
+      // Se nel codebase sono stati aggiunti nuovi permessi (es. canManageTeam,
+      // canViewCompetitions, canSellDevices, ...) che NON esistono nel record DB,
+      // aggiungili con il valore di default per quel ruolo.
+      // I permessi già personalizzati dal founder NON vengono toccati.
+      const defaults = DEFAULT_PERMISSIONS[membership.role];
+      const current = (membership.permissions || {}) as MembershipPermissions;
+      const missingKeys = Object.keys(defaults).filter(
+        (k) => !(k in current),
+      );
+      if (missingKeys.length > 0) {
+        const merged = { ...current };
+        for (const k of missingKeys) {
+          (merged as any)[k] = (defaults as any)[k];
+        }
+        membership.permissions = merged;
+        await this.repo.save(membership);
+      }
     }
     return membership;
   }
@@ -130,6 +149,19 @@ export class MembershipsService {
       } else if (m.role === 'ADMIN' && this.hasEmptyPermissions(m)) {
         m.permissions = { ...DEFAULT_PERMISSIONS.ADMIN };
         await this.repo.save(m);
+      } else {
+        // Self-healing soft: aggiungi permessi nuovi mancanti senza sovrascrivere
+        const defaults = DEFAULT_PERMISSIONS[m.role];
+        const current = (m.permissions || {}) as MembershipPermissions;
+        const missingKeys = Object.keys(defaults).filter((k) => !(k in current));
+        if (missingKeys.length > 0) {
+          const merged = { ...current };
+          for (const k of missingKeys) {
+            (merged as any)[k] = (defaults as any)[k];
+          }
+          m.permissions = merged;
+          await this.repo.save(m);
+        }
       }
     }
 

@@ -91,7 +91,11 @@ export default function Register() {
     if (form.password.length < 6) return setError('Password: minimo 6 caratteri');
     if (form.password !== form.confirmPassword) return setError('Le password non coincidono');
     if (!form.shopName) return setError('Inserisci il nome del negozio');
-    if (!form.legalName && !form.vatNumber) return setError('Inserisci ragione sociale o P.IVA');
+    if (!form.legalName.trim()) return setError('Inserisci la ragione sociale');
+    if (!form.vatNumber.trim()) return setError('Inserisci la Partita IVA (obbligatoria)');
+    if (!/^\d{11}$/.test(form.vatNumber.trim())) {
+      return setError('Partita IVA non valida: deve essere composta da 11 cifre numeriche');
+    }
     setLoading(true);
     try {
       const res: any = await authApi.registerShopOwner({
@@ -194,8 +198,8 @@ export default function Register() {
                 </div>
                 <Field icon={<Envelope className="w-4 h-4" />} type="email" placeholder="Email" value={form.email} onChange={(v) => set('email', v)} required testid="owner-email" />
                 <Field icon={<Storefront className="w-4 h-4" />} placeholder="Nome del negozio (es. Teleman Milano Centro)" value={form.shopName} onChange={(v) => set('shopName', v)} required testid="owner-shopname" />
-                <Field icon={<Buildings className="w-4 h-4" />} placeholder="Ragione sociale (es. Rossi SRL)" value={form.legalName} onChange={(v) => set('legalName', v)} testid="owner-legalname" />
-                <Field icon={<Buildings className="w-4 h-4" />} placeholder="P.IVA (obbligatoria se ragione sociale omonima esiste)" value={form.vatNumber} onChange={(v) => set('vatNumber', v)} testid="owner-vat" />
+                <Field icon={<Buildings className="w-4 h-4" />} placeholder="Ragione sociale (es. Rossi SRL) *" value={form.legalName} onChange={(v) => set('legalName', v)} required testid="owner-legalname" />
+                <Field icon={<Buildings className="w-4 h-4" />} placeholder="P.IVA (11 cifre, obbligatoria) *" value={form.vatNumber} onChange={(v) => set('vatNumber', v)} required testid="owner-vat" />
                 <Field icon={<Lock className="w-4 h-4" />} type={showPwd ? 'text' : 'password'} placeholder="Password (min 6)" value={form.password} onChange={(v) => set('password', v)} required testid="owner-password"
                   trailing={<button type="button" onClick={() => setShowPwd(!showPwd)} className="text-slate-500 hover:text-slate-300">{showPwd ? <EyeSlash className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>}
                 />

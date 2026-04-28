@@ -3,7 +3,33 @@ import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
 import Link from 'next/link';
-import { ArrowLeft, Globe, DeviceMobile, Lightning, ArrowsVertical } from 'phosphor-react';
+import {
+  ArrowLeft,
+  Globe,
+  DeviceMobile,
+  Lightning,
+  DotsSixVertical,
+  CaretDown,
+  CaretRight,
+} from 'phosphor-react';
+
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  arrayMove,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type OfferCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
 
@@ -48,6 +74,223 @@ const META_BY_CATEGORY: Record<
   },
 };
 
+// Map colori statici (Tailwind JIT non supporta template literal dinamici)
+const ACCENT_CLASSES: Record<
+  string,
+  { border: string; bg: string; bgHover: string; text: string }
+> = {
+  amber: {
+    border: 'border-amber-500/20',
+    bg: 'bg-amber-500/10',
+    bgHover: 'hover:bg-amber-500/15',
+    text: 'text-amber-200',
+  },
+  indigo: {
+    border: 'border-indigo-500/20',
+    bg: 'bg-indigo-500/10',
+    bgHover: 'hover:bg-indigo-500/15',
+    text: 'text-indigo-200',
+  },
+  orange: {
+    border: 'border-orange-500/20',
+    bg: 'bg-orange-500/10',
+    bgHover: 'hover:bg-orange-500/15',
+    text: 'text-orange-200',
+  },
+};
+
+// ---------- Sortable single row ----------
+function SortableOfferRow({
+  offer,
+  onEdit,
+  onDelete,
+  onToggle,
+}: {
+  offer: Offer;
+  onEdit: (o: Offer) => void;
+  onDelete: (id: string, name: string) => void;
+  onToggle: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: offer.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : 'auto',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-testid={`offer-row-${offer.id}`}
+      className={`grid grid-cols-[auto_1fr_auto] md:grid-cols-[auto_2fr_1fr_1fr_auto_auto] gap-2 md:gap-4 items-center bg-gray-900 hover:bg-gray-800/80 border border-gray-700 rounded-lg px-3 py-2.5 transition ${
+        isDragging ? 'ring-2 ring-indigo-500 shadow-xl' : ''
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing text-gray-500 hover:text-indigo-400 p-1 touch-none"
+        aria-label="Trascina per riordinare"
+        data-testid={`offer-drag-handle-${offer.id}`}
+      >
+        <DotsSixVertical className="w-5 h-5" weight="bold" />
+      </button>
+
+      <div className="min-w-0">
+        <div className="font-medium text-white truncate">{offer.name}</div>
+        <div className="text-xs text-gray-400 uppercase mt-0.5 md:hidden">
+          {offer.type} · {offer.canone}
+        </div>
+      </div>
+
+      <div className="hidden md:block text-sm text-gray-200 font-semibold">
+        {offer.canone}
+      </div>
+      <div className="hidden md:block text-xs text-gray-400 uppercase">
+        {offer.type}
+      </div>
+
+      <button
+        onClick={() => onToggle(offer.id)}
+        className={`text-xs font-bold px-2 py-1 rounded whitespace-nowrap ${
+          offer.is_active
+            ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+            : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+        }`}
+        data-testid={`offer-toggle-${offer.id}`}
+      >
+        {offer.is_active ? 'Attiva' : 'Off'}
+      </button>
+
+      <div className="flex gap-2 text-sm whitespace-nowrap col-span-3 md:col-span-1 justify-end md:justify-start">
+        <button
+          onClick={() => onEdit(offer)}
+          className="text-indigo-400 hover:text-indigo-300"
+          data-testid={`offer-edit-${offer.id}`}
+        >
+          Modifica
+        </button>
+        <button
+          onClick={() => onDelete(offer.id, offer.name)}
+          className="text-rose-400 hover:text-rose-300"
+          data-testid={`offer-delete-${offer.id}`}
+        >
+          Elimina
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Provider Card (sortable group) ----------
+function ProviderCard({
+  provider,
+  offers,
+  onReorder,
+  onEdit,
+  onDelete,
+  onToggle,
+  accent,
+}: {
+  provider: string;
+  offers: Offer[];
+  onReorder: (provider: string, newOrder: Offer[]) => void;
+  onEdit: (o: Offer) => void;
+  onDelete: (id: string, name: string) => void;
+  onToggle: (id: string) => void;
+  accent: string;
+}) {
+  const [open, setOpen] = useState(true);
+  const colors = ACCENT_CLASSES[accent] || ACCENT_CLASSES.indigo;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = offers.findIndex((o) => o.id === active.id);
+    const newIndex = offers.findIndex((o) => o.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newOrder = arrayMove(offers, oldIndex, newIndex);
+    onReorder(provider, newOrder);
+  };
+
+  return (
+    <div
+      className={`rounded-xl border ${colors.border} bg-gray-800/40 overflow-hidden`}
+      data-testid={`provider-card-${provider}`}
+    >
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full flex items-center justify-between gap-3 px-4 py-3 ${colors.bg} ${colors.bgHover} transition`}
+        data-testid={`provider-toggle-${provider}`}
+      >
+        <div className="flex items-center gap-2">
+          {open ? (
+            <CaretDown className={`w-4 h-4 ${colors.text}`} weight="bold" />
+          ) : (
+            <CaretRight className={`w-4 h-4 ${colors.text}`} weight="bold" />
+          )}
+          <span className={`font-bold ${colors.text} tracking-wide`}>
+            {provider}
+          </span>
+          <span className="text-xs text-gray-400 bg-gray-900/60 rounded-full px-2 py-0.5">
+            {offers.length}
+          </span>
+        </div>
+        <span className="text-xs text-gray-500 hidden sm:inline">
+          trascina le offerte per riordinarle
+        </span>
+      </button>
+
+      {open && (
+        <div className="p-3 space-y-2">
+          {offers.length === 0 ? (
+            <div className="text-gray-500 text-sm text-center py-4">
+              Nessuna offerta
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={offers.map((o) => o.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {offers.map((offer) => (
+                  <SortableOfferRow
+                    key={offer.id}
+                    offer={offer}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onToggle={onToggle}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Main page ----------
 export default function OffersManagementPage() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
@@ -68,8 +311,7 @@ export default function OffersManagementPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [filterProvider, setFilterProvider] = useState<string>('');
   const [detailsJson, setDetailsJson] = useState<string>('');
-  const [sortOrders, setSortOrders] = useState<Record<string, number>>({});
-  const [savingOrder, setSavingOrder] = useState(false);
+  const [savingOrderFor, setSavingOrderFor] = useState<string | null>(null);
 
   const emptyOffer: Offer = {
     id: '',
@@ -103,43 +345,84 @@ export default function OffersManagementPage() {
     setLoading(true);
     try {
       const res = await api.get(`/admin/offers?category=${category}`);
-      const data = res.data as Offer[];
-      // Inizializza sortOrders con i valori attuali
-      const initialSort: Record<string, number> = {};
-      data.forEach((o) => (initialSort[o.id] = o.sort_order));
-      setSortOrders(initialSort);
-      setOffers(data);
+      setOffers(res.data as Offer[]);
     } catch (error: any) {
       console.error('Errore caricamento offerte:', error);
-      alert('Errore caricamento offerte: ' + (error?.response?.data?.message || error.message));
+      alert(
+        'Errore caricamento offerte: ' +
+          (error?.response?.data?.message || error.message),
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveOrder = async () => {
-    const items = Object.entries(sortOrders).map(([id, sort_order]) => ({
-      id,
-      sort_order: Number(sort_order) || 0,
-    }));
-    if (items.length === 0) return;
-    setSavingOrder(true);
+  // Raggruppa per provider, rispettando l'ordine corrente
+  const groupedOffers = useMemo(() => {
+    const groups: Record<string, Offer[]> = {};
+    const source = filterProvider
+      ? offers.filter((o) => o.provider === filterProvider)
+      : offers;
+    for (const o of source) {
+      if (!groups[o.provider]) groups[o.provider] = [];
+      groups[o.provider].push(o);
+    }
+    for (const p of Object.keys(groups)) {
+      groups[p].sort((a, b) => {
+        if (a.sort_order !== b.sort_order) return a.sort_order - b.sort_order;
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return groups;
+  }, [offers, filterProvider]);
+
+  const providerList = useMemo(
+    () => Object.keys(groupedOffers).sort((a, b) => a.localeCompare(b)),
+    [groupedOffers],
+  );
+
+  const allProviders = useMemo(
+    () => [...new Set(offers.map((o) => o.provider))].sort(),
+    [offers],
+  );
+
+  const handleReorder = async (provider: string, newOrder: Offer[]) => {
+    // 1) update ottimistico locale
+    const updated = [...offers];
+    newOrder.forEach((o, index) => {
+      const idx = updated.findIndex((x) => x.id === o.id);
+      if (idx !== -1) {
+        updated[idx] = { ...updated[idx], sort_order: index };
+      }
+    });
+    setOffers(updated);
+
+    // 2) salvataggio sul backend
+    setSavingOrderFor(provider);
     try {
+      const items = newOrder.map((o, index) => ({
+        id: o.id,
+        sort_order: index,
+      }));
       await api.patch('/admin/offers/reorder', { items });
-      alert('Ordine salvato con successo!');
-      fetchOffers();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Errore salvataggio ordine');
+      alert(
+        'Errore salvataggio ordine: ' +
+          (error?.response?.data?.message || error.message),
+      );
+      // Ricarica per tornare allo stato server
+      fetchOffers();
     } finally {
-      setSavingOrder(false);
+      setSavingOrderFor(null);
     }
   };
 
   const handleSave = async () => {
     if (!editingOffer) return;
     try {
-      const { id, created_at, updated_at, ...rest } = editingOffer as any;
-      let payload = { ...rest, category };
+      const { id, created_at, updated_at, sort_order, ...rest } =
+        editingOffer as any;
+      let payload: any = { ...rest, category };
       if (detailsJson.trim()) {
         try {
           payload.details = JSON.parse(detailsJson);
@@ -151,6 +434,15 @@ export default function OffersManagementPage() {
         payload.details = null;
       }
       if (isCreating) {
+        // per le nuove offerte, metti in coda al suo gruppo
+        const sameProvider = offers.filter(
+          (o) => o.provider === editingOffer.provider,
+        );
+        const nextOrder =
+          sameProvider.length > 0
+            ? Math.max(...sameProvider.map((o) => o.sort_order)) + 1
+            : 0;
+        payload.sort_order = nextOrder;
         await api.post('/admin/offers', payload);
       } else {
         await api.patch(`/admin/offers/${editingOffer.id}`, payload);
@@ -183,11 +475,12 @@ export default function OffersManagementPage() {
     }
   };
 
-  const filteredOffers = filterProvider
-    ? offers.filter((o) => o.provider === filterProvider)
-    : offers;
-
-  if (loading) return <div className="p-4 md:p-8 text-white bg-gray-900 min-h-screen">Caricamento...</div>;
+  if (loading)
+    return (
+      <div className="p-4 md:p-8 text-white bg-gray-900 min-h-screen">
+        Caricamento...
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-8">
@@ -207,15 +500,14 @@ export default function OffersManagementPage() {
             </Link>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleSaveOrder}
-              disabled={savingOrder}
-              className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded text-white font-medium flex items-center gap-2 disabled:opacity-50"
-              data-testid="offer-save-order-btn"
-            >
-              <ArrowsVertical className="w-4 h-4" />
-              {savingOrder ? 'Salvataggio...' : 'Salva ordine'}
-            </button>
+            {savingOrderFor && (
+              <span
+                className="text-xs text-indigo-300 self-center animate-pulse"
+                data-testid="offer-saving-order"
+              >
+                Salvataggio ordine…
+              </span>
+            )}
             <button
               onClick={() => {
                 setEditingOffer({ ...emptyOffer });
@@ -261,11 +553,17 @@ export default function OffersManagementPage() {
             data-testid="offer-filter-provider"
           >
             <option value="">Tutti i provider</option>
-            {[...new Set(offers.map((o) => o.provider))].sort().map((p) => (
-              <option key={p} value={p}>{p}</option>
+            {allProviders.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
             ))}
           </select>
-          <span className="text-gray-300 text-sm">{filteredOffers.length} offerte</span>
+          <span className="text-gray-300 text-sm">{offers.length} offerte totali</span>
+          <span className="text-gray-500 text-xs hidden sm:inline">
+            · Trascina <DotsSixVertical className="w-3 h-3 inline" /> per
+            riordinare all'interno di un provider
+          </span>
         </div>
 
         {editingOffer && (
@@ -281,11 +579,15 @@ export default function OffersManagementPage() {
                   <label className="block text-sm text-gray-300 mb-1">Provider *</label>
                   <select
                     value={editingOffer.provider}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, provider: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, provider: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   >
-                    {[...new Set(offers.map((o) => o.provider))].sort().map((p) => (
-                      <option key={p} value={p}>{p}</option>
+                    {allProviders.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
                     ))}
                     <option value="TIM_FIBRA">TIM_FIBRA</option>
                     <option value="VODAFONE">VODAFONE</option>
@@ -300,7 +602,9 @@ export default function OffersManagementPage() {
                   <label className="block text-sm text-gray-300 mb-1">Tipo *</label>
                   <select
                     value={editingOffer.type}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, type: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, type: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   >
                     <option value="consumer">Consumer</option>
@@ -312,7 +616,9 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.name}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, name: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, name: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder={
                       category === 'MOBILE'
@@ -329,7 +635,9 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.canone}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, canone: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, canone: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder="€27,90"
                   />
@@ -339,7 +647,12 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.attivazione || ''}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, attivazione: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({
+                        ...editingOffer,
+                        attivazione: e.target.value,
+                      })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder="€19,99 (una tantum)"
                   />
@@ -349,7 +662,9 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.vincolo || ''}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, vincolo: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, vincolo: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder="24 mesi"
                   />
@@ -359,7 +674,9 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.scadenza || ''}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, scadenza: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, scadenza: e.target.value })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder="31/12/2025"
                   />
@@ -369,7 +686,12 @@ export default function OffersManagementPage() {
                   <input
                     type="text"
                     value={editingOffer.disattivazione || ''}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, disattivazione: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({
+                        ...editingOffer,
+                        disattivazione: e.target.value,
+                      })
+                    }
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                     placeholder="Dettagli uscita"
                   />
@@ -378,14 +700,21 @@ export default function OffersManagementPage() {
                   <label className="block text-sm text-gray-300 mb-1">Note</label>
                   <textarea
                     value={editingOffer.note || ''}
-                    onChange={(e) => setEditingOffer({ ...editingOffer, note: e.target.value })}
+                    onChange={(e) =>
+                      setEditingOffer({ ...editingOffer, note: e.target.value })
+                    }
                     rows={3}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
                   />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm text-gray-300 mb-1">
-                    Details JSON {category === 'MOBILE' ? '(minutes, sms, gb, has_5g...)' : category === 'ENERGY' ? '(fornitura, f1, pcv, pagamento...)' : ''}
+                    Details JSON{' '}
+                    {category === 'MOBILE'
+                      ? '(minutes, sms, gb, has_5g...)'
+                      : category === 'ENERGY'
+                      ? '(fornitura, f1, pcv, pagamento...)'
+                      : ''}
                   </label>
                   <textarea
                     value={detailsJson}
@@ -393,28 +722,28 @@ export default function OffersManagementPage() {
                     rows={5}
                     className="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-green-400 font-mono text-xs"
                     placeholder={`Esempio ${category}:
-${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has_5g":true}' : category === 'ENERGY' ? '{"fornitura":"LUCE","tipo_offerta":"FISSO","f1":"0,22","pcv":"12"}' : '{}'}`}
+${
+  category === 'MOBILE'
+    ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has_5g":true}'
+    : category === 'ENERGY'
+    ? '{"fornitura":"LUCE","tipo_offerta":"FISSO","f1":"0,22","pcv":"12"}'
+    : '{}'
+}`}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Lascia vuoto per non usare details. Deve essere JSON valido.</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Lascia vuoto per non usare details. Deve essere JSON valido.
+                  </p>
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-300 mb-1">Ordine</label>
-                  <input
-                    type="number"
-                    value={editingOffer.sort_order}
-                    onChange={(e) =>
-                      setEditingOffer({ ...editingOffer, sort_order: parseInt(e.target.value) || 0 })
-                    }
-                    className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                  />
-                </div>
-                <div className="flex items-end">
+                <div className="md:col-span-2 flex items-center">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={editingOffer.is_active}
                       onChange={(e) =>
-                        setEditingOffer({ ...editingOffer, is_active: e.target.checked })
+                        setEditingOffer({
+                          ...editingOffer,
+                          is_active: e.target.checked,
+                        })
                       }
                       className="w-4 h-4"
                     />
@@ -446,79 +775,38 @@ ${category === 'MOBILE' ? '{"minutes":"ILLIMITATE","sms":"200","gb":"150GB","has
           </div>
         )}
 
-        <div className="overflow-x-auto rounded-xl border border-gray-700">
-          <table className="w-full">
-            <thead className="bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Provider</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Nome</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Canone</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Tipo</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Ordine</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-300">Stato</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-300">Azioni</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700 bg-gray-900">
-              {filteredOffers.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    Nessuna offerta {category === 'FIXED_LINE' ? 'rete fissa' : category === 'MOBILE' ? 'mobile' : 'luce/gas'}. Creane una nuova.
-                  </td>
-                </tr>
-              ) : (
-                filteredOffers.map((o) => (
-                  <tr key={o.id} className="hover:bg-gray-800">
-                    <td className="px-4 py-3 text-sm text-gray-200">{o.provider}</td>
-                    <td className="px-4 py-3 text-sm text-gray-200 font-medium">{o.name}</td>
-                    <td className="px-4 py-3 text-sm text-gray-200">{o.canone}</td>
-                    <td className="px-4 py-3 text-sm text-gray-400 uppercase text-xs">{o.type}</td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        value={sortOrders[o.id] ?? o.sort_order}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          setSortOrders((prev) => ({ ...prev, [o.id]: val }));
-                        }}
-                        className="w-20 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm text-center"
-                        data-testid={`offer-sort-${o.id}`}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleToggle(o.id)}
-                        className={`text-xs font-bold px-2 py-1 rounded ${
-                          o.is_active ? 'bg-emerald-500/20 text-emerald-400' : 'bg-gray-700 text-gray-400'
-                        }`}
-                      >
-                        {o.is_active ? 'Attiva' : 'Disattivata'}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm">
-                      <button
-                        onClick={() => {
-                          setEditingOffer(o);
-                          setDetailsJson(o.details ? JSON.stringify(o.details, null, 2) : '');
-                          setIsCreating(false);
-                        }}
-                        className="text-indigo-400 hover:text-indigo-300 mr-3"
-                      >
-                        Modifica
-                      </button>
-                      <button
-                        onClick={() => handleDelete(o.id, o.name)}
-                        className="text-rose-400 hover:text-rose-300"
-                      >
-                        Elimina
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {providerList.length === 0 ? (
+          <div className="px-4 py-12 text-center text-gray-500 border border-dashed border-gray-700 rounded-xl">
+            Nessuna offerta{' '}
+            {category === 'FIXED_LINE'
+              ? 'rete fissa'
+              : category === 'MOBILE'
+              ? 'mobile'
+              : 'luce/gas'}
+            . Creane una nuova.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {providerList.map((provider) => (
+              <ProviderCard
+                key={provider}
+                provider={provider}
+                offers={groupedOffers[provider]}
+                onReorder={handleReorder}
+                onEdit={(o) => {
+                  setEditingOffer(o);
+                  setDetailsJson(
+                    o.details ? JSON.stringify(o.details, null, 2) : '',
+                  );
+                  setIsCreating(false);
+                }}
+                onDelete={handleDelete}
+                onToggle={handleToggle}
+                accent={meta.accent}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,12 +5,9 @@ import { User } from '../../users/entities/user.entity';
 
 export type PracticeType = 'TIM_FIBRA' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN' | 'SKY';
 export type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
-export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED';
-
-// Categoria pratica - distingue rete fissa, mobile e energia (luce/gas).
-// Tutte le pratiche esistenti diventano FIXED_LINE di default.
+export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED' | 'KO_CREDITO' | 'KO_COPERTURA';
+export type SkyTvStatus = 'IN_LAVORAZIONE' | 'IN_VERIFICA_WM' | 'NON_SALITA_ARCADIA' | 'ATTIVO' | 'KO_GENERICO' | 'KO_CREDITO' | 'KO_COPERTURA' | 'KO_RINUNCIA_CLIENTE';
 export type PracticeCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
-
 export type StatoGlobale = 'completo' | 'non_completo' | null;
 
 @Entity('practices')
@@ -28,11 +25,6 @@ export class Practice {
   @JoinColumn({ name: 'tenant_id' })
   tenant: Tenant;
 
-  /**
-   * Categoria pratica. Discriminator per separare i 3 flussi nel frontend
-   * e in lista, pur riusando la stessa tabella (nessuna duplicazione di
-   * customer snapshot, audit, operational status, notes history, ecc).
-   */
   @Column({
     type: 'enum',
     enum: ['FIXED_LINE', 'MOBILE', 'ENERGY'],
@@ -61,19 +53,27 @@ export class Practice {
   @JoinColumn({ name: 'assigned_to' })
   assignedUser: User;
 
-  // Per FIXED_LINE il type è un enum ristretto; per MOBILE e ENERGY teniamo
-  // il campo come stringa libera (il provider viene deciso dal wizard)
-  // ma continuiamo a usare lo stesso campo per compatibilità con le query
-  // esistenti (lista, export, report). Lato DB l'enum resta per backward
-  // compat; validazione runtime deferita a service/DTO.
   @Column({ type: 'varchar', length: 50, nullable: true })
   type: PracticeType | string;
 
   @Column({ type: 'enum', enum: ['draft', 'in_progress', 'completed', 'cancelled'], default: 'draft' })
   status: PracticeStatus;
 
-  @Column({ type: 'enum', enum: ['PENDING', 'IN_PROGRESS', 'ACTIVATED', 'REJECTED'], default: 'PENDING', name: 'operational_status' })
+  @Column({
+    type: 'enum',
+    enum: ['PENDING', 'IN_PROGRESS', 'ACTIVATED', 'REJECTED', 'KO_CREDITO', 'KO_COPERTURA'],
+    default: 'PENDING',
+    name: 'operational_status',
+  })
   operationalStatus: OperationalStatus;
+
+  @Column({
+    name: 'sky_tv_status',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  skyTvStatus: SkyTvStatus | null;
 
   @Column({
     type: 'enum',
@@ -207,7 +207,7 @@ export class Practice {
   };
 
   @Column({ name: 'notes_history', type: 'jsonb', nullable: true })
-  notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string }>;
+  notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string; isKoReason?: boolean }>;
 
   @Column({ name: 'current_step', type: 'int', default: 1 })
   currentStep: number;
@@ -231,14 +231,6 @@ export class Practice {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  /**
-   * Dati specifici per pratiche MOBILE.
-   * Campi principali: tipoLinea (MNP/DOPPIA_MNP/NUOVO_NUMERO),
-   * numeroDaPortare, codiceFiscaleVecchiaLinea, gestoreProvenienza,
-   * noteMnp, ricarica, timUnica, numeroReteFissaTimUnica, ibanCdc,
-   * noteMetodoPagamento, noteGeneriche, accordiCliente.
-   * Struttura aperta per evolvere senza migration pesanti.
-   */
   @Column({ name: 'mobile_data', type: 'jsonb', nullable: true })
   mobileData?: {
     tipoLinea?: 'MNP' | 'DOPPIA_MNP' | 'NUOVO_NUMERO';
@@ -261,12 +253,6 @@ export class Practice {
     offertaAltro?: string;
   };
 
-  /**
-   * Dati specifici per pratiche ENERGY (luce/gas).
-   * Campi principali: tipoAttivazione, numeroContatore (POD/PDR),
-   * potenzaContatore, gestoreProvenienza, gestoreNuovoContratto,
-   * tipoOfferta (VARIABILE/FISSA), ibanCdc, ecc.
-   */
   @Column({ name: 'energy_data', type: 'jsonb', nullable: true })
   energyData?: {
     tipoAttivazione?:
@@ -280,7 +266,7 @@ export class Practice {
       | 'ALTRO';
     tipoAttivazioneAltro?: string;
     codiceFiscaleVecchioContratto?: string;
-    numeroContatore?: string; // POD per LUCE, PDR per GAS
+    numeroContatore?: string;
     potenzaContatore?: '1.5_KW' | '3_KW' | '4.5_KW' | '6_KW' | 'GAS' | 'ALTRO';
     potenzaContatoreAltro?: string;
     gestoreProvenienza?: string;
@@ -289,7 +275,7 @@ export class Practice {
     gestoreNuovoContrattoAltro?: string;
     tipoOfferta?: 'VARIABILE' | 'FISSA' | 'ALTRO';
     tipoOffertaAltro?: string;
-    ibanCdc?: string; // o "BOLLETTINO"
+    ibanCdc?: string;
     noteMetodoPagamento?: string;
     noteGeneriche?: string;
     accordiCliente?: string;

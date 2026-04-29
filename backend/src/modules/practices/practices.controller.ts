@@ -18,6 +18,7 @@ import {
 import { PracticesService } from './practices.service';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
+import { UpdateOperationalStatusDto } from './dto/update-operational-status.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 
@@ -43,9 +44,10 @@ export class PracticesController {
     @Request() req,
     @Query('type') type?: string,
     @Query('status') status?: string,
+    @Query('skyTvStatus') skyTvStatus?: string,
   ) {
     const user = req.user;
-    return this.practicesService.findAll(user.tenantId, { type, status });
+    return this.practicesService.findAll(user.tenantId, { type, status, skyTvStatus });
   }
 
   @Get(':id')
@@ -73,10 +75,17 @@ export class PracticesController {
   async updateOperationalStatus(
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED',
+    @Body() dto: UpdateOperationalStatusDto,
   ) {
     const user = req.user;
-    return this.practicesService.updateOperationalStatus(user.tenantId, id, status);
+    return this.practicesService.updateOperationalStatus(
+      user.tenantId,
+      id,
+      dto.status,
+      dto.koReason,
+      dto.skyTvStatus,
+      user.userId,
+    );
   }
 
   @Patch(':id/convergence')

@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Practice, PracticeCategory } from './entities/practice.entity';
+import { Practice, PracticeCategory, OperationalStatus, SkyTvStatus } from './entities/practice.entity';
 import { User } from '../users/entities/user.entity';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
@@ -30,13 +30,6 @@ export class PracticesService {
     return 'non_completo';
   }
 
-  /**
-   * Creazione pratica. Comportamento differenziato per categoria:
-   *  - FIXED_LINE (default, retrocompat): logica originale invariata
-   *  - MOBILE: salva mobileData come jsonb, non richiede lineData/paymentData
-   *  - ENERGY: salva energyData come jsonb
-   * Condivisi fra tutte le categorie: customerSnapshot, soldBy, enteredBy, note.
-   */
   async create(
     tenantId: string,
     userId: string,
@@ -44,7 +37,6 @@ export class PracticesService {
   ): Promise<PracticeResponseDto> {
     const category: PracticeCategory = dto.category || 'FIXED_LINE';
 
-    // Risoluzione/creazione customer: stesso meccanismo per tutte le categorie
     let customer = null;
     if (dto.customerData?.fiscalCode?.length === 16) {
       customer = await this.customersService.findByFiscalCode(
@@ -107,7 +99,6 @@ export class PracticesService {
       operationalStatus: 'PENDING' as const,
     };
 
-    // Campi per-categoria
     let categorySpecific: Partial<Practice> = {};
     if (category === 'FIXED_LINE') {
       categorySpecific = {
@@ -124,7 +115,6 @@ export class PracticesService {
     } else if (category === 'MOBILE') {
       categorySpecific = {
         mobileData: dto.mobileData || {},
-        // Payment method riutilizzato: IBAN/CDC mobile lo mappiamo su paymentMethod.iban
         paymentMethod: dto.mobileData?.ibanCdc
           ? { iban: dto.mobileData.ibanCdc, postePay: null, bollettino: false }
           : {},
@@ -148,18 +138,20 @@ export class PracticesService {
     return new PracticeResponseDto(full);
   }
 
-  /**
-   * Lista pratiche filtrabile. Aggiunto filtro "category" (nuovo).
-   * Senza filtro ritorna tutte le pratiche (retrocompat).
-   */
   async findAll(
     tenantId: string,
-    filters?: { type?: string; status?: string; category?: PracticeCategory | string },
+    filters?: {
+      type?: string;
+      status?: string;
+      category?: PracticeCategory | string;
+      skyTvStatus?: string;
+    },
   ): Promise<PracticeResponseDto[]> {
     const where: any = { tenantId };
     if (filters?.type) where.type = filters.type;
     if (filters?.status) where.status = filters.status;
     if (filters?.category) where.category = filters.category;
+    if (filters?.skyTvStatus) where.skyTvStatus = filters.skyTvStatus;
 
     const practices = await this.practiceRepo.find({
       where,
@@ -184,13 +176,6 @@ export class PracticesService {
     return new PracticeResponseDto(practice);
   }
 
-  /**
-   * Update step.
-   * - FIXED_LINE: logica originale (mappatura step 1..9) INVARIATA
-   * - MOBILE/ENERGY: strategia GENERICA basata su merge in mobileData/energyData.
-   *   Il frontend invia i campi dello step corrente dentro dto.data e li accumuliamo
-   *   nel jsonb. Questo permette di evolvere i campi senza cambiare il backend.
-   */
   async updateStep(
     tenantId: string,
     userId: string,
@@ -208,7 +193,6 @@ export class PracticesService {
       await this.applyFixedLineStep(practice, dto, userId, tenantId);
     }
 
-    // Completamento esplicito (usato dal wizard submit)
     if (dto.data?.completed === true) {
       practice.status = 'completed';
       practice.operationalStatus = 'IN_PROGRESS';
@@ -238,22 +222,11 @@ export class PracticesService {
     }
 
     await this.practiceRepo.save(practice);
-    // ===== Hook gare: sync entries ad ogni step per gestire cambi soldBy/offer =====
-    // (idempotente: niente entries se status non è completed/in_progress)
     await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
     const updated = await this.findById(tenantId, practiceId);
     return new PracticeResponseDto(updated);
   }
 
-  /**
-   * Logica step per MOBILE (6 step).
-   *  Step 1 → type+offerta
-   *  Step 2 → venditori
-   *  Step 3 → cliente
-   *  Step 4 → numero/MNP (mobileData.*)
-   *  Step 5 → pagamento (mobileData.ibanCdc + noteMetodoPagamento)
-   *  Step 6 → note/TIM Unica/conferma
-   */
   private async applyMobileStep(
     practice: Practice,
     dto: UpdateStepDto,
@@ -267,7 +240,6 @@ export class PracticesService {
       if (d.offerName !== undefined) practice.offerName = d.offerName;
       if (d.offerCanone !== undefined) practice.offerCanone = d.offerCanone;
       if (d.offerType !== undefined) practice.offerType = d.offerType;
-      // "Altro" su offerta → mobileData.offertaAltro (tracciamo anche qui)
       if (d.offertaAltro !== undefined) {
         practice.mobileData = { ...(practice.mobileData || {}), offertaAltro: d.offertaAltro };
       }
@@ -288,8 +260,6 @@ export class PracticesService {
     }
 
     if (dto.stepNumber >= 4 && dto.stepNumber <= 6) {
-      // Step 4/5/6 accumulano tutti i campi inviati in mobileData.
-      // Il frontend manda { tipoLinea, numeroDaPortare, gestoreProvenienza, ... }
       const mergeableKeys = [
         'tipoLinea',
         'numeroDaPortare',
@@ -315,29 +285,18 @@ export class PracticesService {
       if (Object.keys(delta).length) {
         practice.mobileData = { ...(practice.mobileData || {}), ...delta };
       }
-      // paymentMethod mirror per analytics/esistenti code-paths
       if (d.ibanCdc !== undefined) {
         practice.paymentMethod = {
           ...(practice.paymentMethod || {}),
           iban: d.ibanCdc,
         };
       }
-      // Lavorazioni post-attivazione condivise con fixed-line
       if (d.lavorazioniPostAttivazione !== undefined) {
         practice.lavorazioniPostAttivazione = d.lavorazioniPostAttivazione;
       }
     }
   }
 
-  /**
-   * Logica step per ENERGY (6 step).
-   *  Step 1 → type+tipoOfferta (VARIABILE/FISSA)
-   *  Step 2 → venditori
-   *  Step 3 → cliente
-   *  Step 4 → contatore+gestori (energyData.*)
-   *  Step 5 → pagamento
-   *  Step 6 → note/conferma
-   */
   private async applyEnergyStep(
     practice: Practice,
     dto: UpdateStepDto,
@@ -396,7 +355,6 @@ export class PracticesService {
       if (Object.keys(delta).length) {
         practice.energyData = { ...(practice.energyData || {}), ...delta };
       }
-      // Mirror su paymentMethod (IBAN o BOLLETTINO)
       if (d.ibanCdc !== undefined) {
         practice.paymentMethod = {
           iban: d.ibanCdc !== 'BOLLETTINO' ? d.ibanCdc : null,
@@ -410,10 +368,6 @@ export class PracticesService {
     }
   }
 
-  /**
-   * Logica step 3 (cliente) condivisa fra tutte le categorie.
-   * Stessa semantica dell'implementazione originale per FIXED_LINE.
-   */
   private async applyCustomerStep(
     practice: Practice,
     dto: UpdateStepDto,
@@ -484,10 +438,6 @@ export class PracticesService {
     }
   }
 
-  /**
-   * Logica step FIXED_LINE originale — mantenuta INVARIATA per retrocompat.
-   * Estratta in una funzione separata solo per ordine del codice.
-   */
   private async applyFixedLineStep(
     practice: Practice,
     dto: UpdateStepDto,
@@ -608,20 +558,64 @@ export class PracticesService {
   async updateOperationalStatus(
     tenantId: string,
     practiceId: string,
-    status: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED',
+    status: OperationalStatus,
+    koReason?: string,
+    skyTvStatus?: SkyTvStatus,
+    userId?: string,
   ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
+
+    const isKo = status === 'REJECTED' || status.includes('KO');
+    if (isKo && (!koReason || koReason.trim().length === 0)) {
+      throw new ForbiddenException('La motivazione KO è obbligatoria per gli stati KO');
+    }
+
     practice.operationalStatus = status;
-    if (status === 'ACTIVATED' || status === 'REJECTED') practice.status = 'completed';
+
+    if (isKo && koReason) {
+      const currentUser = userId
+        ? await this.userRepo.findOne({ where: { id: userId } })
+        : null;
+      const userName = currentUser
+        ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+        : 'Sistema';
+      const koNote = {
+        text: `[${status}] ${koReason.trim()}`,
+        createdAt: new Date(),
+        createdBy: userName,
+        createdById: userId || 'system',
+        isKoReason: true,
+      };
+      if (!practice.notesHistory) practice.notesHistory = [];
+      practice.notesHistory.push(koNote);
+    }
+
+    if (skyTvStatus !== undefined) {
+      practice.skyTvStatus = skyTvStatus;
+    }
+
+    if (status === 'ACTIVATED' || isKo) {
+      practice.status = 'completed';
+    }
+
     await this.practiceRepo.save(practice);
-    // ===== Hook gare: sync entries dopo cambio stato operativo =====
     await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
+    return new PracticeResponseDto(practice);
+  }
+
+  async updateSkyTvStatus(
+    tenantId: string,
+    practiceId: string,
+    skyTvStatus: SkyTvStatus | null,
+  ): Promise<PracticeResponseDto> {
+    const practice = await this.findById(tenantId, practiceId);
+    practice.skyTvStatus = skyTvStatus;
+    await this.practiceRepo.save(practice);
     return new PracticeResponseDto(practice);
   }
 
   async delete(tenantId: string, practiceId: string): Promise<void> {
     const practice = await this.findById(tenantId, practiceId);
-    // ===== Hook gare: rimuovi entries prima della cancellazione =====
     await this.competitionEntries.removeForPractice(practiceId).catch(() => {});
     await this.practiceRepo.remove(practice);
   }
@@ -652,14 +646,12 @@ export class PracticesService {
     const practice = await this.findById(tenantId, practiceId);
     practice.status = 'completed';
     practice.operationalStatus = 'IN_PROGRESS';
-    // Numero step massimo dipende dalla categoria
     const maxStep = practice.category === 'FIXED_LINE' ? 9 : 6;
     practice.currentStep = maxStep;
     if (!practice.completedSteps.includes(maxStep)) {
       practice.completedSteps = [...practice.completedSteps, maxStep];
     }
     await this.practiceRepo.save(practice);
-    // ===== Hook gare: sync entries dopo force-complete =====
     await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
     return new PracticeResponseDto(await this.findById(tenantId, practiceId));
   }

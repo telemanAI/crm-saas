@@ -223,7 +223,8 @@ export default function PracticeDetail() {
     }
   };
 
-  const handleOperationalStatusChange = async (newStatus: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED') => {
+  // 🔥 FIX BUILD: firma allargata da union type a string per supportare KO_CREDITO / KO_COPERTURA
+  const handleOperationalStatusChange = async (newStatus: string) => {
     if (!practice || statusLoading) return;
     setStatusLoading(true);
     try {

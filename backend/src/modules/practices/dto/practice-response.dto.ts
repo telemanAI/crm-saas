@@ -5,7 +5,8 @@ export class PracticeResponseDto {
   category: PracticeCategory;
   type: string;
   status: string;
-  operationalStatus?: string;
+operationalStatus?: string;
+  skyTvStatus?: string | null;
   statoGlobale?: 'completo' | 'non_completo' | null;
   currentStep: number;
   completedSteps: number[];
@@ -73,7 +74,8 @@ export class PracticeResponseDto {
     this.category = (practice.category as PracticeCategory) || 'FIXED_LINE';
     this.type = practice.type;
     this.status = practice.status;
-    this.operationalStatus = practice.operationalStatus || 'PENDING';
+   this.operationalStatus = practice.operationalStatus || 'PENDING';
+    this.skyTvStatus = practice.skyTvStatus ?? null;
     this.statoGlobale = practice.statoGlobale || null;
     this.currentStep = practice.currentStep;
 

@@ -63,6 +63,8 @@ export default function MobilePracticeDetail() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [koReason, setKoReason] = useState('');
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !token) return;
@@ -105,19 +107,39 @@ export default function MobilePracticeDetail() {
     }
   };
 
-  const updateOpStatus = async (newStatus: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED') => {
+  const updateOpStatus = async (newStatus: 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED' | 'KO_CREDITO' | 'KO_COPERTURA') => {
+    if (isKoStatus(newStatus)) {
+      setPendingStatus(newStatus);
+      return;
+    }
+    await doUpdateStatus(newStatus);
+  };
+
+  const doUpdateStatus = async (newStatus: string, reason?: string) => {
     if (!practice || statusLoading) return;
     setStatusLoading(true);
     try {
-      await api.put(`/practices/${id}/operational-status`, { status: newStatus }, {
+      const payload: any = { status: newStatus };
+      if (reason) payload.koReason = reason;
+      await api.put(`/practices/${id}/operational-status`, payload, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      setPendingStatus(null);
+      setKoReason('');
       fetchPractice();
     } catch (err: any) {
       alert('Errore aggiornamento stato: ' + (err.response?.data?.message || err.message));
     } finally {
       setStatusLoading(false);
     }
+  };
+
+  const confirmKoStatus = () => {
+    if (!koReason.trim()) {
+      alert('Inserisci la motivazione KO obbligatoria');
+      return;
+    }
+    doUpdateStatus(pendingStatus!, koReason.trim());
   };
 
   const addNote = async () => {
@@ -166,10 +188,14 @@ export default function MobilePracticeDetail() {
     }
   };
 
+  const isKoStatus = (s: string) => s === 'REJECTED' || s.includes('KO');
+
   const getOperationalStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVATED': return 'bg-emerald-500 text-white border-emerald-500';
       case 'REJECTED': return 'bg-rose-500 text-white border-rose-500';
+      case 'KO_CREDITO': return 'bg-rose-500 text-white border-rose-500';
+      case 'KO_COPERTURA': return 'bg-rose-500 text-white border-rose-500';
       case 'IN_PROGRESS': return 'bg-blue-500 text-white border-blue-500';
       default: return 'bg-amber-500 text-white border-amber-500';
     }
@@ -179,6 +205,8 @@ export default function MobilePracticeDetail() {
     switch (status) {
       case 'ACTIVATED': return 'Attivata';
       case 'REJECTED': return 'KO';
+      case 'KO_CREDITO': return 'KO Credito';
+      case 'KO_COPERTURA': return 'KO Copertura';
       case 'IN_PROGRESS': return 'In Lavorazione';
       default: return 'In Attesa';
     }
@@ -231,9 +259,9 @@ export default function MobilePracticeDetail() {
               <span className="text-slate-500 text-sm">Step {practice.currentStep}/{practice.totalSteps || 7}</span>
             </div>
             <h1 className="text-3xl font-bold text-white">{practice.offerName || 'Pratica Mobile'}</h1>
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               <span className="text-xs text-slate-400 mr-2">Cambia Stato:</span>
-              {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED'] as const).map((s) => (
+              {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED','KO_CREDITO','KO_COPERTURA'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => updateOpStatus(s)}
@@ -248,6 +276,36 @@ export default function MobilePracticeDetail() {
                 </button>
               ))}
             </div>
+
+            {pendingStatus && isKoStatus(pendingStatus) && (
+              <div className="mt-4 p-4 bg-rose-950/30 border border-rose-500/30 rounded-xl">
+                <label className="block text-sm text-rose-300 mb-2 font-medium">
+                  Motivazione KO obbligatoria per {getOperationalStatusLabel(pendingStatus)}
+                </label>
+                <textarea
+                  value={koReason}
+                  onChange={(e) => setKoReason(e.target.value)}
+                  placeholder="Descrivi il motivo del KO..."
+                  rows={3}
+                  className="w-full bg-slate-900 border border-rose-700/50 rounded-xl p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 resize-none text-sm"
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={confirmKoStatus}
+                    disabled={statusLoading || !koReason.trim()}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Conferma KO
+                  </button>
+                  <button
+                    onClick={() => { setPendingStatus(null); setKoReason(''); }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-3">

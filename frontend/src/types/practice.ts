@@ -1,12 +1,27 @@
 // Tipi centralizzati per Practice e Customer
-// Modifica qui per aggiornare tutti i file
 // ============================================
 
 export type PracticeType = 'TIM_FIBRA' | 'SKY' | 'VODAFONE' | 'WINDTRE' | 'ILIAD' | 'OPTIMA' | 'IREN';
 
 export type PracticeStatus = 'draft' | 'in_progress' | 'completed' | 'cancelled';
 
-export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED';
+export type OperationalStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'ACTIVATED'
+  | 'REJECTED'
+  | 'KO_CREDITO'
+  | 'KO_COPERTURA';
+
+export type SkyTvStatus =
+  | 'IN_LAVORAZIONE'
+  | 'IN_VERIFICA_WM'
+  | 'NON_SALITA_ARCADIA'
+  | 'ATTIVO'
+  | 'KO_GENERICO'
+  | 'KO_CREDITO'
+  | 'KO_COPERTURA'
+  | 'KO_RINUNCIA_CLIENTE';
 
 export interface CustomerBase {
   firstName: string;
@@ -24,7 +39,7 @@ export interface CustomerSnapshot extends Partial<CustomerBase> {
   codiceRea?: string;
   pec?: string;
   phone?: string;
-  address?: {           // 🔥 AGGIUNTO: Indirizzo del cliente
+  address?: {
     street?: string;
     number?: string;
     city?: string;
@@ -51,6 +66,7 @@ export interface NoteEntry {
   createdAt: string;
   createdBy: string;
   createdById: string;
+  isKoReason?: boolean;
 }
 
 export interface WashConfig {
@@ -68,7 +84,6 @@ export interface AdditionalPackagesConfig {
   totalPrice: number;
 }
 
-// Tipi per dati precedentemente 'any'
 export interface OldLineData {
   oldPhoneNumber?: string;
   migrationCode?: string;
@@ -99,7 +114,6 @@ export interface PrivacyData {
   [key: string]: any;
 }
 
-// Tipo per la lista pratiche (index.tsx)
 export interface PracticeListItem {
   id: string;
   type: PracticeType;
@@ -109,7 +123,8 @@ export interface PracticeListItem {
   status: PracticeStatus;
   currentStep: number;
   completedSteps?: number[];
-  operationalStatus?: string;
+  operationalStatus?: OperationalStatus;
+  skyTvStatus?: SkyTvStatus | null;
   createdAt: string;
   statoGlobale?: 'completo' | 'non_completo' | null;
   convergenza?: {
@@ -118,7 +133,6 @@ export interface PracticeListItem {
   };
 }
 
-// Tipo per il dettaglio pratica ([id].tsx)
 export interface PracticeDetail {
   id: string;
   type: PracticeType;
@@ -126,12 +140,13 @@ export interface PracticeDetail {
   offerCode: string;
   status: string;
   operationalStatus?: OperationalStatus;
+  skyTvStatus?: SkyTvStatus | null;
   currentStep: number;
   completedSteps: number[];
   createdAt: string;
   updatedAt: string;
   customer: CustomerBase;
-  customerId?: string; // 🔥 NUOVO: Per navigazione al cliente
+  customerId?: string;
   customerSnapshot?: CustomerSnapshot;
   lineType?: string;
   installationAddress?: InstallationAddress;

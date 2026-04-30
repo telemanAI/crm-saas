@@ -135,6 +135,8 @@ export default function PracticeDetail() {
   
   const [convergenzaNumero, setConvergenzaNumero] = useState('');
   const [savingConvergenza, setSavingConvergenza] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [koReason, setKoReason] = useState('');
 
   useEffect(() => {
     if (id && token) fetchPractice();
@@ -260,10 +262,14 @@ export default function PracticeDetail() {
     }
   };
 
+  const isKoStatus = (s: string) => s === 'REJECTED' || s.includes('KO');
+
   const getOperationalStatusColor = (status: string) => {
     switch (status) {
       case 'ACTIVATED': return 'bg-emerald-500 text-white border-emerald-500';
       case 'REJECTED': return 'bg-rose-500 text-white border-rose-500';
+      case 'KO_CREDITO': return 'bg-rose-500 text-white border-rose-500';
+      case 'KO_COPERTURA': return 'bg-rose-500 text-white border-rose-500';
       case 'IN_PROGRESS': return 'bg-blue-500 text-white border-blue-500';
       default: return 'bg-amber-500 text-white border-amber-500';
     }
@@ -273,9 +279,25 @@ export default function PracticeDetail() {
     switch (status) {
       case 'ACTIVATED': return 'Attivata';
       case 'REJECTED': return 'KO';
+      case 'KO_CREDITO': return 'KO Credito';
+      case 'KO_COPERTURA': return 'KO Copertura';
       case 'IN_PROGRESS': return 'In Lavorazione';
       default: return 'In Attesa';
     }
+  };
+
+  const getSkyTvLabel = (status: string) => {
+    const map: Record<string, string> = {
+      'IN_LAVORAZIONE': 'In lavorazione',
+      'IN_VERIFICA_WM': 'In verifica WM',
+      'NON_SALITA_ARCADIA': 'Non salita su Arcadia',
+      'ATTIVO': 'Attivo',
+      'KO_GENERICO': 'KO Generico',
+      'KO_CREDITO': 'KO Credito',
+      'KO_COPERTURA': 'KO Copertura',
+      'KO_RINUNCIA_CLIENTE': 'KO Rinuncia Cliente',
+    };
+    return map[status] || status;
   };
 
   const getBorderColorByStatus = (status: string) => {
@@ -354,53 +376,88 @@ export default function PracticeDetail() {
             </div>
             <h1 className="text-3xl font-bold text-white">{practice.offerName}</h1>
             
-            <div className="flex items-center gap-2 mt-3">
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
               <span className="text-xs text-slate-400 mr-2">Cambia Stato:</span>
-              <button 
-                onClick={() => handleOperationalStatusChange('PENDING')} 
-                disabled={statusLoading || operationalStatus === 'PENDING'}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  operationalStatus === 'PENDING' 
-                    ? 'bg-amber-500 text-white' 
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                In Attesa
-              </button>
-              <button 
-                onClick={() => handleOperationalStatusChange('IN_PROGRESS')} 
-                disabled={statusLoading || operationalStatus === 'IN_PROGRESS'}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  operationalStatus === 'IN_PROGRESS' 
-                    ? 'bg-blue-500 text-white' 
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                In Lavorazione
-              </button>
-              <button 
-                onClick={() => handleOperationalStatusChange('ACTIVATED')} 
-                disabled={statusLoading || operationalStatus === 'ACTIVATED'}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  operationalStatus === 'ACTIVATED' 
-                    ? 'bg-emerald-500 text-white' 
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                Attivata
-              </button>
-              <button 
-                onClick={() => handleOperationalStatusChange('REJECTED')} 
-                disabled={statusLoading || operationalStatus === 'REJECTED'}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  operationalStatus === 'REJECTED' 
-                    ? 'bg-rose-500 text-white' 
-                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                }`}
-              >
-                KO
-              </button>
+              {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED','KO_CREDITO','KO_COPERTURA'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => handleOperationalStatusChange(s)}
+                  disabled={statusLoading || operationalStatus === s}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    operationalStatus === s
+                      ? getOperationalStatusColor(s)
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {getOperationalStatusLabel(s)}
+                </button>
+              ))}
             </div>
+
+            {pendingStatus && isKoStatus(pendingStatus) && (
+              <div className="mt-4 p-4 bg-rose-950/30 border border-rose-500/30 rounded-xl">
+                <label className="block text-sm text-rose-300 mb-2 font-medium">
+                  Motivazione KO obbligatoria per {getOperationalStatusLabel(pendingStatus)}
+                </label>
+                <textarea
+                  value={koReason}
+                  onChange={(e) => setKoReason(e.target.value)}
+                  placeholder="Descrivi il motivo del KO..."
+                  rows={3}
+                  className="w-full bg-slate-900 border border-rose-700/50 rounded-xl p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 resize-none text-sm"
+                />
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={confirmKoStatus}
+                    disabled={statusLoading || !koReason.trim()}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Conferma KO
+                  </button>
+                  <button
+                    onClick={() => { setPendingStatus(null); setKoReason(''); }}
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {practice.offerName?.toUpperCase().includes('SKY TV') && (
+              <div className="mt-4 p-4 bg-cyan-950/20 border border-cyan-500/20 rounded-xl">
+                <label className="block text-sm text-cyan-300 mb-2 font-medium">
+                  Stato Sky TV
+                </label>
+                <select
+                  value={practice.skyTvStatus || ''}
+                  onChange={(e) => updateSkyTvStatus(e.target.value)}
+                  disabled={statusLoading}
+                  className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-sm w-full max-w-xs"
+                >
+                  <option value="">— Nessuno —</option>
+                  <option value="IN_LAVORAZIONE">In lavorazione</option>
+                  <option value="IN_VERIFICA_WM">In verifica WM</option>
+                  <option value="NON_SALITA_ARCADIA">Non salita su Arcadia</option>
+                  <option value="ATTIVO">Attivo</option>
+                  <option value="KO_GENERICO">KO Generico</option>
+                  <option value="KO_CREDITO">KO Credito</option>
+                  <option value="KO_COPERTURA">KO Copertura</option>
+                  <option value="KO_RINUNCIA_CLIENTE">KO Rinuncia Cliente</option>
+                </select>
+                {practice.skyTvStatus && (
+                  <span className={`inline-flex mt-2 px-2 py-1 rounded-md text-xs font-medium border ${
+                    practice.skyTvStatus === 'ATTIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                    practice.skyTvStatus === 'IN_LAVORAZIONE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                    practice.skyTvStatus === 'IN_VERIFICA_WM' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
+                    practice.skyTvStatus === 'NON_SALITA_ARCADIA' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
+                    'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                  }`}>
+                    {getSkyTvLabel(practice.skyTvStatus)}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
         

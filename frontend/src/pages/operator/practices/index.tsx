@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { 
-  Plus, 
-  MagnifyingGlass, 
+import {
+  Plus,
+  MagnifyingGlass,
   Funnel,
   FileText,
   CheckCircle,
   Clock,
-  XCircle
+  XCircle,
 } from 'phosphor-react';
-import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/axios';
-import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
-import type { PracticeListItem, PracticeType, PracticeStatus } from '@/types/practice';
+import type { PracticeListItem, OperationalStatus, SkyTvStatus } from '@/types/practice';
 
 const getTypeLabel = (type: string): string => {
   const typeMap: Record<string, string> = {
@@ -36,7 +36,54 @@ const getTypeLabel = (type: string): string => {
   return typeMap[type] || type;
 };
 
-type FilterType = 'ALL' | PracticeType;
+type FilterType = 'ALL' | string;
+type OpStatusFilter = 'ALL' | OperationalStatus;
+type SkyTvFilter = 'ALL' | SkyTvStatus;
+
+const SKY_TV_STATUSES: { value: SkyTvStatus; label: string }[] = [
+  { value: 'IN_LAVORAZIONE', label: 'In lavorazione' },
+  { value: 'IN_VERIFICA_WM', label: 'In verifica WM' },
+  { value: 'NON_SALITA_ARCADIA', label: 'Non salita su Arcadia' },
+  { value: 'ATTIVO', label: 'Attivo' },
+  { value: 'KO_GENERICO', label: 'KO Generico' },
+  { value: 'KO_CREDITO', label: 'KO Credito' },
+  { value: 'KO_COPERTURA', label: 'KO Copertura' },
+  { value: 'KO_RINUNCIA_CLIENTE', label: 'KO Rinuncia Cliente' },
+];
+
+const getOperationalStatusBadge = (status?: OperationalStatus) => {
+  switch (status) {
+    case 'ACTIVATED':
+      return { label: 'Attivo', class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' };
+    case 'REJECTED':
+      return { label: 'KO', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
+    case 'IN_PROGRESS':
+      return { label: 'In Lavorazione', class: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' };
+    case 'PENDING':
+      return { label: 'In Attesa', class: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+    case 'KO_CREDITO':
+      return { label: 'KO Credito', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
+    case 'KO_COPERTURA':
+      return { label: 'KO Copertura', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
+    default:
+      return { label: '—', class: 'bg-slate-700/20 text-slate-400 border-slate-700/30' };
+  }
+};
+
+const getSkyTvStatusBadge = (status?: SkyTvStatus | null) => {
+  if (!status) return null;
+  const map: Record<SkyTvStatus, { label: string; class: string }> = {
+    'IN_LAVORAZIONE': { label: 'Sky: In lavorazione', class: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+    'IN_VERIFICA_WM': { label: 'Sky: In verifica WM', class: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+    'NON_SALITA_ARCADIA': { label: 'Sky: Non salita Arcadia', class: 'bg-orange-500/20 text-orange-400 border-orange-500/30' },
+    'ATTIVO': { label: 'Sky: Attivo', class: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+    'KO_GENERICO': { label: 'Sky: KO Generico', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+    'KO_CREDITO': { label: 'Sky: KO Credito', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+    'KO_COPERTURA': { label: 'Sky: KO Copertura', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+    'KO_RINUNCIA_CLIENTE': { label: 'Sky: KO Rinuncia', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' },
+  };
+  return map[status];
+};
 
 export default function PracticesList() {
   const router = useRouter();
@@ -45,7 +92,8 @@ export default function PracticesList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
-  const [operationalStatusFilter, setOperationalStatusFilter] = useState<'ALL' | 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJECTED'>('ALL');
+  const [operationalStatusFilter, setOperationalStatusFilter] = useState<OpStatusFilter>('ALL');
+  const [skyTvStatusFilter, setSkyTvStatusFilter] = useState<SkyTvFilter>('ALL');
   const [statoGlobaleFilter, setStatoGlobaleFilter] = useState<'ALL' | 'completo' | 'non_completo' | 'daChiudere'>('ALL');
 
   useEffect(() => {
@@ -58,7 +106,7 @@ export default function PracticesList() {
       const response = await api.get('/practices', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       const practicesData = response.data.map((p: any) => {
         let steps = p.completedSteps;
         if (typeof steps === 'string') {
@@ -68,7 +116,7 @@ export default function PracticesList() {
         }
         return { ...p, completedSteps: steps };
       });
-      
+
       setPractices(practicesData);
     } catch (err) {
       console.error('Errore caricamento pratiche:', err);
@@ -83,9 +131,9 @@ export default function PracticesList() {
                      p.offerName?.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === 'ALL' || p.type === filter;
     const matchesOperationalStatus = operationalStatusFilter === 'ALL' || p.operationalStatus === operationalStatusFilter;
+    const matchesSkyTv = skyTvStatusFilter === 'ALL' || p.skyTvStatus === skyTvStatusFilter;
     const matchesCategory = (p as any).category === 'FIXED_LINE' || !(p as any).category;
-    
-    // FILTRO STATO GLOBALE
+
     let matchesStatoGlobale = true;
     if (statoGlobaleFilter !== 'ALL') {
       if (statoGlobaleFilter === 'daChiudere') {
@@ -94,11 +142,11 @@ export default function PracticesList() {
         matchesStatoGlobale = p.statoGlobale === statoGlobaleFilter;
       }
     }
-    
-    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesCategory && matchesStatoGlobale;
+
+    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesSkyTv && matchesCategory && matchesStatoGlobale;
   });
 
-  const getStatusIcon = (status: PracticeStatus | string) => {
+  const getStatusIcon = (status: string) => {
     const s = status?.toLowerCase();
     if (s === 'completed') return <CheckCircle className="w-5 h-5 text-emerald-400" />;
     if (s === 'in_progress') return <Clock className="w-5 h-5 text-amber-400" />;
@@ -106,7 +154,7 @@ export default function PracticesList() {
     return <FileText className="w-5 h-5 text-slate-400" />;
   };
 
-  const getStatusLabel = (status: PracticeStatus | string) => {
+  const getStatusLabel = (status: string) => {
     const s = status?.toLowerCase();
     if (s === 'completed') return 'Inserita';
     if (s === 'in_progress') return 'In corso';
@@ -118,6 +166,8 @@ export default function PracticesList() {
     switch (status) {
       case 'ACTIVATED': return 'border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/30 bg-emerald-950/20';
       case 'REJECTED': return 'border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30 bg-rose-950/20';
+      case 'KO_CREDITO': return 'border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30 bg-rose-950/20';
+      case 'KO_COPERTURA': return 'border-rose-400 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30 bg-rose-950/20';
       case 'IN_PROGRESS': return 'border-cyan-400 ring-2 ring-cyan-400/50 shadow-lg shadow-cyan-500/30 bg-cyan-950/20';
       case 'PENDING': return 'border-amber-400 ring-2 ring-amber-400/50 shadow-lg shadow-amber-500/30 bg-amber-950/20';
       default: return 'border-slate-800';
@@ -153,8 +203,8 @@ export default function PracticesList() {
         </Link>
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[260px] max-w-md">
           <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input
             type="text"
@@ -164,7 +214,7 @@ export default function PracticesList() {
             className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           />
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Funnel className="w-5 h-5 text-slate-500" />
           <select
@@ -183,11 +233,11 @@ export default function PracticesList() {
           </select>
         </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex items-center gap-2">
           <Funnel className="w-5 h-5 text-slate-500" />
           <select
             value={operationalStatusFilter}
-            onChange={(e) => setOperationalStatusFilter(e.target.value as any)}
+            onChange={(e) => setOperationalStatusFilter(e.target.value as OpStatusFilter)}
             className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           >
             <option value="ALL">Tutti gli stati</option>
@@ -195,10 +245,26 @@ export default function PracticesList() {
             <option value="IN_PROGRESS">In Lavorazione</option>
             <option value="ACTIVATED">Attivata</option>
             <option value="REJECTED">KO</option>
+            <option value="KO_CREDITO">KO Credito</option>
+            <option value="KO_COPERTURA">KO Copertura</option>
           </select>
         </div>
 
-        <div className="flex items-center gap-2 ml-4">
+        <div className="flex items-center gap-2">
+          <Funnel className="w-5 h-5 text-slate-500" />
+          <select
+            value={skyTvStatusFilter}
+            onChange={(e) => setSkyTvStatusFilter(e.target.value as SkyTvFilter)}
+            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+          >
+            <option value="ALL">Tutti gli stati Sky TV</option>
+            {SKY_TV_STATUSES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
           <Funnel className="w-5 h-5 text-slate-500" />
           <select
             value={statoGlobaleFilter}
@@ -223,18 +289,20 @@ export default function PracticesList() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {filteredPractices.map((practice, index) => (
-            <motion.div
-              key={practice.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              onClick={() => router.push(`/operator/practices/${practice.id}`)}
-              className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-6 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
-            >
-              <div className="flex items-center justify-between">
+          {filteredPractices.map((practice, index) => {
+            const opBadge = getOperationalStatusBadge(practice.operationalStatus);
+            const skyBadge = getSkyTvStatusBadge(practice.skyTvStatus);
+            return (
+              <motion.div
+                key={practice.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                onClick={() => router.push(`/operator/practices/${practice.id}`)}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+              >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
+                  <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
                     <span className={`font-bold text-sm ${
                       practice.type === 'TIM_FIBRA' ? 'text-blue-400' : 
                       practice.type === 'VODAFONE' ? 'text-rose-400' :
@@ -253,68 +321,77 @@ export default function PracticesList() {
                        practice.type === 'SKY' ? 'SKY' : (practice.type as string)?.substring(0,3)}
                     </span>
                   </div>
-                  <span className="font-bold">{getTypeLabel(practice.type)}</span>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
-                    {practice.offerName}
-                  </h3>
-                  
-                  {/* BADGE CONVERGENZA */}
-                  {practice.convergenza?.attiva && (
-                    <div className="mt-2">
-                      <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
-                        practice.statoGlobale === 'completo' 
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      }`}>
-                        <div className={`w-1.5 h-1.5 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                        {practice.statoGlobale === 'completo' 
-                          ? 'Convergenza Completata' 
-                          : 'Convergenza da Chiudere'}
-                      </span>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-white">{getTypeLabel(practice.type)}</span>
+                      <h3 className="font-semibold text-white truncate max-w-[260px]">
+                        {practice.offerName}
+                      </h3>
                     </div>
-                  )}
-                  
-                  <div className="text-sm text-slate-400 mt-1">
-                    <p>
-                      {practice.customerSnapshot?.firstName || practice.customer?.firstName} {' '}
-                      {practice.customerSnapshot?.lastName || practice.customer?.lastName}
-                    </p>
-                    {(practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode) && (
-                      <p className="text-xs text-slate-500 font-mono mt-1">
-                        CF: {practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode}
+
+                    <div className="text-sm text-slate-400">
+                      <p className="truncate">
+                        {practice.customerSnapshot?.firstName || practice.customer?.firstName} {' '}
+                        {practice.customerSnapshot?.lastName || practice.customer?.lastName}
                       </p>
+                      {(practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode) && (
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">
+                          CF: {practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${opBadge.class}`}>
+                        {opBadge.label}
+                      </span>
+                      {skyBadge && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${skyBadge.class}`}>
+                          {skyBadge.label}
+                        </span>
+                      )}
+                      {practice.convergenza?.attiva && (
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
+                          practice.statoGlobale === 'completo' 
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+                            : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                        }`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                          {practice.statoGlobale === 'completo' ? 'Convergenza OK' : 'Conv. da Chiudere'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-4">
+                    {practice.status?.toLowerCase() === 'draft' && (
+                      <Link href={`/operator/practices/new?edit=${practice.id}`}>
+                        <button 
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          Continua
+                        </button>
+                      </Link>
                     )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-6">
-                  {practice.status?.toLowerCase() === 'draft' && (
-                    <Link href={`/operator/practices/new?edit=${practice.id}`}>
-                      <button 
-                        onClick={(e) => e.stopPropagation()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors mr-4"
-                      >
-                        Continua
-                      </button>
-                    </Link>
-                  )}
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
-                      {getStatusIcon(practice.status)}
-                      <span>{getStatusLabel(practice.status)}</span>
+                    <div className="text-right min-w-[80px]">
+                      <div className="flex items-center justify-end gap-2 text-sm text-slate-400 mb-1">
+                        {getStatusIcon(practice.status)}
+                        <span>{getStatusLabel(practice.status)}</span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Step {practice.currentStep}/8
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Step {practice.currentStep}/8
+                    <div className="text-right text-sm text-slate-500 min-w-[80px]">
+                      {new Date(practice.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>
-                  <div className="text-right text-sm text-slate-500">
-                    {new Date(practice.createdAt).toLocaleDateString('it-IT')}
-                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
         </div>
       )}
     </OperatorLayout>

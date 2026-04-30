@@ -13,17 +13,21 @@ import { CompetitionPrize } from './competition-prize.entity';
 /**
  * Gara (competition).
  *
- * Una gara appartiene a UNO shop (`tenantId`). Per gare multi-negozio si
- * duplica la gara su ciascuno shop tramite l'endpoint /competitions/:id/copy
- * (mantenendo lo stesso `templateKey` per query aggregate company-wide).
+ * Tappa 3 (originale): scope "shop" implicito, tenantId sempre valorizzato.
+ * Tappa 3.1: aggiunto `scopeType` ('shop' | 'company'). Se 'company', la gara
+ * conta i pezzi di TUTTI gli shop della stessa company. Il tenantId resta
+ * popolato (= shop "creatore" / "owner") ma diventa info accessoria.
  *
- * Ogni shop ha le sue entries — il totale company-wide si calcola sommando
- * tutte le entries delle gare con lo stesso `templateKey`.
+ * Tappa 3.1: aggiunto `isHidden`. Se true, la gara è visibile solo a
+ * FOUNDER e SUPER_ADMIN (utile per gare interne / test / bonus segreti).
  */
+export type CompetitionScope = 'shop' | 'company';
+
 @Entity('competitions')
 @Index(['tenantId', 'isActive'])
 @Index(['tenantId', 'startDate'])
 @Index(['templateKey'])
+@Index(['companyId', 'scopeType'])
 export class Competition {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -31,7 +35,6 @@ export class Competition {
   @Column({ name: 'tenant_id', type: 'uuid' })
   tenantId: string;
 
-  /** companyId snapshot per evitare join al volo (riallineato in caso di modifiche). */
   @Column({ name: 'company_id', type: 'uuid', nullable: true })
   companyId: string | null;
 
@@ -50,17 +53,24 @@ export class Competition {
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
-  /** True se generata automaticamente dal cron mensile. */
   @Column({ name: 'is_auto_monthly', default: false })
   isAutoMonthly: boolean;
 
-  /**
-   * Chiave logica della gara, usata per associare le copie su shop diversi.
-   * Es. "AUTO-2026-04" per la gara mensile aprile, oppure "lancio-iliad-estate"
-   * per una gara manuale duplicata.
-   */
   @Column({ name: 'template_key', type: 'varchar', length: 80, nullable: true })
   templateKey: string | null;
+
+  /** Tappa 3.1: 'shop' = solo questo shop, 'company' = tutti gli shop della company. */
+  @Column({
+    name: 'scope_type',
+    type: 'varchar',
+    length: 16,
+    default: 'shop',
+  })
+  scopeType: CompetitionScope;
+
+  /** Tappa 3.1: gara nascosta agli operator/admin. Solo FOUNDER+SUPER_ADMIN la vedono. */
+  @Column({ name: 'is_hidden', type: 'boolean', default: false })
+  isHidden: boolean;
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdById: string | null;

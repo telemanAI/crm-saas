@@ -1,0 +1,44 @@
+// =====================================================================
+// PATCH — modifiche minime a /backend/src/modules/practices/entities/practice.entity.ts
+// =====================================================================
+//
+// Obiettivo: aggiungere la colonna `offer_id` (FK a offers.id, nullable)
+// così il sistema gare può fare match stabile su id offerta.
+//
+// Il file attuale è ~280 righe, NON va riscritto. Bastano queste righe.
+//
+// ─── PATCH 1 — import ────────────────────────────────────────────────
+// In cima al file, NEI tuoi import di entity, AGGIUNGI:
+//
+//   import { Offer } from '../../offers/entities/offer.entity';
+
+// ─── PATCH 2 — colonna offerId ───────────────────────────────────────
+// Subito DOPO le altre @Column() relative all'offerta (es. dopo offerScadenza
+// e prima di soldBy / soldById), AGGIUNGI:
+//
+//   /**
+//    * TAPPA 3.1 — link stabile all'offerta del catalogo.
+//    * Popolato dal practices.service quando si seleziona la promo nel wizard.
+//    * NULL per le pratiche storiche con match ambiguo (matchabili solo a
+//    * target generici categoria/provider).
+//    */
+//   @Column({ name: 'offer_id', type: 'uuid', nullable: true })
+//   offerId: string | null;
+//
+//   @ManyToOne(() => Offer, { nullable: true, onDelete: 'SET NULL' })
+//   @JoinColumn({ name: 'offer_id' })
+//   offer: Offer | null;
+
+// ─── PATCH 3 — assicurati di importare ManyToOne e JoinColumn ────────
+// Verifica che ci siano nei tuoi import typeorm:
+//
+//   import { ..., ManyToOne, JoinColumn } from 'typeorm';
+
+// =====================================================================
+// FATTO. Build. Se compile fallisce per errore di import circolare con
+// Offer, sostituisci il @ManyToOne con la firma "lazy":
+//
+//   @ManyToOne('Offer', { nullable: true, onDelete: 'SET NULL' })
+//
+// (lascia comunque la colonna offerId).
+// =====================================================================

@@ -1,0 +1,94 @@
+// =====================================================================
+// PATCH — modifiche a /backend/src/modules/practices/practices.service.ts
+// =====================================================================
+//
+// Obiettivo: popolare practice.offerId quando si crea/aggiorna una pratica
+// con offerName + provider riconoscibile dal catalogo.
+//
+// Strategia: helper `resolveOfferId()` che fa lookup case-insensitive
+// (provider, name). Chiamato in create / updateStep / updateData /
+// forceComplete dovunque oggi si setta offerName/offerCode.
+//
+// =====================================================================
+
+// ─── PATCH 1 — import ────────────────────────────────────────────────
+// In cima al file:
+//
+//   import { Offer } from '../offers/entities/offer.entity';
+//   import { ILike } from 'typeorm';   // ← se non già presente
+
+// ─── PATCH 2 — repo nel constructor ──────────────────────────────────
+//
+// Nel @Injectable() constructor(...), AGGIUNGI il parametro:
+//
+//   @InjectRepository(Offer)
+//   private readonly offerRepo: Repository<Offer>,
+
+// ─── PATCH 3 — helper privato (nuovo metodo) ────────────────────────
+//
+// Aggiungi alla fine della classe questo helper:
+//
+//   /**
+//    * Tappa 3.1 — Risolve offer_id a partire da provider + name.
+//    * Restituisce null se zero o multipli match (ambiguo).
+//    */
+//   private async resolveOfferId(
+//     provider: string | null | undefined,
+//     name: string | null | undefined,
+//   ): Promise<string | null> {
+//     if (!provider || !name) return null;
+//     const matches = await this.offerRepo.find({
+//       where: {
+//         provider: ILike(provider.trim()),
+//         name: ILike(name.trim()),
+//       } as any,
+//     });
+//     if (matches.length === 1) return matches[0].id;
+//     return null;
+//   }
+
+// ─── PATCH 4 — chiamare resolveOfferId nei punti chiave ──────────────
+//
+// Ovunque nel service oggi si fa qualcosa tipo:
+//
+//   if (d.offerCode !== undefined) practice.offerCode = d.offerCode;
+//   if (d.offerName !== undefined) practice.offerName = d.offerName;
+//
+// AGGIUNGI subito dopo:
+//
+//   const provider = d.offerType || practice.offerType || practice.type;
+//   if (practice.offerName) {
+//     practice.offerId = await this.resolveOfferId(provider, practice.offerName);
+//   }
+//
+// Punti specifici (riferimento al file Tappa 3):
+//
+//   • create() — dopo `offerName: dto.offerName` nell'oggetto repo.create({...}):
+//     → fai save in due step: save → resolveOfferId → save di nuovo
+//     OPPURE risolvi PRIMA della save:
+//
+//         const newPractice = this.practiceRepo.create({...});
+//         newPractice.offerId = await this.resolveOfferId(
+//           dto.offerType, dto.offerName,
+//         );
+//         const saved = await this.practiceRepo.save(newPractice);
+//
+//   • updateStep() — riga ~260 e ~344, dopo l'assegnazione di offerName:
+//     aggiungi il blocco di patch 4 sopra.
+//
+//   • forceComplete() — riga ~494, idem.
+
+// ─── PATCH 5 — sync entries dopo offerId resolved ───────────────────
+//
+// Verifica che le chiamate esistenti a:
+//
+//   await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
+//
+// avvengano DOPO il save dell'offerId. Se sono prima, spostale dopo.
+// (Senza offerId, syncPracticeEntries non può matchare i target 'specific'.)
+
+// =====================================================================
+// FATTO. Build, deploy. Le NUOVE pratiche avranno offer_id valorizzato.
+// Le pratiche storiche sono già state popolate dalla migration retroattiva
+// (vedi 1777800000003-TappaTrePuntoUnoCompetitionsAdvanced.ts).
+// =====================================================================

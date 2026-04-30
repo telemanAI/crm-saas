@@ -1,15 +1,18 @@
 /**
- * Componenti condivisi per le pagine Gare (lista + dettaglio):
- * - Tipi
- * - Helper di formatting / status
- * - CompetitionModal (create/edit)
- * - CopyModal (copia su altro shop)
- * - TargetsBuilder + PrizesBuilder
+ * TAPPA 3.1 — Componenti condivisi per le pagine Gare.
  *
- * Estratti dalla pagina operator/competitions/index.tsx per essere riusati
- * anche dalla pagina di dettaglio con leaderboard.
+ * Differenze rispetto alla Tappa 4:
+ *  - CompetitionModal: nuovi campi `scopeType` (shop/company) e `isHidden`
+ *  - TargetsBuilder: target a 3 modalità esplicite (category/provider/specific)
+ *    con dropdown offerte dal catalogo (fetch /competitions/offers-options/:cat)
+ *  - CopyModal invariato
+ *  - Helpers (getStatus, CATEGORY_LABEL, ecc.) invariati
+ *
+ * Backward compat: i target Tappa 3 originale (matchProviders/matchOfferKeywords)
+ * continuano a funzionare lato backend; il frontend mostra un alert "target
+ * legacy — apri e riconverti" se incontra target senza targetType.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import api from '@/lib/axios';
 import {
   Plus,
@@ -23,23 +26,29 @@ import {
   CheckCircle,
   Clock,
   Pause,
+  EyeSlash,
+  Buildings,
+  Storefront,
+  MagnifyingGlass,
 } from 'phosphor-react';
 
 // ============ Types ============
 export type TargetCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'DEVICE' | 'CUSTOM';
+export type TargetType = 'category_generic' | 'provider_generic' | 'specific';
 export type PrizeScope = 'OPERATOR' | 'SHOP' | 'COMPANY';
 export type PrizeCategory =
-  | 'FIXED_LINE'
-  | 'MOBILE'
-  | 'ENERGY'
-  | 'DEVICE'
-  | 'GLOBAL'
-  | 'CUSTOM';
+  | 'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'DEVICE' | 'GLOBAL' | 'CUSTOM';
+export type CompetitionScope = 'shop' | 'company';
 
 export interface CompetitionTarget {
   id?: string;
   label: string;
   category: TargetCategory;
+  targetType?: TargetType;
+  provider?: string | null;
+  offerIds?: string[];
+  inventoryItemIds?: string[];
+  // backward compat
   matchProviders: string[];
   matchOfferKeywords: string[];
   matchPracticeTypes: string[];
@@ -68,6 +77,8 @@ export interface Competition {
   isActive: boolean;
   isAutoMonthly: boolean;
   templateKey: string | null;
+  scopeType?: CompetitionScope;
+  isHidden?: boolean;
   targets: CompetitionTarget[];
   prizes: CompetitionPrize[];
   createdAt: string;
@@ -96,11 +107,15 @@ export const PRIZE_CATEGORY_LABEL: Record<PrizeCategory, string> = {
   CUSTOM: 'Custom',
 };
 
+const TARGET_TYPE_LABEL: Record<TargetType, string> = {
+  category_generic: 'Tutta la categoria',
+  provider_generic: 'Tutto un provider',
+  specific: 'Promo specifiche',
+};
+
 export function formatDate(s: string): string {
   return new Date(s).toLocaleDateString('it-IT', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+    day: '2-digit', month: 'short', year: 'numeric',
   });
 }
 
@@ -122,12 +137,32 @@ export function endOfMonthISO(): string {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
 
+// ============ Cache offers per categoria ============
+type OffersOptions = {
+  providers: string[];
+  grouped: Record<string, Array<{ id: string; name: string; canone: string; type: string }>>;
+};
+const offersCache: Record<string, OffersOptions> = {};
+
+async function fetchOffersOptions(category: TargetCategory): Promise<OffersOptions> {
+  if (offersCache[category]) return offersCache[category];
+  if (category === 'CUSTOM' || category === 'DEVICE') {
+    const empty = { providers: [], grouped: {} };
+    offersCache[category] = empty;
+    return empty;
+  }
+  try {
+    const res = await api.get(`/competitions/offers-options/${category}`);
+    offersCache[category] = res.data;
+    return res.data;
+  } catch {
+    return { providers: [], grouped: {} };
+  }
+}
+
 // ============ Modal Create/Edit ============
 export function CompetitionModal({
-  open,
-  initial,
-  onClose,
-  onSaved,
+  open, initial, onClose, onSaved,
 }: {
   open: boolean;
   initial?: Competition | null;
@@ -140,6 +175,8 @@ export function CompetitionModal({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [scopeType, setScopeType] = useState<CompetitionScope>('shop');
+  const [isHidden, setIsHidden] = useState(false);
   const [templateKey, setTemplateKey] = useState('');
   const [targets, setTargets] = useState<CompetitionTarget[]>([]);
   const [prizes, setPrizes] = useState<CompetitionPrize[]>([]);
@@ -153,8 +190,15 @@ export function CompetitionModal({
       setStartDate(initial?.startDate?.slice(0, 10) || todayISO());
       setEndDate(initial?.endDate?.slice(0, 10) || endOfMonthISO());
       setIsActive(initial?.isActive ?? true);
+      setScopeType((initial?.scopeType as CompetitionScope) || 'shop');
+      setIsHidden(initial?.isHidden ?? false);
       setTemplateKey(initial?.templateKey || '');
-      setTargets((initial?.targets || []).map((t) => ({ ...t })));
+      setTargets((initial?.targets || []).map((t) => ({
+        ...t,
+        targetType: t.targetType || (t.matchProviders?.length || t.matchOfferKeywords?.length ? 'specific' : 'category_generic'),
+        offerIds: t.offerIds || [],
+        inventoryItemIds: t.inventoryItemIds || [],
+      })));
       setPrizes((initial?.prizes || []).map((p) => ({ ...p })));
       setTab('general');
     }
@@ -166,35 +210,37 @@ export function CompetitionModal({
     if (startDate > endDate) return alert('Data inizio deve essere precedente a data fine');
     for (const t of targets) {
       if (!t.label.trim()) return alert('Tutti i target devono avere un nome');
-      if (t.targetPieces < 0) return alert('I pezzi target non possono essere negativi');
+      if (t.targetType === 'provider_generic' && !t.provider?.trim()) {
+        return alert(`Target "${t.label}": seleziona un provider`);
+      }
+      if (t.targetType === 'specific' && (!t.offerIds || t.offerIds.length === 0)) {
+        return alert(`Target "${t.label}": seleziona almeno una promo`);
+      }
     }
-    for (const p of prizes) {
-      if (!p.label.trim()) return alert('Tutti i premi devono avere un nome');
-    }
+    for (const p of prizes) if (!p.label.trim()) return alert('Tutti i premi devono avere un nome');
 
     setSaving(true);
     try {
       const payload: any = {
         title: title.trim(),
         description: description.trim() || undefined,
-        startDate,
-        endDate,
-        isActive,
+        startDate, endDate, isActive, scopeType, isHidden,
         templateKey: templateKey.trim() || undefined,
         targets: targets.map((t, i) => ({
           ...t,
-          matchProviders: t.matchProviders.filter(Boolean).map((s) => s.trim().toUpperCase()),
-          matchOfferKeywords: t.matchOfferKeywords.filter(Boolean).map((s) => s.trim().toUpperCase()),
-          matchPracticeTypes: t.matchPracticeTypes.filter(Boolean),
+          targetType: t.targetType || 'category_generic',
+          provider: t.provider?.trim() || null,
+          offerIds: t.targetType === 'specific' ? (t.offerIds || []) : [],
+          inventoryItemIds: t.inventoryItemIds || [],
+          matchProviders: (t.matchProviders || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
+          matchOfferKeywords: (t.matchOfferKeywords || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
+          matchPracticeTypes: (t.matchPracticeTypes || []).filter(Boolean),
           sortOrder: i,
         })),
         prizes: prizes.map((p, i) => ({ ...p, sortOrder: i })),
       };
-      if (isEdit) {
-        await api.patch(`/competitions/${initial!.id}`, payload);
-      } else {
-        await api.post('/competitions', payload);
-      }
+      if (isEdit) await api.patch(`/competitions/${initial!.id}`, payload);
+      else await api.post('/competitions', payload);
       onSaved();
       onClose();
     } catch (err: any) {
@@ -207,19 +253,14 @@ export function CompetitionModal({
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      data-testid="competition-modal"
-    >
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" data-testid="competition-modal">
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between p-5 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <Trophy className="w-5 h-5 text-amber-400" weight="fill" />
             {isEdit ? `Modifica gara · ${initial?.title}` : 'Nuova gara'}
           </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex gap-1 px-5 pt-3 border-b border-slate-800 sticky top-[68px] bg-slate-900 z-10">
@@ -231,18 +272,11 @@ export function CompetitionModal({
             const Icon = t.icon as any;
             const active = tab === t.id;
             return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id as any)}
+              <button key={t.id} onClick={() => setTab(t.id as any)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 transition ${
-                  active
-                    ? 'border-amber-400 text-amber-300'
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-                data-testid={`tab-${t.id}`}
-              >
-                <Icon className="w-4 h-4 inline mr-1" />
-                {t.label}
+                  active ? 'border-amber-400 text-amber-300' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+                data-testid={`tab-${t.id}`}>
+                <Icon className="w-4 h-4 inline mr-1" />{t.label}
               </button>
             );
           })}
@@ -253,86 +287,93 @@ export function CompetitionModal({
             <div className="space-y-4">
               <div>
                 <label className="text-sm text-slate-300 mb-1 block">Titolo *</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                <input type="text" value={title} onChange={(e) => setTitle(e.target.value)}
                   placeholder="Es. Gara Aprile 2026"
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
-                  data-testid="comp-title"
-                />
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" data-testid="comp-title" />
               </div>
               <div>
                 <label className="text-sm text-slate-300 mb-1 block">Descrizione</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={2}
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm"
-                />
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm text-slate-300 mb-1 block">Data inizio *</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
-                  />
+                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" />
                 </div>
                 <div>
                   <label className="text-sm text-slate-300 mb-1 block">Data fine *</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
-                  />
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" />
                 </div>
               </div>
+
+              {/* === Tappa 3.1 — Scope === */}
+              <div>
+                <label className="text-sm text-slate-300 mb-2 block">Ambito gara</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setScopeType('shop')}
+                    className={`p-3 rounded border text-left transition ${
+                      scopeType === 'shop'
+                        ? 'border-amber-400 bg-amber-500/10 text-amber-200'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
+                    data-testid="scope-shop">
+                    <Storefront className="w-5 h-5 mb-1" weight={scopeType==='shop'?'fill':'regular'} />
+                    <div className="font-bold text-sm">Solo questo negozio</div>
+                    <div className="text-xs opacity-70">I pezzi contano solo dallo shop attivo</div>
+                  </button>
+                  <button type="button" onClick={() => setScopeType('company')}
+                    className={`p-3 rounded border text-left transition ${
+                      scopeType === 'company'
+                        ? 'border-emerald-400 bg-emerald-500/10 text-emerald-200'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}
+                    data-testid="scope-company">
+                    <Buildings className="w-5 h-5 mb-1" weight={scopeType==='company'?'fill':'regular'} />
+                    <div className="font-bold text-sm">Tutta l'azienda</div>
+                    <div className="text-xs opacity-70">I pezzi contano da tutti gli shop della company</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* === Tappa 3.1 — Hidden === */}
+              <label className="flex items-start gap-2 cursor-pointer p-3 bg-slate-800/40 border border-slate-700 rounded">
+                <input type="checkbox" checked={isHidden} onChange={(e) => setIsHidden(e.target.checked)}
+                  className="w-4 h-4 mt-0.5" data-testid="comp-hidden" />
+                <div>
+                  <div className="text-sm text-slate-200 font-medium flex items-center gap-1">
+                    <EyeSlash className="w-4 h-4" /> Gara nascosta
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Solo Founder e Super Admin la vedranno (utile per bonus segreti o test).
+                  </div>
+                </div>
+              </label>
+
               <div>
                 <label className="text-sm text-slate-300 mb-1 block">
-                  Template Key{' '}
-                  <span className="text-xs text-slate-500">(per aggregare gare simili tra shop)</span>
+                  Template Key <span className="text-xs text-slate-500">(per aggregare gare gemelle)</span>
                 </label>
-                <input
-                  type="text"
-                  value={templateKey}
-                  onChange={(e) => setTemplateKey(e.target.value)}
+                <input type="text" value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}
                   placeholder="Es. AUTO-2026-04"
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono"
-                />
+                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono" />
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isActive}
-                  onChange={(e) => setIsActive(e.target.checked)}
-                  className="w-4 h-4"
-                />
+                <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4" />
                 <span className="text-sm text-slate-300">Gara attiva (visibile e in conteggio)</span>
               </label>
             </div>
           )}
 
           {tab === 'targets' && <TargetsBuilder targets={targets} onChange={setTargets} />}
-
-          {tab === 'prizes' && (
-            <PrizesBuilder prizes={prizes} targets={targets} onChange={setPrizes} />
-          )}
+          {tab === 'prizes' && <PrizesBuilder prizes={prizes} targets={targets} onChange={setPrizes} />}
         </div>
 
         <div className="flex justify-end gap-2 p-5 border-t border-slate-800 sticky bottom-0 bg-slate-900">
-          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white">
-            Annulla
-          </button>
-          <button
-            onClick={submit}
-            disabled={saving}
+          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white">Annulla</button>
+          <button onClick={submit} disabled={saving}
             className="px-4 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white font-medium disabled:opacity-50"
-            data-testid="comp-save"
-          >
+            data-testid="comp-save">
             {saving ? 'Salvo...' : isEdit ? 'Salva modifiche' : 'Crea gara'}
           </button>
         </div>
@@ -341,10 +382,9 @@ export function CompetitionModal({
   );
 }
 
-// ============ Targets builder ============
+// ============ Targets builder (TAPPA 3.1: 3 modalità) ============
 function TargetsBuilder({
-  targets,
-  onChange,
+  targets, onChange,
 }: {
   targets: CompetitionTarget[];
   onChange: (t: CompetitionTarget[]) => void;
@@ -354,7 +394,11 @@ function TargetsBuilder({
       ...targets,
       {
         label: '',
-        category: 'MOBILE',
+        category: 'FIXED_LINE',
+        targetType: 'category_generic',
+        provider: null,
+        offerIds: [],
+        inventoryItemIds: [],
         matchProviders: [],
         matchOfferKeywords: [],
         matchPracticeTypes: [],
@@ -369,113 +413,24 @@ function TargetsBuilder({
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <p className="text-sm text-slate-400">
-          Definisci i sotto-target di questa gara (es. "TIM+KENA MNP target 30",
-          "Tutti SKY target 1600"). Una pratica può matchare più target.
+          Definisci i target. Ognuno può essere <b>generico per categoria</b>,{' '}
+          <b>generico per provider</b> o <b>specifico</b> (selezione promo dal catalogo).
         </p>
-        <button
-          onClick={add}
+        <button onClick={add}
           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-white text-sm font-medium"
-          data-testid="add-target"
-        >
-          <Plus className="w-4 h-4 inline mr-1" weight="bold" />
-          Target
+          data-testid="add-target">
+          <Plus className="w-4 h-4 inline mr-1" weight="bold" />Target
         </button>
       </div>
 
       {targets.length === 0 ? (
         <div className="text-center py-8 text-slate-500 border border-dashed border-slate-700 rounded">
-          Nessun target. Senza target la gara conta tutte le pratiche di tutte le categorie.
+          Nessun target. Senza target la gara conta tutte le pratiche del periodo.
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {targets.map((t, i) => (
-            <div
-              key={i}
-              className="bg-slate-800/50 border border-slate-700 rounded-lg p-3"
-              data-testid={`target-row-${i}`}
-            >
-              <div className="grid grid-cols-12 gap-2 items-start">
-                <div className="col-span-5">
-                  <label className="text-xs text-slate-400 mb-1 block">Etichetta *</label>
-                  <input
-                    type="text"
-                    value={t.label}
-                    onChange={(e) => upd(i, { label: e.target.value })}
-                    placeholder="Es. TIM+KENA MNP"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
-                </div>
-                <div className="col-span-3">
-                  <label className="text-xs text-slate-400 mb-1 block">Categoria</label>
-                  <select
-                    value={t.category}
-                    onChange={(e) => upd(i, { category: e.target.value as TargetCategory })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  >
-                    {Object.entries(CATEGORY_LABEL).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="col-span-3">
-                  <label className="text-xs text-slate-400 mb-1 block">Pezzi target</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={t.targetPieces}
-                    onChange={(e) => upd(i, { targetPieces: Number(e.target.value) })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
-                </div>
-                <div className="col-span-1 flex items-end justify-end h-full">
-                  <button
-                    onClick={() => rm(i)}
-                    className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded"
-                  >
-                    <Trash className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 mt-2">
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">
-                    Provider (separati da virgola, vuoto = tutti)
-                  </label>
-                  <input
-                    type="text"
-                    value={t.matchProviders.join(', ')}
-                    onChange={(e) =>
-                      upd(i, {
-                        matchProviders: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                      })
-                    }
-                    placeholder="TIM, KENA"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-400 mb-1 block">
-                    Parole chiave nell'offerta (separate da virgola)
-                  </label>
-                  <input
-                    type="text"
-                    value={t.matchOfferKeywords.join(', ')}
-                    onChange={(e) =>
-                      upd(i, {
-                        matchOfferKeywords: e.target.value
-                          .split(',')
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      })
-                    }
-                    placeholder="MNP, FAMIGLIA"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
-                </div>
-              </div>
-            </div>
+            <TargetRow key={i} target={t} idx={i} onUpdate={(patch) => upd(i, patch)} onRemove={() => rm(i)} />
           ))}
         </div>
       )}
@@ -483,29 +438,182 @@ function TargetsBuilder({
   );
 }
 
-// ============ Prizes builder ============
+function TargetRow({
+  target, idx, onUpdate, onRemove,
+}: {
+  target: CompetitionTarget;
+  idx: number;
+  onUpdate: (patch: Partial<CompetitionTarget>) => void;
+  onRemove: () => void;
+}) {
+  const [opts, setOpts] = useState<OffersOptions>({ providers: [], grouped: {} });
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    fetchOffersOptions(target.category).then(setOpts);
+  }, [target.category]);
+
+  const flatOffers = useMemo(() => {
+    const res: Array<{ id: string; name: string; provider: string; canone: string }> = [];
+    for (const [prov, offers] of Object.entries(opts.grouped)) {
+      for (const o of offers) res.push({ id: o.id, name: o.name, provider: prov, canone: o.canone });
+    }
+    return res;
+  }, [opts]);
+
+  const filteredOffers = useMemo(() => {
+    if (!search.trim()) return flatOffers;
+    const s = search.trim().toLowerCase();
+    return flatOffers.filter((o) =>
+      o.name.toLowerCase().includes(s) || o.provider.toLowerCase().includes(s),
+    );
+  }, [flatOffers, search]);
+
+  const toggleOffer = (id: string) => {
+    const current = target.offerIds || [];
+    const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
+    onUpdate({ offerIds: next });
+  };
+
+  return (
+    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3" data-testid={`target-row-${idx}`}>
+      <div className="grid grid-cols-12 gap-2 items-start">
+        <div className="col-span-5">
+          <label className="text-xs text-slate-400 mb-1 block">Etichetta *</label>
+          <input type="text" value={target.label} onChange={(e) => onUpdate({ label: e.target.value })}
+            placeholder='Es. "Tutte le rete fissa" o "Vodafone mobile"'
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
+        </div>
+        <div className="col-span-3">
+          <label className="text-xs text-slate-400 mb-1 block">Categoria</label>
+          <select value={target.category} onChange={(e) => onUpdate({ category: e.target.value as TargetCategory, offerIds: [], provider: null })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm">
+            {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </div>
+        <div className="col-span-3">
+          <label className="text-xs text-slate-400 mb-1 block">Pezzi target</label>
+          <input type="number" min={0} value={target.targetPieces}
+            onChange={(e) => onUpdate({ targetPieces: Number(e.target.value) })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
+        </div>
+        <div className="col-span-1 flex items-end justify-end h-full">
+          <button onClick={onRemove} className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded"><Trash className="w-4 h-4" /></button>
+        </div>
+      </div>
+
+      {/* Tipo target */}
+      <div className="mt-3">
+        <label className="text-xs text-slate-400 mb-1 block">Tipo di target</label>
+        <div className="grid grid-cols-3 gap-2">
+          {(['category_generic', 'provider_generic', 'specific'] as TargetType[]).map((tt) => (
+            <button key={tt} type="button"
+              onClick={() => onUpdate({ targetType: tt })}
+              className={`px-2 py-1.5 rounded text-xs font-medium border transition ${
+                target.targetType === tt
+                  ? 'border-amber-400 bg-amber-500/10 text-amber-200'
+                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'}`}
+              data-testid={`tt-${tt}-${idx}`}>
+              {TARGET_TYPE_LABEL[tt]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Configurazione condizionale */}
+      {target.targetType === 'category_generic' && (
+        <div className="mt-2 text-xs text-slate-500 bg-slate-900/40 rounded p-2">
+          Conterà <b>tutte</b> le pratiche di categoria <b>{CATEGORY_LABEL[target.category]}</b> nel periodo
+          (ACTIVATED, non importate, con venditore assegnato).
+        </div>
+      )}
+
+      {target.targetType === 'provider_generic' && (
+        <div className="mt-2">
+          <label className="text-xs text-slate-400 mb-1 block">Provider *</label>
+          <select value={target.provider || ''} onChange={(e) => onUpdate({ provider: e.target.value || null })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm">
+            <option value="">— Seleziona provider —</option>
+            {opts.providers.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <div className="text-xs text-slate-500 mt-1">
+            ⚡ Auto-include: nuove promo {target.provider || '...'} in catalogo entrano automaticamente al ricalcolo.
+          </div>
+        </div>
+      )}
+
+      {target.targetType === 'specific' && (
+        <div className="mt-2">
+          <label className="text-xs text-slate-400 mb-1 block">
+            Promo selezionate ({target.offerIds?.length || 0}) *
+          </label>
+          {flatOffers.length === 0 ? (
+            <div className="text-xs text-slate-500 py-2">Nessuna promo nel catalogo per questa categoria.</div>
+          ) : (
+            <>
+              <div className="relative mb-2">
+                <MagnifyingGlass className="w-4 h-4 absolute left-2 top-2 text-slate-500" />
+                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cerca per nome o provider..."
+                  className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-2 py-1.5 text-white text-sm" />
+              </div>
+              <div className="max-h-44 overflow-y-auto bg-slate-900 border border-slate-700 rounded">
+                {filteredOffers.map((o) => {
+                  const checked = (target.offerIds || []).includes(o.id);
+                  return (
+                    <label key={o.id} className={`flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-slate-800 ${checked ? 'bg-amber-500/5' : ''}`}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleOffer(o.id)} className="w-3.5 h-3.5" />
+                      <span className="font-mono text-slate-500 w-20 truncate">{o.provider}</span>
+                      <span className="text-slate-200 flex-1">{o.name}</span>
+                      <span className="text-slate-500">{o.canone}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Filtro consumer/business (opzionale, applicabile a tutti i tipi) */}
+      <div className="mt-2 flex items-center gap-3 text-xs text-slate-400">
+        <span>Tipo cliente:</span>
+        {['consumer', 'business'].map((pt) => {
+          const checked = (target.matchPracticeTypes || []).includes(pt);
+          return (
+            <label key={pt} className="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={checked}
+                onChange={(e) => {
+                  const cur = target.matchPracticeTypes || [];
+                  onUpdate({
+                    matchPracticeTypes: e.target.checked
+                      ? [...cur, pt]
+                      : cur.filter((x) => x !== pt),
+                  });
+                }}
+                className="w-3 h-3" />
+              {pt === 'consumer' ? 'Consumer' : 'Business'}
+            </label>
+          );
+        })}
+        <span className="text-slate-600">(vuoto = entrambi)</span>
+      </div>
+    </div>
+  );
+}
+
+// ============ Prizes builder (invariato dalla Tappa 4) ============
 function PrizesBuilder({
-  prizes,
-  targets,
-  onChange,
+  prizes, targets, onChange,
 }: {
   prizes: CompetitionPrize[];
   targets: CompetitionTarget[];
   onChange: (p: CompetitionPrize[]) => void;
 }) {
-  const add = () =>
-    onChange([
-      ...prizes,
-      {
-        label: '',
-        scope: 'OPERATOR',
-        kind: 'PIECES',
-        category: 'GLOBAL',
-        targetId: null,
-        threshold: 0,
-        prizeValue: null,
-      },
-    ]);
+  const add = () => onChange([...prizes, {
+    label: '', scope: 'OPERATOR', kind: 'PIECES', category: 'GLOBAL',
+    targetId: null, threshold: 0, prizeValue: null,
+  }]);
   const upd = (i: number, patch: Partial<CompetitionPrize>) =>
     onChange(prizes.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
   const rm = (i: number) => onChange(prizes.filter((_, idx) => idx !== i));
@@ -514,121 +622,56 @@ function PrizesBuilder({
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <p className="text-sm text-slate-400">
-          Premi a scaglioni: scope <span className="text-amber-300">OPERATORE</span> per
-          incentivare i singoli, <span className="text-blue-300">NEGOZIO</span> per il team
-          locale, <span className="text-emerald-300">AZIENDA</span> per la company complessiva.
+          Premi a scaglioni: <span className="text-amber-300">OPERATORE</span>, <span className="text-blue-300">NEGOZIO</span>, <span className="text-emerald-300">AZIENDA</span>.
         </p>
-        <button
-          onClick={add}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-white text-sm font-medium"
-          data-testid="add-prize"
-        >
-          <Plus className="w-4 h-4 inline mr-1" weight="bold" />
-          Premio
+        <button onClick={add} className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-white text-sm font-medium" data-testid="add-prize">
+          <Plus className="w-4 h-4 inline mr-1" weight="bold" />Premio
         </button>
       </div>
-
       {prizes.length === 0 ? (
-        <div className="text-center py-8 text-slate-500 border border-dashed border-slate-700 rounded">
-          Nessun premio configurato.
-        </div>
+        <div className="text-center py-8 text-slate-500 border border-dashed border-slate-700 rounded">Nessun premio configurato.</div>
       ) : (
         <div className="space-y-2">
           {prizes.map((p, i) => (
-            <div
-              key={i}
-              className="bg-slate-800/50 border border-slate-700 rounded-lg p-3"
-              data-testid={`prize-row-${i}`}
-            >
+            <div key={i} className="bg-slate-800/50 border border-slate-700 rounded-lg p-3" data-testid={`prize-row-${i}`}>
               <div className="grid grid-cols-12 gap-2 items-start">
                 <div className="col-span-4">
                   <label className="text-xs text-slate-400 mb-1 block">Etichetta *</label>
-                  <input
-                    type="text"
-                    value={p.label}
-                    onChange={(e) => upd(i, { label: e.target.value })}
+                  <input type="text" value={p.label} onChange={(e) => upd(i, { label: e.target.value })}
                     placeholder="Es. Bonus 2000 pezzi"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs text-slate-400 mb-1 block">Scope</label>
-                  <select
-                    value={p.scope}
-                    onChange={(e) => upd(i, { scope: e.target.value as PrizeScope })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  >
-                    {Object.entries(PRIZE_SCOPE_LABEL).map(([k, v]) => (
-                      <option key={k} value={k}>
-                        {v}
-                      </option>
-                    ))}
+                  <select value={p.scope} onChange={(e) => upd(i, { scope: e.target.value as PrizeScope })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm">
+                    {Object.entries(PRIZE_SCOPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs text-slate-400 mb-1 block">Categoria</label>
-                  <select
-                    value={p.category}
-                    onChange={(e) => upd(i, { category: e.target.value as PrizeCategory })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  >
-                    <option value="GLOBAL">Tutto</option>
-                    <option value="FIXED_LINE">Rete fissa</option>
-                    <option value="MOBILE">Mobile</option>
-                    <option value="ENERGY">Luce/Gas</option>
-                    <option value="DEVICE">Dispositivi</option>
-                    <option value="CUSTOM">Custom</option>
+                  <select value={p.category} onChange={(e) => upd(i, { category: e.target.value as PrizeCategory })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm">
+                    {Object.entries(PRIZE_CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </div>
                 <div className="col-span-1">
                   <label className="text-xs text-slate-400 mb-1 block">Soglia</label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={p.threshold}
+                  <input type="number" min={0} value={p.threshold}
                     onChange={(e) => upd(i, { threshold: Number(e.target.value) })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs text-slate-400 mb-1 block">Valore €</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    value={p.prizeValue ?? ''}
-                    onChange={(e) =>
-                      upd(i, { prizeValue: e.target.value === '' ? null : Number(e.target.value) })
-                    }
+                  <input type="number" step="0.01" min={0} value={p.prizeValue ?? ''}
+                    onChange={(e) => upd(i, { prizeValue: e.target.value === '' ? null : Number(e.target.value) })}
                     placeholder="1500"
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  />
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
                 </div>
                 <div className="col-span-1 flex items-end justify-end h-full">
-                  <button onClick={() => rm(i)} className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded">
-                    <Trash className="w-4 h-4" />
-                  </button>
+                  <button onClick={() => rm(i)} className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded"><Trash className="w-4 h-4" /></button>
                 </div>
               </div>
-              {p.category === 'CUSTOM' && (
-                <div className="mt-2">
-                  <label className="text-xs text-slate-400 mb-1 block">
-                    Target collegato (per category=Custom)
-                  </label>
-                  <select
-                    value={p.targetId || ''}
-                    onChange={(e) => upd(i, { targetId: e.target.value || null })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
-                  >
-                    <option value="">— Nessuno —</option>
-                    {targets.map((t, idx) => (
-                      <option key={t.id || `idx-${idx}`} value={t.id || ''}>
-                        {t.label || `Target ${idx + 1}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -637,14 +680,9 @@ function PrizesBuilder({
   );
 }
 
-// ============ Copy modal ============
+// ============ Copy modal (invariato dalla Tappa 4) ============
 export function CopyModal({
-  open,
-  competition,
-  shops,
-  currentShopId,
-  onClose,
-  onCopied,
+  open, competition, shops, currentShopId, onClose, onCopied,
 }: {
   open: boolean;
   competition: Competition | null;
@@ -659,11 +697,7 @@ export function CopyModal({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setTargetShopId('');
-      setCopyTargets(true);
-      setCopyPrizes(true);
-    }
+    if (open) { setTargetShopId(''); setCopyTargets(true); setCopyPrizes(true); }
   }, [open]);
 
   const otherShops = (shops || []).filter((s) => s.shopId !== currentShopId);
@@ -673,88 +707,48 @@ export function CopyModal({
     if (!competition) return;
     setSaving(true);
     try {
-      await api.post(`/competitions/${competition.id}/copy`, {
-        targetShopId,
-        copyTargets,
-        copyPrizes,
-      });
-      onCopied();
-      onClose();
+      await api.post(`/competitions/${competition.id}/copy`, { targetShopId, copyTargets, copyPrizes });
+      onCopied(); onClose();
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Errore copia');
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   if (!open || !competition) return null;
   return (
-    <div
-      className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-      data-testid="copy-modal"
-    >
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" data-testid="copy-modal">
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-lg p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Copy className="w-5 h-5 text-blue-400" weight="fill" />
-            Copia gara su altro negozio
+            <Copy className="w-5 h-5 text-blue-400" weight="fill" />Copia gara su altro negozio
           </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-sm text-slate-400 mb-4">
-          Copia "{competition.title}" su un altro shop dove sei FOUNDER o ADMIN abilitato.
-        </p>
+        <p className="text-sm text-slate-400 mb-4">Copia "{competition.title}" su un altro shop.</p>
         <div className="space-y-3">
           <div>
             <label className="text-sm text-slate-300 mb-1 block">Shop di destinazione *</label>
-            <select
-              value={targetShopId}
-              onChange={(e) => setTargetShopId(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
-              data-testid="copy-target-shop"
-            >
+            <select value={targetShopId} onChange={(e) => setTargetShopId(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" data-testid="copy-target-shop">
               <option value="">— Seleziona —</option>
-              {otherShops.map((s: any) => (
-                <option key={s.shopId} value={s.shopId}>
-                  {s.name} {s.role ? `(${s.role})` : ''}
-                </option>
-              ))}
+              {otherShops.map((s: any) => <option key={s.shopId} value={s.shopId}>{s.name}</option>)}
             </select>
-            {otherShops.length === 0 && (
-              <p className="text-xs text-rose-400 mt-1">Non hai altri negozi su cui copiare.</p>
-            )}
+            {otherShops.length === 0 && <p className="text-xs text-rose-400 mt-1">Non hai altri negozi su cui copiare.</p>}
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={copyTargets}
-              onChange={(e) => setCopyTargets(e.target.checked)}
-              className="w-4 h-4"
-            />
+            <input type="checkbox" checked={copyTargets} onChange={(e) => setCopyTargets(e.target.checked)} className="w-4 h-4" />
             <span className="text-sm text-slate-300">Copia anche i target</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={copyPrizes}
-              onChange={(e) => setCopyPrizes(e.target.checked)}
-              className="w-4 h-4"
-            />
+            <input type="checkbox" checked={copyPrizes} onChange={(e) => setCopyPrizes(e.target.checked)} className="w-4 h-4" />
             <span className="text-sm text-slate-300">Copia anche i premi</span>
           </label>
         </div>
         <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white">
-            Annulla
-          </button>
-          <button
-            onClick={submit}
-            disabled={saving || !targetShopId}
+          <button onClick={onClose} className="px-4 py-2 text-slate-300 hover:text-white">Annulla</button>
+          <button onClick={submit} disabled={saving || !targetShopId}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white font-medium disabled:opacity-50"
-            data-testid="copy-confirm"
-          >
+            data-testid="copy-confirm">
             {saving ? 'Copio...' : 'Copia gara'}
           </button>
         </div>

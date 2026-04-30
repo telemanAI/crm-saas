@@ -1,0 +1,59 @@
+// =====================================================================
+// PATCH — modifiche a /frontend/src/components/layout/OperatorLayout.tsx
+// =====================================================================
+//
+// Aggiungere una sotto-voce "Pezzi" sotto il menu "Report" della sidebar.
+//
+// Posizione: dentro il menu "Report" già esistente (probabilmente
+// collassabile come "Pratiche" e "Vendite"). Se non è collassabile,
+// aggiungere al menu principale.
+//
+// =====================================================================
+
+// ─── PATCH 1 — voce sidebar ─────────────────────────────────────────
+//
+// Nel render della sidebar, vicino a dove c'è la voce "Report" o
+// "Statistiche" o "Wash", AGGIUNGI una voce così:
+//
+//   <Link
+//     href="/operator/reports/pieces"
+//     className={`flex items-center gap-2 px-3 py-2 rounded text-sm transition ${
+//       router.pathname === '/operator/reports/pieces'
+//         ? 'bg-amber-500/10 text-amber-300'
+//         : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+//     }`}
+//     data-testid="sidebar-pieces-report"
+//   >
+//     <ChartBar className="w-4 h-4" />
+//     Pezzi venduti
+//   </Link>
+//
+// Import (in cima):
+//   import { ChartBar } from 'phosphor-react';
+//
+// Permesso: la pagina è già protetta dal frontend con
+// `usePermission('canViewReports')` quindi non serve ulteriore filtro
+// in sidebar (chi non ha il permesso non vedrà la pagina).
+// Se preferisci nascondere anche la voce, wrappa con:
+//
+//   {canViewReports && <Link ... />}
+//
+// e aggiungi `const canViewReports = usePermission('canViewReports');` in alto.
+
+// =====================================================================
+// PATCH 2 — Widget in /frontend/src/pages/operator/dashboard.tsx
+// =====================================================================
+//
+// 1. Import in cima:
+//      import MyPiecesWidget from '@/components/dashboard/MyPiecesWidget';
+//
+// 2. Inserisci `<MyPiecesWidget />` dentro la dashboard, in cima alle card
+//    o nella sezione laterale. Esempio:
+//
+//      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+//        <MyPiecesWidget />
+//        {/* ...altre card esistenti */}
+//      </div>
+//
+// 3. Permesso: il widget chiama `/reports/pieces/me` (NO permission required —
+//    ogni utente vede solo i SUOI pezzi). Quindi puoi mostrarlo a tutti.

@@ -1,0 +1,32 @@
+// =====================================================================
+// PATCH — modifiche al competitions.module.ts esistente
+// =====================================================================
+//
+// Aggiungere Offer al forFeature() così CompetitionEntriesService può
+// fare lookup offerta.
+//
+// Apri /backend/src/modules/competitions/competitions.module.ts.
+//
+// In cima:
+//   import { Offer } from '../offers/entities/offer.entity';
+//
+// Nel @Module({ imports: [...] }), trova TypeOrmModule.forFeature([...])
+// e AGGIUNGI Offer all'array. Esempio:
+//
+//   TypeOrmModule.forFeature([
+//     Competition,
+//     CompetitionTarget,
+//     CompetitionPrize,
+//     CompetitionEntry,
+//     Practice,
+//     Tenant,
+//     Offer,                           // ← AGGIUNGI
+//   ]),
+//
+// Nel providers e exports tutto resta uguale.
+//
+// =====================================================================
+// PATCH app.module.ts — NESSUNA modifica necessaria (le entity sono già
+// state aggiunte in Tappa 3). Tappa 3.1 non introduce nuove entity
+// nell'app.module: solo modifiche di colonne sulle tabelle esistenti.
+// =====================================================================

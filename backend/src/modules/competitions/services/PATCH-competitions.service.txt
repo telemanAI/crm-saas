@@ -1,0 +1,148 @@
+// =====================================================================
+// PATCH file — APPLICARE 4 modifiche manualmente al file esistente
+// /backend/src/modules/competitions/services/competitions.service.ts
+// (file della Tappa 3 originale, presente nel tuo repo dopo Tappa 3)
+//
+// Questo file NON va copiato in repo: serve solo come guida per le 4 patch
+// chiarissime da applicare con search & replace nell'editor.
+// =====================================================================
+
+// ─── PATCH 1 ──────────────────────────────────────────────────────────
+// Aggiungere import all'inizio del file (nuova dipendenza CompetitionEntriesService).
+//
+// CERCA:
+//   import { CompetitionEntry } from '../entities/competition-entry.entity';
+//
+// SOSTITUISCI CON:
+//   import { CompetitionEntry } from '../entities/competition-entry.entity';
+//   import { CompetitionEntriesService } from './competition-entries.service';
+
+// ─── PATCH 2 ──────────────────────────────────────────────────────────
+// Inietta CompetitionEntriesService nel constructor.
+//
+// CERCA il constructor() esistente e AGGIUNGI come ULTIMO parametro:
+//
+//     private readonly entriesService: CompetitionEntriesService,
+//
+// (non rimuovere gli altri).
+
+// ─── PATCH 3 ──────────────────────────────────────────────────────────
+// Salvare i nuovi campi (scopeType, isHidden) e chiamare recompute alla CREATE.
+//
+// In `create()`, dentro il transaction(), DOPO `compRepo.create({...})` ma
+// PRIMA del save, sostituisci il blocco che crea `comp` con questo:
+//
+//     const comp = compRepo.create({
+//       tenantId,
+//       companyId: tenant?.companyId ?? null,
+//       title: dto.title.trim(),
+//       description: dto.description?.trim() || null,
+//       startDate: new Date(dto.startDate) as any,
+//       endDate: new Date(dto.endDate) as any,
+//       isActive: dto.isActive ?? true,
+//       templateKey: dto.templateKey?.trim() || null,
+//       scopeType: dto.scopeType ?? 'shop',           // ← NUOVO
+//       isHidden: dto.isHidden ?? false,              // ← NUOVO
+//       createdById: createdBy,
+//     });
+//
+// Poi, ALLA FINE di `create()`, PRIMA della riga `return this.findOne(...)`, AGGIUNGI:
+//
+//     // Recompute retroattivo: assegna pezzi storici alle gare appena create
+//     try {
+//       await this.entriesService.recomputeCompetition(id);
+//     } catch (err) {
+//       // log ma non rompere create
+//       console.warn('[create competition] recompute failed', err);
+//     }
+
+// ─── PATCH 4 ──────────────────────────────────────────────────────────
+// Salvare i nuovi campi e chiamare recompute alla UPDATE.
+//
+// In `update()`, dopo i set esistenti (es. `if (dto.title !== undefined) c.title = ...`),
+// PRIMA di `await compRepo.save(c)`, AGGIUNGI:
+//
+//     if (dto.scopeType !== undefined) c.scopeType = dto.scopeType;
+//     if (dto.isHidden !== undefined) c.isHidden = dto.isHidden;
+//     if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
+//
+// Poi, ALLA FINE di `update()`, PRIMA della riga `return this.findOne(...)`, AGGIUNGI:
+//
+//     try {
+//       await this.entriesService.recomputeCompetition(id);
+//     } catch (err) {
+//       console.warn('[update competition] recompute failed', err);
+//     }
+
+// ─── PATCH 5 (makeTarget) ─────────────────────────────────────────────
+// Aggiornare `makeTarget()` per gestire i nuovi campi del DTO.
+//
+// CERCA il metodo `private makeTarget(dto, competitionId, sortIdx, repo)`.
+// SOSTITUISCI il return con questo:
+//
+//     return repo.create({
+//       competitionId,
+//       label: dto.label.trim(),
+//       category: dto.category,
+//       targetType: dto.targetType ?? 'specific',                              // ← NUOVO
+//       provider: dto.provider?.trim() || null,                                // ← NUOVO
+//       offerIds: Array.isArray(dto.offerIds) ? dto.offerIds : [],             // ← NUOVO
+//       inventoryItemIds: Array.isArray(dto.inventoryItemIds) ? dto.inventoryItemIds : [],
+//       matchProviders: (dto.matchProviders || []).map((s) => s.trim().toUpperCase()),
+//       matchOfferKeywords: (dto.matchOfferKeywords || []).map((s) => s.trim().toUpperCase()),
+//       matchPracticeTypes: dto.matchPracticeTypes || [],
+//       targetPieces: dto.targetPieces,
+//       sortOrder: dto.sortOrder ?? sortIdx,
+//     });
+
+// ─── PATCH 6 (copyToShop) ─────────────────────────────────────────────
+// Aggiornare la copia dei target in `copyToShop()` per propagare i nuovi campi.
+//
+// CERCA il blocco `if (dto.copyTargets !== false && source.targets?.length)` ...
+// e dentro il `tRepo.create({...})` AGGIUNGI le 4 righe:
+//
+//             targetType: t.targetType ?? 'specific',
+//             provider: t.provider ?? null,
+//             offerIds: [...(t.offerIds || [])],
+//             inventoryItemIds: [...(t.inventoryItemIds || [])],
+//
+// (mantenendo le altre proprietà esistenti come matchProviders, matchOfferKeywords ecc.).
+
+// ─── PATCH 7 (findAll: filtro isHidden + scope company) ──────────────
+// Aggiornare findAll per nascondere le gare hidden ai non-founder e
+// per includere le gare scope='company' della stessa company.
+//
+// CERCA il metodo `async findAll(tenantId, includeInactive)` e SOSTITUISCI
+// con questa versione (mantieni la signature):
+//
+//     async findAll(
+//       tenantId: string,
+//       includeInactive = false,
+//       opts?: { companyId?: string | null; isFounder?: boolean },
+//     ): Promise<Competition[]> {
+//       const qb = this.compRepo
+//         .createQueryBuilder('c')
+//         .leftJoinAndSelect('c.targets', 't')
+//         .leftJoinAndSelect('c.prizes', 'p');
+//
+//       qb.where(
+//         '(c.tenantId = :tenantId OR (c.scopeType = :company AND c.companyId = :companyId))',
+//         {
+//           tenantId,
+//           company: 'company',
+//           companyId: opts?.companyId || null,
+//         },
+//       );
+//
+//       if (!includeInactive) qb.andWhere('c.isActive = true');
+//       if (!opts?.isFounder) qb.andWhere('c.isHidden = false');
+//
+//       qb.orderBy('c.startDate', 'DESC')
+//         .addOrderBy('t.sortOrder', 'ASC')
+//         .addOrderBy('p.sortOrder', 'ASC');
+//
+//       return qb.getMany();
+//     }
+
+// ─── FINE PATCH competitions.service.ts ───────────────────────────────
+// Dopo aver applicato tutto, fai un build di prova per verificare zero errori TS.

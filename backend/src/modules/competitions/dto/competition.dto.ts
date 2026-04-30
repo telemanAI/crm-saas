@@ -17,7 +17,7 @@ import { Type } from 'class-transformer';
 export class TargetDto {
   @IsOptional()
   @IsUUID()
-  id?: string; // se presente, edit; altrimenti nuovo
+  id?: string;
 
   @IsString()
   @MaxLength(200)
@@ -25,6 +25,29 @@ export class TargetDto {
 
   @IsEnum(['FIXED_LINE', 'MOBILE', 'ENERGY', 'DEVICE', 'CUSTOM'])
   category: 'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'DEVICE' | 'CUSTOM';
+
+  // === Tappa 3.1 ===
+
+  @IsOptional()
+  @IsEnum(['category_generic', 'provider_generic', 'specific'])
+  targetType?: 'category_generic' | 'provider_generic' | 'specific';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  provider?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  offerIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  inventoryItemIds?: string[];
+
+  // === Backward compat Tappa 3 ===
 
   @IsOptional()
   @IsArray()
@@ -109,6 +132,16 @@ export class CreateCompetitionDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // === Tappa 3.1 ===
+
+  @IsOptional()
+  @IsEnum(['shop', 'company'])
+  scopeType?: 'shop' | 'company';
+
+  @IsOptional()
+  @IsBoolean()
+  isHidden?: boolean;
+
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -149,6 +182,21 @@ export class UpdateCompetitionDto {
   @IsBoolean()
   isActive?: boolean;
 
+  // === Tappa 3.1 ===
+
+  @IsOptional()
+  @IsEnum(['shop', 'company'])
+  scopeType?: 'shop' | 'company';
+
+  @IsOptional()
+  @IsBoolean()
+  isHidden?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  templateKey?: string;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
@@ -166,7 +214,6 @@ export class CopyCompetitionDto {
   @IsUUID()
   targetShopId: string;
 
-  /** Se true, copia anche i targets e i prizes (default true). */
   @IsOptional()
   @IsBoolean()
   copyTargets?: boolean;

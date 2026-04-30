@@ -1,0 +1,39 @@
+// =====================================================================
+// PATCH file — modifiche al modulo reports.module.ts esistente
+// (file della Tappa 3 originale o pre-Tappa 3, presente nel tuo repo).
+//
+// Aggiungere il nuovo PiecesReportController + Service.
+// =====================================================================
+
+// IL FILE ATTUALE DOVREBBE GIÀ ESSERE COSÌ (più o meno):
+//   @Module({
+//     imports: [TypeOrmModule.forFeature([..., WashReport, ...])],
+//     controllers: [WashReportController],
+//     providers: [WashReportService],
+//   })
+
+// PATCH: aggiungere il PiecesReportController + Service.
+//
+// 1. Import all'inizio:
+//      import { Practice } from '../practices/entities/practice.entity';
+//      import { Tenant } from '../tenants/entities/tenant.entity';
+//      import { User } from '../users/entities/user.entity';
+//      import { Offer } from '../offers/entities/offer.entity';
+//      import { PiecesReportController } from './pieces-report.controller';
+//      import { PiecesReportService } from './pieces-report.service';
+//
+// 2. forFeature: aggiungere [Practice, Tenant, User, Offer] all'array.
+//
+// 3. controllers: aggiungere PiecesReportController.
+// 4. providers: aggiungere PiecesReportService.
+//
+// Esempio risultato finale:
+//
+//   @Module({
+//     imports: [
+//       TypeOrmModule.forFeature([Practice, Tenant, User, Offer /*, ...quelle già presenti */]),
+//     ],
+//     controllers: [WashReportController, PiecesReportController],
+//     providers: [WashReportService, PiecesReportService],
+//   })
+//   export class ReportsModule {}

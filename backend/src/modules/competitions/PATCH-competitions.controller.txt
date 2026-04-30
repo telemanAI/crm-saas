@@ -1,0 +1,94 @@
+// =====================================================================
+// PATCH file — modifiche manuali a competitions.controller.ts
+// =====================================================================
+//
+// Aggiungere DUE endpoint nuovi: 
+//   POST /competitions/:id/recompute  → ricalcolo manuale entries
+//   GET  /competitions/offers-options → dropdown offerte raggruppate
+//
+// E aggiornare l'endpoint list() per passare companyId e isFounder al service.
+// =====================================================================
+
+// ─── PATCH 1 — import nuovi (in cima al file) ────────────────────────
+//
+// AGGIUNGI agli import esistenti:
+//
+//   import { Offer } from '../offers/entities/offer.entity';
+//   import { InjectRepository } from '@nestjs/typeorm';
+//   import { Repository } from 'typeorm';
+//   import { Tenant } from '../tenants/entities/tenant.entity';
+
+// ─── PATCH 2 — constructor ────────────────────────────────────────────
+//
+// AGGIUNGI come parametri al constructor (dopo gli esistenti):
+//
+//   @InjectRepository(Offer) private readonly offerRepo: Repository<Offer>,
+//   @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
+
+// ─── PATCH 3 — list() aggiornato ──────────────────────────────────────
+//
+// SOSTITUISCI il metodo list() esistente con:
+//
+//   @Get()
+//   @RequirePermission('canViewCompetitions')
+//   async list(@Req() req: any, @Query('includeInactive') includeInactive?: string) {
+//     const userId = req.user.id || req.user.sub;
+//     const tenant = await this.tenantRepo.findOne({ where: { id: req.user.tenantId } });
+//     const isFounder = req.user.role === 'SUPER_ADMIN' || req.user.role === 'FOUNDER';
+//     return this.competitionsService.findAll(req.user.tenantId, includeInactive === 'true', {
+//       companyId: tenant?.companyId ?? null,
+//       isFounder,
+//     });
+//   }
+
+// ─── PATCH 4 — POST /:id/recompute ────────────────────────────────────
+//
+// AGGIUNGI questo endpoint DOPO `getOne(...)` e PRIMA di `update(...)`:
+//
+//   @Post(':id/recompute')
+//   @RequirePermission('canManageCompetitions')
+//   @HttpCode(HttpStatus.OK)
+//   async recompute(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+//     // Verifica accesso (la gara deve essere dello shop o della company)
+//     await this.competitionsService.findOne(req.user.tenantId, id);
+//     const result = await this.entriesService.recomputeCompetition(id);
+//     return {
+//       message: 'Ricalcolo completato',
+//       deleted: result.deleted,
+//       inserted: result.inserted,
+//       perTarget: result.perTarget,
+//     };
+//   }
+//
+// E al constructor inietta anche `entriesService: CompetitionEntriesService`
+// (se non è già iniettato).
+
+// ─── PATCH 5 — GET /offers-options/:category ─────────────────────────
+//
+// AGGIUNGI questo endpoint per popolare i dropdown del frontend:
+//
+//   @Get('offers-options/:category')
+//   @RequirePermission('canViewCompetitions')
+//   async offersOptions(@Param('category') category: string) {
+//     const offers = await this.offerRepo.find({
+//       where: { category: category.toUpperCase() as any, is_active: true } as any,
+//       order: { provider: 'ASC', name: 'ASC' },
+//     });
+//     // Raggruppa per provider per UX dropdown
+//     const grouped: Record<string, Array<{ id: string; name: string; canone: string; type: string }>> = {};
+//     const providers = new Set<string>();
+//     for (const o of offers) {
+//       providers.add(o.provider);
+//       if (!grouped[o.provider]) grouped[o.provider] = [];
+//       grouped[o.provider].push({
+//         id: o.id,
+//         name: o.name,
+//         canone: o.canone,
+//         type: o.type,
+//       });
+//     }
+//     return {
+//       providers: Array.from(providers).sort(),
+//       grouped,
+//     };
+//   }

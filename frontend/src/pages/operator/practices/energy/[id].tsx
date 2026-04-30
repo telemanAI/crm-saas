@@ -17,6 +17,7 @@ import {
   NavigationArrow,
   Check,
   Buildings,
+  Warning,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
@@ -368,42 +369,57 @@ export default function EnergyPracticeDetail() {
                 practice.notesHistory
                   .slice()
                   .reverse()
-                  .map((note: any, index: number) => (
-                    <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
-                      <div className="absolute left-[-5px] top-0 w-2 h-2 rounded-full bg-amber-500" />
-                      <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-amber-400">
-                            {safeString(note.createdBy) || 'Operatore'}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500">
-                              {new Date(note.createdAt).toLocaleString('it-IT', {
-                                day: '2-digit',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                            <button
-                              onClick={() => {
-                                const historyLength = practice.notesHistory?.length || 0;
-                                handleDeleteNote(historyLength - 1 - index);
-                              }}
-                              className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                              title="Elimina nota"
-                            >
-                              <Trash className="w-4 h-4" />
-                            </button>
+                  .map((note: any, index: number) => {
+                    const isKo = !!note.isKoReason;
+                    return (
+                      <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
+                        <div className={`absolute left-[-5px] top-0 w-2 h-2 rounded-full ${isKo ? 'bg-rose-500 ring-2 ring-rose-500/30' : 'bg-amber-500'}`} />
+                        <div className={`rounded-xl p-4 border ${
+                          isKo
+                            ? 'bg-rose-950/30 border-rose-500/40'
+                            : 'bg-slate-950/50 border-slate-800'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              {isKo && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase tracking-wider">
+                                  <Warning className="w-3 h-3" weight="fill" />
+                                  Motivazione KO
+                                </span>
+                              )}
+                              <span className={`text-xs font-medium ${isKo ? 'text-rose-300' : 'text-amber-400'}`}>
+                                {safeString(note.createdBy) || 'Operatore'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">
+                                {new Date(note.createdAt).toLocaleString('it-IT', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const historyLength = practice.notesHistory?.length || 0;
+                                  handleDeleteNote(historyLength - 1 - index);
+                                }}
+                                className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                                title="Elimina nota"
+                              >
+                                <Trash className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isKo ? 'text-rose-100' : 'text-slate-300'}`}>
+                            {safeString(note.text)}
+                          </p>
                         </div>
-                        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                          {safeString(note.text)}
-                        </p>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
               ) : (
                 <div className="text-center py-8 text-slate-500">
                   <Note className="w-12 h-12 mx-auto mb-3 opacity-30" />

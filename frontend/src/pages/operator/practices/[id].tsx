@@ -226,20 +226,60 @@ export default function PracticeDetail() {
   // 🔥 FIX BUILD: firma allargata da union type a string per supportare KO_CREDITO / KO_COPERTURA
   const handleOperationalStatusChange = async (newStatus: string) => {
     if (!practice || statusLoading) return;
+    // Se è uno stato KO, apri prima il form motivazione e NON chiamare subito l'API
+    if (isKoStatus(newStatus)) {
+      setPendingStatus(newStatus);
+      return;
+    }
+    // Stato non-KO: chiamata diretta
+    await doUpdateStatus(newStatus);
+  };
+
+  const doUpdateStatus = async (newStatus: string, reason?: string) => {
+    if (!practice) return;
     setStatusLoading(true);
     try {
-      await api.put(`/practices/${id}/operational-status`, 
-        { status: newStatus },
+      const payload: any = { status: newStatus };
+      if (reason) payload.koReason = reason;
+      await api.put(`/practices/${id}/operational-status`, payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setOperationalStatus(newStatus);
+      setPendingStatus(null);
+      setKoReason('');
       fetchPractice();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Errore cambio stato:', err);
-      alert('Errore durante il cambio stato');
+      alert('Errore aggiornamento stato: ' + (err?.response?.data?.message || err?.message || ''));
       if (practice.operationalStatus) {
         setOperationalStatus(practice.operationalStatus);
       }
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const confirmKoStatus = () => {
+    if (!pendingStatus) return;
+    if (!koReason.trim()) {
+      alert('Inserisci la motivazione KO obbligatoria');
+      return;
+    }
+    doUpdateStatus(pendingStatus, koReason.trim());
+  };
+
+  const updateSkyTvStatus = async (newSkyTvStatus: string) => {
+    if (!practice || statusLoading) return;
+    setStatusLoading(true);
+    try {
+      await api.patch(`/practices/${id}/sky-tv-status`,
+        { skyTvStatus: newSkyTvStatus || null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchPractice();
+    } catch (err: any) {
+      console.error('Errore aggiornamento Sky TV:', err);
+      alert('Errore aggiornamento Sky TV: ' + (err?.response?.data?.message || err?.message || ''));
     } finally {
       setStatusLoading(false);
     }

@@ -99,6 +99,21 @@ export class PracticesController {
     return this.practicesService.updateConvergence(user.tenantId, id, numero);
   }
 
+  @Patch(':id/sky-tv-status')
+  @RequirePermission('canEditPractices')
+  async updateSkyTvStatus(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('skyTvStatus') skyTvStatus: any,
+  ) {
+    const user = req.user;
+    return this.practicesService.updateSkyTvStatus(
+      user.tenantId,
+      id,
+      skyTvStatus || null,
+    );
+  }
+
   @Post(':id/force-complete')
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   async forceComplete(@Param('id') id: string, @Request() req) {

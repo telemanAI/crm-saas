@@ -128,9 +128,13 @@ export class Practice {
   @Column({ name: 'offer_scadenza', nullable: true })
   offerScadenza: string;
 
+  // === TAPPA 3.1 — link stabile all'offerta del catalogo ===
+  // Popolata via lookup (provider, name) in practices.service.ts
+  @Column({ name: 'offer_id', type: 'uuid', nullable: true })
+  offerId: string | null;
+
   @Column({ name: 'sold_by', nullable: true })
   soldBy: string;
-
   @Column({ name: 'sold_by_id', nullable: true })
   soldById: string;
 

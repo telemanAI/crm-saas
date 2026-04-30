@@ -131,6 +131,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
   const afterPracticesItems = [
     { href: '/operator/reports', icon: ChartLine, label: 'Report' },
+    { href: '/operator/reports/pieces', icon: ChartLine, label: 'Pezzi venduti' },
     ...(canViewCompetitions ? [{ href: '/operator/competitions', icon: Trophy, label: 'Gare' }] : []),
     ...(canManageTeam ? [{ href: '/operator/team', icon: UsersThree, label: 'Team' }] : []),
     { href: '/operator/imports', icon: UploadSimple, label: 'Import' },

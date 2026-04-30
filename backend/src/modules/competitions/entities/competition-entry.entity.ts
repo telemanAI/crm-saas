@@ -72,6 +72,13 @@ export class CompetitionEntry {
   @Column({ type: 'numeric', precision: 14, scale: 2, nullable: true })
   revenue: number | null;
 
+  /**
+   * TAPPA 3.1 — Shop denormalizzato per query report cross-shop.
+   * Coincide con tenantId per le pratiche, ma è esplicito per chiarezza.
+   */
+  @Column({ name: 'shop_id', type: 'uuid', nullable: true })
+  shopId: string | null;
+
   @Column({ name: 'created_at', type: 'timestamp', default: () => 'NOW()' })
   createdAt: Date;
 }

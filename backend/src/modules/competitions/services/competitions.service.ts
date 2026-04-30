@@ -11,6 +11,7 @@ import { CompetitionTarget } from '../entities/competition-target.entity';
 import { CompetitionPrize } from '../entities/competition-prize.entity';
 import { CompetitionEntry } from '../entities/competition-entry.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { CompetitionEntriesService } from './competition-entries.service';
 import {
   CreateCompetitionDto,
   UpdateCompetitionDto,
@@ -33,20 +34,38 @@ export class CompetitionsService {
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
     private readonly dataSource: DataSource,
+    private readonly entriesService: CompetitionEntriesService,
   ) {}
 
   // ===================== READ =====================
 
-  async findAll(tenantId: string, includeInactive = false): Promise<Competition[]> {
+  async findAll(
+    tenantId: string,
+    includeInactive = false,
+    opts?: { companyId?: string | null; isFounder?: boolean },
+  ): Promise<Competition[]> {
     const qb = this.compRepo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.targets', 't')
-      .leftJoinAndSelect('c.prizes', 'p')
-      .where('c.tenantId = :tenantId', { tenantId })
-      .orderBy('c.startDate', 'DESC')
+      .leftJoinAndSelect('c.prizes', 'p');
+
+    // Tappa 3.1: include gare scope=company della stessa company + scope=shop dello shop attivo
+    if (opts?.companyId) {
+      qb.where(
+        '(c.tenantId = :tenantId OR (c.scopeType = :company AND c.companyId = :companyId))',
+        { tenantId, company: 'company', companyId: opts.companyId },
+      );
+    } else {
+      qb.where('c.tenantId = :tenantId', { tenantId });
+    }
+
+    if (!includeInactive) qb.andWhere('c.isActive = true');
+    // Tappa 3.1: gare nascoste visibili solo a founder/super-admin
+    if (!opts?.isFounder) qb.andWhere('c.isHidden = false');
+
+    qb.orderBy('c.startDate', 'DESC')
       .addOrderBy('t.sortOrder', 'ASC')
       .addOrderBy('p.sortOrder', 'ASC');
-    if (!includeInactive) qb.andWhere('c.isActive = true');
     return qb.getMany();
   }
 
@@ -83,6 +102,8 @@ export class CompetitionsService {
         endDate: new Date(dto.endDate) as any,
         isActive: dto.isActive ?? true,
         templateKey: dto.templateKey?.trim() || null,
+        scopeType: dto.scopeType ?? 'shop',           // Tappa 3.1
+        isHidden: dto.isHidden ?? false,              // Tappa 3.1
         createdById: createdBy,
       });
       const saved = await compRepo.save(comp);
@@ -97,6 +118,13 @@ export class CompetitionsService {
       }
       return saved.id;
     });
+
+    // Tappa 3.1: ricalcolo retroattivo automatico — assegna pezzi storici alla nuova gara
+    try {
+      await this.entriesService.recomputeCompetition(id);
+    } catch (err) {
+      console.warn('[create competition] recompute failed', err);
+    }
 
     return this.findOne(tenantId, id);
   }
@@ -121,6 +149,9 @@ export class CompetitionsService {
       if (dto.startDate) c.startDate = new Date(dto.startDate) as any;
       if (dto.endDate) c.endDate = new Date(dto.endDate) as any;
       if (dto.isActive !== undefined) c.isActive = dto.isActive;
+      if (dto.scopeType !== undefined) c.scopeType = dto.scopeType;       // Tappa 3.1
+      if (dto.isHidden !== undefined) c.isHidden = dto.isHidden;          // Tappa 3.1
+      if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
       await compRepo.save(c);
 
       if (dto.targets !== undefined) {
@@ -142,6 +173,13 @@ export class CompetitionsService {
         }
       }
     });
+
+    // Tappa 3.1: ricalcolo retroattivo dopo update
+    try {
+      await this.entriesService.recomputeCompetition(id);
+    } catch (err) {
+      console.warn('[update competition] recompute failed', err);
+    }
 
     return this.findOne(tenantId, id);
   }
@@ -207,6 +245,8 @@ export class CompetitionsService {
         isActive: true,
         isAutoMonthly: false,
         templateKey: newTemplateKey,
+        scopeType: source.scopeType ?? 'shop',     // Tappa 3.1
+        isHidden: source.isHidden ?? false,         // Tappa 3.1
         createdById: userId,
       });
       const saved = await compRepo.save(newComp);
@@ -217,6 +257,12 @@ export class CompetitionsService {
             competitionId: saved.id,
             label: t.label,
             category: t.category,
+            // Tappa 3.1
+            targetType: t.targetType ?? 'specific',
+            provider: t.provider ?? null,
+            offerIds: [...(t.offerIds || [])],
+            inventoryItemIds: [...(t.inventoryItemIds || [])],
+            // Backward compat
             matchProviders: [...(t.matchProviders || [])],
             matchOfferKeywords: [...(t.matchOfferKeywords || [])],
             matchPracticeTypes: [...(t.matchPracticeTypes || [])],
@@ -244,6 +290,14 @@ export class CompetitionsService {
       }
       return saved.id;
     });
+
+    // Tappa 3.1: anche la gara copiata fa recompute (per popolare le entries
+    // sullo shop di destinazione con le sue pratiche del periodo)
+    try {
+      await this.entriesService.recomputeCompetition(newId);
+    } catch (err) {
+      console.warn('[copy competition] recompute failed', err);
+    }
 
     return this.findOne(dto.targetShopId, newId);
   }
@@ -362,6 +416,12 @@ export class CompetitionsService {
       competitionId,
       label: dto.label.trim(),
       category: dto.category,
+      // Tappa 3.1: nuovi campi
+      targetType: dto.targetType ?? 'specific',
+      provider: dto.provider?.trim() || null,
+      offerIds: Array.isArray(dto.offerIds) ? dto.offerIds : [],
+      inventoryItemIds: Array.isArray(dto.inventoryItemIds) ? dto.inventoryItemIds : [],
+      // Backward compat Tappa 3
       matchProviders: (dto.matchProviders || []).map((s) => s.trim().toUpperCase()),
       matchOfferKeywords: (dto.matchOfferKeywords || []).map((s) => s.trim().toUpperCase()),
       matchPracticeTypes: dto.matchPracticeTypes || [],

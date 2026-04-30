@@ -17,6 +17,7 @@ import {
   Crown,
   ChartBar,
   CurrencyEur,
+  ArrowsClockwise,
 } from 'phosphor-react';
 import {
   Competition,
@@ -127,6 +128,22 @@ export default function CompetitionDetailPage() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+
+  const handleRecompute = async () => {
+    if (!id || typeof id !== 'string') return;
+    if (!confirm('Ricalcolare le entries di questa gara? Tutte le entries esistenti verranno cancellate e ricreate scansionando le pratiche del periodo (esclusi gli import).')) return;
+    setRecomputing(true);
+    try {
+      const res = await api.post(`/competitions/${id}/recompute`);
+      alert(`Ricalcolo completato: ${res.data.deleted} cancellate, ${res.data.inserted} inserite.`);
+      fetchAll(id);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Errore ricalcolo');
+    } finally {
+      setRecomputing(false);
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -261,6 +278,16 @@ export default function CompetitionDetailPage() {
 
             {canManage && (
               <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={handleRecompute}
+                  disabled={recomputing}
+                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-amber-300 text-sm font-medium inline-flex items-center gap-1 disabled:opacity-50"
+                  data-testid="detail-recompute-btn"
+                  title="Ricalcola entries scansionando le pratiche del periodo"
+                >
+                  <ArrowsClockwise className={`w-4 h-4 ${recomputing ? 'animate-spin' : ''}`} />
+                  {recomputing ? 'Ricalcolo...' : 'Ricalcola'}
+                </button>
                 {otherShopsCount > 0 && (
                   <button
                     onClick={() => setCopyOpen(true)}

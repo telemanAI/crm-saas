@@ -13,10 +13,13 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { CompetitionsService } from './services/competitions.service';
+import { CompetitionEntriesService } from './services/competition-entries.service';
 import { CompetitionsAutoMonthlyService } from './services/competitions-auto-monthly.service';
 import {
   CreateCompetitionDto,
@@ -24,35 +27,43 @@ import {
   CopyCompetitionDto,
 } from './dto/competition.dto';
 import { MembershipsService } from '../memberships/memberships.service';
+import { Offer } from '../offers/entities/offer.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 /**
- * Endpoint Gare:
- *  GET    /competitions          → lista gare dello shop attivo
- *  POST   /competitions          → crea gara
- *  GET    /competitions/:id      → dettaglio + targets + prizes
- *  PATCH  /competitions/:id      → aggiorna (sostituisce targets/prizes se forniti)
- *  DELETE /competitions/:id      → elimina (e tutte le entries)
- *  POST   /competitions/:id/copy → copia su un altro shop dello stesso founder
- *  GET    /competitions/:id/leaderboard → classifica completa
- *  POST   /competitions/auto-monthly/run → forza generazione gara mensile (admin only)
- *
- * Permessi:
- *  - canViewCompetitions  → GET
- *  - canManageCompetitions → POST/PATCH/DELETE/COPY/RUN
+ * Endpoint Gare (TAPPA 3.1):
+ *  GET    /competitions                       → lista gare visibili (filtra hidden + scope company)
+ *  POST   /competitions                       → crea gara (auto-recompute retroattivo)
+ *  GET    /competitions/:id                   → dettaglio + targets + prizes
+ *  PATCH  /competitions/:id                   → aggiorna (auto-recompute)
+ *  DELETE /competitions/:id                   → elimina + tutte le entries
+ *  POST   /competitions/:id/copy              → copia su altro shop
+ *  POST   /competitions/:id/recompute         → ricalcola entries scansionando il periodo
+ *  GET    /competitions/:id/leaderboard       → classifica
+ *  GET    /competitions/offers-options/:cat   → dropdown offerte per modale gara
+ *  POST   /competitions/auto-monthly/run      → genera gara mensile auto
  */
 @Controller('competitions')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class CompetitionsController {
   constructor(
     private readonly competitionsService: CompetitionsService,
+    private readonly entriesService: CompetitionEntriesService,
     private readonly autoMonthlyService: CompetitionsAutoMonthlyService,
     private readonly membershipsService: MembershipsService,
+    @InjectRepository(Offer) private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(Tenant) private readonly tenantRepo: Repository<Tenant>,
   ) {}
 
   @Get()
   @RequirePermission('canViewCompetitions')
-  list(@Req() req: any, @Query('includeInactive') includeInactive?: string) {
-    return this.competitionsService.findAll(req.user.tenantId, includeInactive === 'true');
+  async list(@Req() req: any, @Query('includeInactive') includeInactive?: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: req.user.tenantId } });
+    const isFounder = req.user.role === 'SUPER_ADMIN' || req.user.role === 'FOUNDER';
+    return this.competitionsService.findAll(req.user.tenantId, includeInactive === 'true', {
+      companyId: tenant?.companyId ?? null,
+      isFounder,
+    });
   }
 
   @Post()
@@ -64,8 +75,7 @@ export class CompetitionsController {
   }
 
   /**
-   * IMPORTANTE: questa rotta deve essere PRIMA di `:id` per evitare che
-   * "auto-monthly" venga catturato da `:id`.
+   * IMPORTANTE: queste rotte specifiche DEVONO stare prima di `:id`.
    */
   @Post('auto-monthly/run')
   @RequirePermission('canManageCompetitions')
@@ -73,6 +83,37 @@ export class CompetitionsController {
   runAutoMonthly(@Body() body?: { date?: string }) {
     const ref = body?.date ? new Date(body.date) : new Date();
     return this.autoMonthlyService.ensureMonthCompetitions(ref);
+  }
+
+  /**
+   * TAPPA 3.1 — Dropdown offerte per modale gara.
+   * Restituisce offers raggruppate per provider (per category fixed_line/mobile/energy).
+   */
+  @Get('offers-options/:category')
+  @RequirePermission('canViewCompetitions')
+  async offersOptions(@Param('category') category: string) {
+    const cat = category.toUpperCase();
+    const offers = await this.offerRepo.find({
+      where: { category: cat as any, is_active: true } as any,
+      order: { provider: 'ASC', name: 'ASC' },
+    });
+    const grouped: Record<string, Array<{ id: string; name: string; canone: string; type: string }>> = {};
+    const providers = new Set<string>();
+    for (const o of offers) {
+      if (!o.provider) continue;
+      providers.add(o.provider);
+      if (!grouped[o.provider]) grouped[o.provider] = [];
+      grouped[o.provider].push({
+        id: o.id,
+        name: o.name,
+        canone: o.canone || '',
+        type: (o as any).type || '',
+      });
+    }
+    return {
+      providers: Array.from(providers).sort(),
+      grouped,
+    };
   }
 
   @Get(':id')
@@ -85,6 +126,25 @@ export class CompetitionsController {
   @RequirePermission('canViewCompetitions')
   leaderboard(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.competitionsService.getLeaderboard(req.user.tenantId, id);
+  }
+
+  /**
+   * TAPPA 3.1 — Ricalcolo manuale entries.
+   * Cancella tutte le entries della gara e ri-scansiona pratiche del periodo.
+   */
+  @Post(':id/recompute')
+  @RequirePermission('canManageCompetitions')
+  @HttpCode(HttpStatus.OK)
+  async recompute(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    // Verifica accesso
+    await this.competitionsService.findOne(req.user.tenantId, id);
+    const result = await this.entriesService.recomputeCompetition(id);
+    return {
+      message: 'Ricalcolo completato',
+      deleted: result.deleted,
+      inserted: result.inserted,
+      perTarget: result.perTarget,
+    };
   }
 
   @Patch(':id')
@@ -114,7 +174,6 @@ export class CompetitionsController {
   ) {
     const userId = req.user.id || req.user.sub || req.user.userId;
     return this.competitionsService.copyToShop(req.user.tenantId, id, userId, dto, async () => {
-      // Verifica che l'utente sia FOUNDER (o ADMIN con canManageCompetitions) anche sul target shop
       const targetMembership = await this.membershipsService.findActiveForUserAndShop(
         userId,
         dto.targetShopId,

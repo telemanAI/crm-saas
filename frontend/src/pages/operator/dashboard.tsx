@@ -14,6 +14,7 @@ import {
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
+import MyPiecesWidget from '@/components/dashboard/MyPiecesWidget';
 import { useApi } from '@/hooks/useApi';
 import { 
   LineChart, 
@@ -165,6 +166,11 @@ export default function OperatorDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* TAPPA 3.1 — Widget i miei pezzi del mese */}
+      <div className="mb-8">
+        <MyPiecesWidget />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard title="Clienti" value={stats.customers} icon={Users} color="indigo" trend="+0" loading={loading} />

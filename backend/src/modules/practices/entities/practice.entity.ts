@@ -207,7 +207,7 @@ export class Practice {
   };
 
   @Column({ name: 'notes_history', type: 'jsonb', nullable: true })
-  notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string; isKoReason?: boolean }>;
+  notesHistory: Array<{ text: string; createdAt: Date; createdBy: string; createdById: string; isKoReason?: boolean; isSkyTvKoReason?: boolean; skyTvStatus?: string }>;
 
   @Column({ name: 'current_step', type: 'int', default: 1 })
   currentStep: number;

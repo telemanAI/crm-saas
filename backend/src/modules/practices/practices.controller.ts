@@ -105,12 +105,15 @@ export class PracticesController {
     @Request() req,
     @Param('id', ParseUUIDPipe) id: string,
     @Body('skyTvStatus') skyTvStatus: any,
+    @Body('skyTvKoReason') skyTvKoReason?: string,
   ) {
     const user = req.user;
     return this.practicesService.updateSkyTvStatus(
       user.tenantId,
       id,
       skyTvStatus || null,
+      skyTvKoReason,
+      user.userId,
     );
   }
 

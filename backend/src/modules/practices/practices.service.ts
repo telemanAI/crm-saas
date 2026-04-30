@@ -607,9 +607,37 @@ export class PracticesService {
     tenantId: string,
     practiceId: string,
     skyTvStatus: SkyTvStatus | null,
+    skyTvKoReason?: string,
+    userId?: string,
   ): Promise<PracticeResponseDto> {
     const practice = await this.findById(tenantId, practiceId);
+
+    const isSkyTvKo = !!skyTvStatus && skyTvStatus.startsWith('KO_');
+    if (isSkyTvKo && (!skyTvKoReason || skyTvKoReason.trim().length === 0)) {
+      throw new ForbiddenException('La motivazione è obbligatoria per gli stati KO Sky TV');
+    }
+
     practice.skyTvStatus = skyTvStatus;
+
+    if (isSkyTvKo && skyTvKoReason) {
+      const currentUser = userId
+        ? await this.userRepo.findOne({ where: { id: userId } })
+        : null;
+      const userName = currentUser
+        ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+        : 'Sistema';
+      const koNote = {
+        text: `[SKY TV ${skyTvStatus}] ${skyTvKoReason.trim()}`,
+        createdAt: new Date(),
+        createdBy: userName,
+        createdById: userId || 'system',
+        isSkyTvKoReason: true,
+        skyTvStatus: skyTvStatus as string,
+      };
+      if (!practice.notesHistory) practice.notesHistory = [];
+      practice.notesHistory.push(koNote);
+    }
+
     await this.practiceRepo.save(practice);
     return new PracticeResponseDto(practice);
   }

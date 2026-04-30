@@ -137,6 +137,8 @@ export default function PracticeDetail() {
   const [savingConvergenza, setSavingConvergenza] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [koReason, setKoReason] = useState('');
+  const [pendingSkyTvStatus, setPendingSkyTvStatus] = useState<string | null>(null);
+  const [skyTvKoReason, setSkyTvKoReason] = useState('');
 
   useEffect(() => {
     if (id && token) fetchPractice();
@@ -270,12 +272,25 @@ export default function PracticeDetail() {
 
   const updateSkyTvStatus = async (newSkyTvStatus: string) => {
     if (!practice || statusLoading) return;
+    // Se è uno stato KO Sky TV, apri prima il form motivazione
+    if (newSkyTvStatus && newSkyTvStatus.startsWith('KO_')) {
+      setPendingSkyTvStatus(newSkyTvStatus);
+      return;
+    }
+    await doUpdateSkyTv(newSkyTvStatus);
+  };
+
+  const doUpdateSkyTv = async (newSkyTvStatus: string, reason?: string) => {
+    if (!practice) return;
     setStatusLoading(true);
     try {
-      await api.patch(`/practices/${id}/sky-tv-status`,
-        { skyTvStatus: newSkyTvStatus || null },
+      const payload: any = { skyTvStatus: newSkyTvStatus || null };
+      if (reason) payload.skyTvKoReason = reason;
+      await api.patch(`/practices/${id}/sky-tv-status`, payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      setPendingSkyTvStatus(null);
+      setSkyTvKoReason('');
       fetchPractice();
     } catch (err: any) {
       console.error('Errore aggiornamento Sky TV:', err);
@@ -283,6 +298,15 @@ export default function PracticeDetail() {
     } finally {
       setStatusLoading(false);
     }
+  };
+
+  const confirmSkyTvKoStatus = () => {
+    if (!pendingSkyTvStatus) return;
+    if (!skyTvKoReason.trim()) {
+      alert('Inserisci la motivazione KO Sky TV obbligatoria');
+      return;
+    }
+    doUpdateSkyTv(pendingSkyTvStatus, skyTvKoReason.trim());
   };
 
   const getStatusColor = (status: string) => {
@@ -496,6 +520,37 @@ export default function PracticeDetail() {
                   }`}>
                     {getSkyTvLabel(practice.skyTvStatus)}
                   </span>
+                )}
+
+                {pendingSkyTvStatus && pendingSkyTvStatus.startsWith('KO_') && (
+                  <div className="mt-4 p-4 bg-rose-950/30 border border-rose-500/40 rounded-xl">
+                    <label className="flex items-center gap-2 text-sm text-rose-300 mb-2 font-medium">
+                      <TelevisionSimple className="w-4 h-4" weight="fill" />
+                      Motivazione KO Sky TV obbligatoria — {getSkyTvLabel(pendingSkyTvStatus)}
+                    </label>
+                    <textarea
+                      value={skyTvKoReason}
+                      onChange={(e) => setSkyTvKoReason(e.target.value)}
+                      placeholder="Descrivi il motivo del KO Sky TV..."
+                      rows={3}
+                      className="w-full bg-slate-900 border border-rose-700/50 rounded-xl p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50 resize-none text-sm"
+                    />
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={confirmSkyTvKoStatus}
+                        disabled={statusLoading || !skyTvKoReason.trim()}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 disabled:bg-slate-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Conferma KO Sky TV
+                      </button>
+                      <button
+                        onClick={() => { setPendingSkyTvStatus(null); setSkyTvKoReason(''); }}
+                        className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                      >
+                        Annulla
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
@@ -719,24 +774,32 @@ export default function PracticeDetail() {
                   .reverse()
                   .map((note, index) => {
                     const isKo = !!(note as any).isKoReason;
+                    const isSkyTvKo = !!(note as any).isSkyTvKoReason;
+                    const highlight = isKo || isSkyTvKo;
                     return (
                       <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
-                        <div className={`absolute left-[-5px] top-0 w-2 h-2 rounded-full ${isKo ? 'bg-rose-500 ring-2 ring-rose-500/30' : 'bg-amber-500'}`} />
+                        <div className={`absolute left-[-5px] top-0 w-2 h-2 rounded-full ${highlight ? 'bg-rose-500 ring-2 ring-rose-500/30' : 'bg-amber-500'}`} />
 
                         <div className={`rounded-xl p-4 border ${
-                          isKo
+                          highlight
                             ? 'bg-rose-950/30 border-rose-500/40'
                             : 'bg-slate-950/50 border-slate-800'
                         }`}>
                           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                            <div className="flex items-center gap-2">
-                              {isKo && (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {highlight && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase tracking-wider">
                                   <Warning className="w-3 h-3" weight="fill" />
                                   Motivazione KO
                                 </span>
                               )}
-                              <span className={`text-xs font-medium ${isKo ? 'text-rose-300' : 'text-amber-400'}`}>
+                              {isSkyTvKo && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-[10px] font-bold uppercase tracking-wider">
+                                  <TelevisionSimple className="w-3 h-3" weight="fill" />
+                                  Sky TV
+                                </span>
+                              )}
+                              <span className={`text-xs font-medium ${highlight ? 'text-rose-300' : 'text-amber-400'}`}>
                                 {safeString(note.createdBy) || 'Operatore'}
                               </span>
                             </div>
@@ -762,7 +825,7 @@ export default function PracticeDetail() {
                               </button>
                             </div>
                           </div>
-                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${isKo ? 'text-rose-100' : 'text-slate-300'}`}>
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${highlight ? 'text-rose-100' : 'text-slate-300'}`}>
                             {safeString(note.text)}
                           </p>
                         </div>

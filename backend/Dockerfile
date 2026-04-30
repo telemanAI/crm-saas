@@ -16,4 +16,6 @@ RUN ls -la dist/
 
 EXPOSE 3001
 
-CMD ["node", "dist/main"]
+
+# Esegui le migration prima di avviare l'app
+CMD ["sh", "-c", "npm run migration:run && node dist/main"]

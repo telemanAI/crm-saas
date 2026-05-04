@@ -18,17 +18,19 @@ export class JwtAuthGuard implements CanActivate {
     try {
       const payload = this.jwtService.verify(token);
 
-      // ← VALIDAZIONE: il token deve contenere l'ID utente
       if (!payload.sub) {
         throw new UnauthorizedException('Token non contiene ID utente');
       }
+
+      // CHIRURGIA: fallback tenantId/shopId per token vecchi o multi-shop
+      const tenantId = payload.tenantId || payload.shopId || null;
 
       request.user = {
         id: payload.sub,
         userId: payload.sub,
         sub: payload.sub,
         email: payload.email,
-        tenantId: payload.tenantId,
+        tenantId,
         role: payload.role,
         isSuperAdmin: payload.isSuperAdmin || false,
         isImpersonated: payload.isImpersonated || false,

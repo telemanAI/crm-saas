@@ -46,6 +46,33 @@ export default function ExportsPage() {
     }
   };
 
+  /**
+   * Phase F — Export multi-categoria: workbook xlsx con un foglio per categoria
+   * (Linea Fissa, Mobile, Luce/Gas, SKY, Clienti).
+   */
+  const handleExportMultiSheet = async () => {
+    setExporting(true);
+    try {
+      const response = await axios.post(
+        '/exports/practices-multi-sheet',
+        { filters },
+        { responseType: 'blob' },
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `export_pratiche_multi_${Date.now()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Errore export multi-sheet:', error);
+      alert('Errore durante l\'export multi-categoria');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const statusOptions = [
     { value: 'draft', label: 'Bozza' },
     { value: 'in_progress', label: 'In Lavorazione' },
@@ -231,11 +258,12 @@ export default function ExportsPage() {
             )}
 
             {/* Export Button */}
-            <div className="pt-6 border-t">
+            <div className="pt-6 border-t space-y-3">
               <Button
                 onClick={handleExport}
                 disabled={exporting}
                 className="w-full bg-green-600 hover:bg-green-700 text-white py-3 disabled:bg-gray-300"
+                data-testid="exports-download-btn"
               >
                 {exporting ? (
                   <>
@@ -254,6 +282,18 @@ export default function ExportsPage() {
                   </>
                 )}
               </Button>
+
+              {/* Phase F — Export multi-categoria (xlsx con un foglio per categoria) */}
+              {exportType === 'practices' && (
+                <Button
+                  onClick={handleExportMultiSheet}
+                  disabled={exporting}
+                  className="w-full bg-amber-600 hover:bg-amber-700 text-white py-3 disabled:bg-gray-300"
+                  data-testid="exports-multi-sheet-btn"
+                >
+                  📂 Export multi-categoria (Linea Fissa + Mobile + Luce/Gas + SKY)
+                </Button>
+              )}
             </div>
           </div>
         </Card>

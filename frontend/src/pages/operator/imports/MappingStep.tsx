@@ -177,6 +177,8 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   const [autoMapped, setAutoMapped] = useState(false);
   const [transformers, setTransformers] = useState<any>({});
   const [forceType, setForceType] = useState<string | null>(null);
+  // Phase F — categoria pratica (FIXED_LINE/MOBILE/ENERGY/SKY)
+  const [forceCategory, setForceCategory] = useState<'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'SKY'>('FIXED_LINE');
 
   useEffect(() => {
     loadTargetFields();
@@ -201,15 +203,21 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
   };
 
   // ✅ Prepara le opzioni ordinate alfabeticamente
+  // Phase F — filtra i campi mobile_* / energy_* in base alla categoria selezionata
   const fieldOptions = useMemo(() => {
+    const filtered = targetFields.filter((f) => {
+      if (f.name.startsWith('mobile_')) return forceCategory === 'MOBILE';
+      if (f.name.startsWith('energy_')) return forceCategory === 'ENERGY';
+      return true;
+    });
     return [
       { value: '', label: '-- Non mappare --' },
-      ...targetFields.map(field => ({
+      ...filtered.map(field => ({
         value: field.name,
         label: `${field.label}${field.required ? ' *' : ''}`,
       }))
     ];
-  }, [targetFields]);
+  }, [targetFields, forceCategory]);
 
   const autoMapColumns = () => {
     const newMapping: any = {};
@@ -306,6 +314,7 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
         })),
       duplicateStrategy,
       forceType,
+      forceCategory, // Phase F
     };
 
     onComplete({ mappingConfig });
@@ -356,6 +365,38 @@ export default function MappingStep({ jobId, headers, previewRows, targetEntity,
             className="bg-blue-600 h-2 rounded-full transition-all"
             style={{ width: `${getRequiredFields().length > 0 ? (getMappedRequiredCount() / getRequiredFields().length) * 100 : 0}%` }}
           />
+        </div>
+      </div>
+
+      {/* Phase F — Categoria pratica (Linea Fissa / Mobile / Luce-Gas / SKY) */}
+      <div className="bg-amber-900/20 border border-amber-500/30 rounded-lg p-4 mb-6">
+        <h3 className="font-semibold text-amber-300 mb-2">📂 Categoria pratica</h3>
+        <p className="text-xs text-gray-400 mb-3">
+          Tutte le righe del file verranno importate come pratiche di questa categoria.
+          La selezione filtra i campi disponibili sotto.
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {([
+            { v: 'FIXED_LINE', label: 'Linea Fissa', emoji: '🌐' },
+            { v: 'MOBILE', label: 'Mobile', emoji: '📱' },
+            { v: 'ENERGY', label: 'Luce / Gas', emoji: '⚡' },
+            { v: 'SKY', label: 'SKY', emoji: '📺' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => setForceCategory(opt.v)}
+              data-testid={`mapping-category-${opt.v}`}
+              className={`px-3 py-2 rounded-lg text-sm font-medium border transition ${
+                forceCategory === opt.v
+                  ? 'bg-amber-500/20 border-amber-400 text-amber-200'
+                  : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              <span className="mr-1.5">{opt.emoji}</span>
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 

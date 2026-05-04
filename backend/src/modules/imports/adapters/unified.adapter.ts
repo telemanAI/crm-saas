@@ -209,7 +209,15 @@ export class UnifiedAdapter {
         customerData[col.target] = value;
       } else if (this.isPracticeField(col.target)) {
         practiceData[col.target] = value;
-        if (value && ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData', 'iban', 'convergenza', 'lavorazioniPostAttivazione'].includes(col.target)) {
+        // Phase F — sia i campi tradizionali che i nuovi mobile_/energy_ contano come "ho una pratica"
+        if (
+          value &&
+          (
+            ['type', 'offerName', 'offerCode', 'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData', 'iban', 'convergenza', 'lavorazioniPostAttivazione'].includes(col.target) ||
+            col.target.startsWith('mobile_') ||
+            col.target.startsWith('energy_')
+          )
+        ) {
           hasPractice = true;
         }
       }
@@ -320,9 +328,14 @@ export class UnifiedAdapter {
     }
 
     if (hasPractice) {
-      if (!practiceType) {
+      // Phase F — se forceCategory è MOBILE o ENERGY, il "type" è opzionale
+      // (il bundle è in mobileData / energyData, non nei campi tradizionali)
+      const isAltCategory =
+        mapping.forceCategory === 'MOBILE' || mapping.forceCategory === 'ENERGY';
+
+      if (!practiceType && !isAltCategory) {
         errors.push('Impossibile rilevare il tipo pratica. Mappa il campo "Tipo" o usa "Forza tipo" nelle impostazioni');
-      } else {
+      } else if (practiceType) {
         const validTypes = ['TIM_FIBRA', 'VODAFONE', 'WINDTRE', 'ILIAD', 'OPTIMA', 'IREN', 'SKY', 'FASTWEB', 'TISCALI', 'LINKEM', 'PLENITUDE', 'ENEL', 'POSTEMOBILE', 'COOPVOCE'];
         if (!validTypes.includes(practiceType.toUpperCase())) {
           errors.push(`Tipo pratica non valido: ${practiceType}. Validi: ${validTypes.join(', ')}`);
@@ -386,7 +399,8 @@ export class UnifiedAdapter {
           tenantId, 
           userId,
           queryRunner,
-          importJobId
+          importJobId,
+          mapping.forceCategory, // Phase F — propaga forceCategory dalla MappingStep
         );
       }
 
@@ -528,7 +542,8 @@ export class UnifiedAdapter {
     tenantId: string,
     userId: string,
     queryRunner: any,
-    importJobId?: string
+    importJobId?: string,
+    forceCategory?: 'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'SKY',
   ): Promise<Practice> {
     
     // 🔥 FIX: Gestione WASH intelligente
@@ -558,13 +573,27 @@ export class UnifiedAdapter {
       }
     }
 
-    console.log('[CREATE PRACTICE] importJobId ricevuto:', importJobId);
+    // Phase F — bundle mobileData / energyData dai campi mobile_* / energy_*
+    const category: 'FIXED_LINE' | 'MOBILE' | 'ENERGY' | 'SKY' = forceCategory || 'FIXED_LINE';
+
+    const mobileData =
+      category === 'MOBILE'
+        ? this.bundleMobileData(data)
+        : null;
+
+    const energyData =
+      category === 'ENERGY'
+        ? this.bundleEnergyData(data)
+        : null;
+
+    console.log('[CREATE PRACTICE] importJobId ricevuto:', importJobId, 'category:', category);
     const practiceData: any = {
       tenantId,
       customerId,
       createdBy: userId,
       createdAt: data.createdAt ? new Date(data.createdAt) : new Date(),
       type: data.type?.toUpperCase() as PracticeType,
+      category,
       status: importJobId ? 'completed' : (data.status || 'draft'),
       operationalStatus: CommonValidators.normalizeStatus(data.operationalStatus, 'OPERATIONAL'),
       // 🔥 NUOVI CAMPI
@@ -595,6 +624,9 @@ export class UnifiedAdapter {
       washConfig: washConfig || undefined,
       // 🔥 FIX: Appointment data
       appointmentData: appointmentData,
+      // Phase F — payload jsonb specifici per categoria
+      mobileData,
+      energyData,
       importMetadata: {
         originalRowNumber: data._rowNumber,
         rawDataSnapshot: data,
@@ -617,6 +649,48 @@ export class UnifiedAdapter {
 
     const practice = queryRunner.manager.create(Practice, practiceData);
     return await queryRunner.manager.save(practice);
+  }
+
+  /**
+   * Phase F — Helper: estrae i campi `mobile_*` dal data flat e li bundla
+   * dentro l'oggetto jsonb mobileData con i nomi corretti dell'entity.
+   */
+  private bundleMobileData(data: any): any {
+    const out: any = {};
+    if (data.mobile_tipoLinea) out.tipoLinea = String(data.mobile_tipoLinea).toUpperCase();
+    if (data.mobile_numeroDaPortare) out.numeroDaPortare = String(data.mobile_numeroDaPortare).replace(/\D/g, '');
+    if (data.mobile_codiceFiscaleVecchiaLinea) out.codiceFiscaleVecchiaLinea = String(data.mobile_codiceFiscaleVecchiaLinea).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (data.mobile_gestoreProvenienza) out.gestoreProvenienza = String(data.mobile_gestoreProvenienza);
+    if (data.mobile_gestoreNuovaLinea) out.gestoreNuovaLinea = String(data.mobile_gestoreNuovaLinea);
+    if (data.mobile_ricarica) out.ricarica = String(data.mobile_ricarica).toUpperCase();
+    if (data.mobile_timUnica) out.timUnica = String(data.mobile_timUnica).toUpperCase();
+    if (data.mobile_numeroReteFissaTimUnica) out.numeroReteFissaTimUnica = String(data.mobile_numeroReteFissaTimUnica).replace(/\D/g, '');
+    if (data.mobile_ibanCdc) out.ibanCdc = String(data.mobile_ibanCdc).toUpperCase().replace(/\s/g, '');
+    if (data.mobile_noteMnp) out.noteMnp = String(data.mobile_noteMnp);
+    if (data.mobile_noteMetodoPagamento) out.noteMetodoPagamento = String(data.mobile_noteMetodoPagamento);
+    if (data.mobile_noteGeneriche) out.noteGeneriche = String(data.mobile_noteGeneriche);
+    if (data.mobile_accordiCliente) out.accordiCliente = String(data.mobile_accordiCliente);
+    return Object.keys(out).length > 0 ? out : null;
+  }
+
+  /**
+   * Phase F — Helper: estrae i campi `energy_*` dal data flat e li bundla
+   * dentro l'oggetto jsonb energyData con i nomi corretti dell'entity.
+   */
+  private bundleEnergyData(data: any): any {
+    const out: any = {};
+    if (data.energy_tipoAttivazione) out.tipoAttivazione = String(data.energy_tipoAttivazione).toUpperCase();
+    if (data.energy_codiceFiscaleVecchioContratto) out.codiceFiscaleVecchioContratto = String(data.energy_codiceFiscaleVecchioContratto).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (data.energy_numeroContatore) out.numeroContatore = String(data.energy_numeroContatore);
+    if (data.energy_potenzaContatore) out.potenzaContatore = String(data.energy_potenzaContatore).toUpperCase();
+    if (data.energy_gestoreProvenienza) out.gestoreProvenienza = String(data.energy_gestoreProvenienza);
+    if (data.energy_gestoreNuovoContratto) out.gestoreNuovoContratto = String(data.energy_gestoreNuovoContratto);
+    if (data.energy_tipoOfferta) out.tipoOfferta = String(data.energy_tipoOfferta).toUpperCase();
+    if (data.energy_ibanCdc) out.ibanCdc = String(data.energy_ibanCdc).toUpperCase().replace(/\s/g, '');
+    if (data.energy_noteMetodoPagamento) out.noteMetodoPagamento = String(data.energy_noteMetodoPagamento);
+    if (data.energy_noteGeneriche) out.noteGeneriche = String(data.energy_noteGeneriche);
+    if (data.energy_accordiCliente) out.accordiCliente = String(data.energy_accordiCliente);
+    return Object.keys(out).length > 0 ? out : null;
   }
 
   private buildActionString(
@@ -692,8 +766,19 @@ export class UnifiedAdapter {
       'technology', 'notes', 'installationAddress', 'soldBy', 'enteredBy', 
       'migrationCode', 'iban', 'oldLineNumber', 
       'pacchettiAggiuntivi', 'prodotti', 'wash', 'appointmentData',
-      // 🔥 NUOVI CAMPI
-      'convergenza', 'lavorazioniPostAttivazione', 'statoGlobale'
+      'convergenza', 'lavorazioniPostAttivazione', 'statoGlobale',
+      // Phase F — campi mobile (prefix `mobile_`)
+      'mobile_tipoLinea', 'mobile_numeroDaPortare', 'mobile_codiceFiscaleVecchiaLinea',
+      'mobile_gestoreProvenienza', 'mobile_gestoreNuovaLinea', 'mobile_ricarica',
+      'mobile_timUnica', 'mobile_numeroReteFissaTimUnica', 'mobile_ibanCdc',
+      'mobile_noteMnp', 'mobile_noteMetodoPagamento', 'mobile_noteGeneriche',
+      'mobile_accordiCliente',
+      // Phase F — campi energy (prefix `energy_`)
+      'energy_tipoAttivazione', 'energy_codiceFiscaleVecchioContratto',
+      'energy_numeroContatore', 'energy_potenzaContatore',
+      'energy_gestoreProvenienza', 'energy_gestoreNuovoContratto',
+      'energy_tipoOfferta', 'energy_ibanCdc',
+      'energy_noteMetodoPagamento', 'energy_noteGeneriche', 'energy_accordiCliente',
     ];
     return fields.includes(target);
   }
@@ -744,10 +829,44 @@ export class UnifiedAdapter {
     ];
 
     const sortByLabel = (a: any, b: any) => a.label.localeCompare(b.label, 'it');
-    
+
+    // Phase F — campi specifici Mobile (visibili quando categoria=MOBILE)
+    const mobileFields = [
+      { name: 'mobile_tipoLinea', label: '[Mobile] Tipo linea (MNP / DOPPIA_MNP / NUOVO_NUMERO)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'mobile_numeroDaPortare', label: '[Mobile] Numero da portare', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_codiceFiscaleVecchiaLinea', label: '[Mobile] CF intestatario vecchia linea', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_gestoreProvenienza', label: '[Mobile] Gestore di provenienza', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_gestoreNuovaLinea', label: '[Mobile] Gestore nuova linea', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_ricarica', label: '[Mobile] Ricarica (DA_FARE / DA_NON_FARE / ALTRO)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'mobile_timUnica', label: '[Mobile] TIM Unica (AGGANCIATA / DA_AGGANCIARE / NON_AGGANCIARE)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'mobile_numeroReteFissaTimUnica', label: '[Mobile] Numero rete fissa TIM Unica', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_ibanCdc', label: '[Mobile] IBAN / Carta di credito', type: 'string', required: false, category: 'practice' as const },
+      { name: 'mobile_noteMnp', label: '[Mobile] Note MNP', type: 'text', required: false, category: 'practice' as const },
+      { name: 'mobile_noteMetodoPagamento', label: '[Mobile] Note metodo pagamento', type: 'text', required: false, category: 'practice' as const },
+      { name: 'mobile_noteGeneriche', label: '[Mobile] Note generiche', type: 'text', required: false, category: 'practice' as const },
+      { name: 'mobile_accordiCliente', label: '[Mobile] Accordi cliente', type: 'text', required: false, category: 'practice' as const },
+    ];
+
+    // Phase F — campi specifici Energy (visibili quando categoria=ENERGY)
+    const energyFields = [
+      { name: 'energy_tipoAttivazione', label: '[Energy] Tipo attivazione (LUCE_SWITCH / GAS_SWITCH / ...)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'energy_codiceFiscaleVecchioContratto', label: '[Energy] CF intestatario vecchio contratto', type: 'string', required: false, category: 'practice' as const },
+      { name: 'energy_numeroContatore', label: '[Energy] Numero contatore', type: 'string', required: false, category: 'practice' as const },
+      { name: 'energy_potenzaContatore', label: '[Energy] Potenza contatore (1.5_KW / 3_KW / 4.5_KW / 6_KW / GAS)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'energy_gestoreProvenienza', label: '[Energy] Gestore di provenienza', type: 'string', required: false, category: 'practice' as const },
+      { name: 'energy_gestoreNuovoContratto', label: '[Energy] Gestore nuovo contratto', type: 'string', required: false, category: 'practice' as const },
+      { name: 'energy_tipoOfferta', label: '[Energy] Tipo offerta (VARIABILE / FISSA / ALTRO)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'energy_ibanCdc', label: '[Energy] IBAN / Carta di credito', type: 'string', required: false, category: 'practice' as const },
+      { name: 'energy_noteMetodoPagamento', label: '[Energy] Note metodo pagamento', type: 'text', required: false, category: 'practice' as const },
+      { name: 'energy_noteGeneriche', label: '[Energy] Note generiche', type: 'text', required: false, category: 'practice' as const },
+      { name: 'energy_accordiCliente', label: '[Energy] Accordi cliente', type: 'text', required: false, category: 'practice' as const },
+    ];
+
     return [
       ...customerFields.sort(sortByLabel),
-      ...practiceFields.sort(sortByLabel)
+      ...practiceFields.sort(sortByLabel),
+      ...mobileFields.sort(sortByLabel),
+      ...energyFields.sort(sortByLabel),
     ];
   }
 }

@@ -54,4 +54,26 @@ export class ExportsController {
       fs.unlinkSync(filePath);
     });
   }
+
+  /**
+   * Phase F — Export multi-categoria: workbook xlsx con un foglio per categoria.
+   *  Linea Fissa, Mobile, Luce/Gas, SKY, Clienti.
+   */
+  @Post('practices-multi-sheet')
+  @RequirePermission('canExportData')
+  async exportPracticesMultiSheet(
+    @Body() body: { filters: ExportFilters },
+    @Req() req,
+    @Res() res: Response,
+  ) {
+    const filePath = await this.exportsService.exportPracticesMultiSheet(
+      body.filters || {},
+      req.user.tenantId,
+    );
+    const fileName = filePath.split('/').pop();
+    res.download(filePath, fileName, (err) => {
+      if (err) console.error('Error downloading multi-sheet:', err);
+      fs.unlinkSync(filePath);
+    });
+  }
 }

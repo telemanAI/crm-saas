@@ -1,113 +1,108 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Migration 1777800000005 — PHASE C(b)
+ * Migration 1777800000007 — PHASE H
  *
- * BACKFILL RETROATTIVO `practices.offer_id`.
+ * BACKFILL membership per founder/utenti legacy che hanno `tenant_id`
+ * ma non hanno una riga in `user_shop_memberships`.
  *
- * Le pratiche storiche hanno `offer_id = NULL` ma `offer_name` valorizzato.
- * Senza `offer_id` le gare con target `specific` non le riconoscono.
- *
- * FIX: rimosso filtro `o.tenant_id` perché la colonna non esiste in `offers`.
- * Il match avviene solo per nome (case-insensitive + trim).
+ * FIX: aggiunto cast esplicito a ::membership_role_enum e CASE robusto
+ * per mappare i ruoli utente ai ruoli membership, con fallback FOUNDER.
  */
-export class PhaseCbBackfillPracticeOfferIds1777800000005 implements MigrationInterface {
-  name = 'PhaseCbBackfillPracticeOfferIds1777800000005';
+export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationInterface {
+  name = 'PhaseHFounderMembershipBackfill1777800000007';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // 1. Crea tabella temporanea di tracking per il rollback
+    // 1. Tabella di tracking per rollback
     await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS "_phase_cb_backfill_offer_id_changes" (
-        "practice_id" uuid PRIMARY KEY,
-        "applied_at" timestamp with time zone DEFAULT NOW()
+      CREATE TABLE IF NOT EXISTS "_phase_h_membership_backfill_changes" (
+        "user_id" uuid NOT NULL,
+        "shop_id" uuid NOT NULL,
+        "applied_at" timestamp with time zone DEFAULT NOW(),
+        PRIMARY KEY ("user_id", "shop_id")
       )
     `);
 
-    const before = await queryRunner.query(
-      `SELECT COUNT(*) as cnt FROM practices WHERE offer_id IS NULL AND offer_name IS NOT NULL AND TRIM(offer_name) <> ''`,
-    );
+    // 2. Conta quanti utenti senza membership
+    const before = await queryRunner.query(`
+      SELECT COUNT(*) as cnt
+      FROM users u
+      WHERE u.tenant_id IS NOT NULL
+        AND u.is_active = true
+        AND NOT EXISTS (
+          SELECT 1 FROM user_shop_memberships m
+          WHERE m.user_id = u.id AND m.shop_id = u.tenant_id
+        )
+    `);
     const beforeCount = parseInt(before[0]?.cnt ?? '0', 10);
     // eslint-disable-next-line no-console
-    console.log(`[PhaseCbBackfill] Pratiche da analizzare (offer_id NULL + offer_name valorizzato): ${beforeCount}`);
+    console.log(`[PhaseHBackfill] Founder/utenti senza membership esplicita: ${beforeCount}`);
 
-    // FIX: rimosso il blocco AND (o.tenant_id IS NULL OR o.tenant_id = p.tenant_id)
-    // perché offers non ha la colonna tenant_id nel DB.
+    // 3. Inserisci membership con cast esplicito dell'enum role
     await queryRunner.query(`
-      WITH candidates AS (
-        SELECT DISTINCT ON (p.id)
-          p.id AS practice_id,
-          o.id AS offer_id
-        FROM practices p
-        JOIN offers o
-          ON UPPER(TRIM(o.name)) = UPPER(TRIM(p.offer_name))
-        WHERE p.offer_id IS NULL
-          AND p.offer_name IS NOT NULL
-          AND TRIM(p.offer_name) <> ''
-        ORDER BY p.id, o.is_active DESC NULLS LAST, o.created_at DESC NULLS LAST
-      ),
-      tracked AS (
-        INSERT INTO "_phase_cb_backfill_offer_id_changes" (practice_id)
-        SELECT practice_id FROM candidates
-        ON CONFLICT (practice_id) DO NOTHING
-        RETURNING practice_id
+      WITH inserted AS (
+        INSERT INTO user_shop_memberships
+          (user_id, shop_id, role, permissions, is_active, joined_at)
+        SELECT
+          u.id,
+          u.tenant_id,
+          CASE UPPER(u.role::text)
+            WHEN 'FOUNDER'      THEN 'FOUNDER'::membership_role_enum
+            WHEN 'ADMIN'        THEN 'ADMIN'::membership_role_enum
+            WHEN 'OPERATOR'     THEN 'OPERATOR'::membership_role_enum
+            WHEN 'MANAGER'      THEN 'MANAGER'::membership_role_enum
+            WHEN 'SALES'        THEN 'SALES'::membership_role_enum
+            ELSE 'FOUNDER'::membership_role_enum
+          END,
+          jsonb_build_object(
+            'canCreatePractices', true,
+            'canEditPractices', true,
+            'canDeletePractices', true,
+            'canViewAllCustomers', true,
+            'canEditCustomers', true,
+            'canDeleteCustomers', true,
+            'canViewProducts', true,
+            'canManageProducts', true,
+            'canSellDevices', true,
+            'canManageSales', true,
+            'canViewCompetitions', true,
+            'canManageCompetitions', true,
+            'canManageTeam', true,
+            'canViewReports', true,
+            'canImportData', true,
+            'canExportData', true
+          ),
+          true,
+          NOW()
+        FROM users u
+        WHERE u.tenant_id IS NOT NULL
+          AND u.is_active = true
+          AND NOT EXISTS (
+            SELECT 1 FROM user_shop_memberships m
+            WHERE m.user_id = u.id AND m.shop_id = u.tenant_id
+          )
+        ON CONFLICT (user_id, shop_id) DO NOTHING
+        RETURNING user_id, shop_id
       )
-      UPDATE practices p
-      SET offer_id = c.offer_id
-      FROM candidates c
-      WHERE p.id = c.practice_id
-        AND p.offer_id IS NULL
+      INSERT INTO "_phase_h_membership_backfill_changes" (user_id, shop_id)
+      SELECT user_id, shop_id FROM inserted
+      ON CONFLICT DO NOTHING
     `);
 
     const after = await queryRunner.query(
-      `SELECT COUNT(*) as cnt FROM "_phase_cb_backfill_offer_id_changes"`,
+      `SELECT COUNT(*) as cnt FROM "_phase_h_membership_backfill_changes"`
     );
     const afterCount = parseInt(after[0]?.cnt ?? '0', 10);
-    const stillNull = await queryRunner.query(
-      `SELECT COUNT(*) as cnt FROM practices WHERE offer_id IS NULL AND offer_name IS NOT NULL AND TRIM(offer_name) <> ''`,
-    );
-    const stillNullCount = parseInt(stillNull[0]?.cnt ?? '0', 10);
-
     // eslint-disable-next-line no-console
-    console.log(
-      `[PhaseCbBackfill] Pratiche aggiornate: ${afterCount}, ancora senza match: ${stillNullCount}`,
-    );
-
-    // 3. Identifica pratiche ACTIVATED senza venditore
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS "_phase_cb_practices_no_seller" (
-        "practice_id" uuid PRIMARY KEY,
-        "tenant_id" uuid,
-        "offer_name" varchar,
-        "category" varchar,
-        "created_at" timestamp,
-        "logged_at" timestamp with time zone DEFAULT NOW()
-      )
-    `);
-    await queryRunner.query(`
-      INSERT INTO "_phase_cb_practices_no_seller"
-        (practice_id, tenant_id, offer_name, category, created_at)
-      SELECT id, tenant_id, offer_name, category, created_at
-      FROM practices
-      WHERE operational_status = 'ACTIVATED' AND sold_by_id IS NULL
-      ON CONFLICT (practice_id) DO NOTHING
-    `);
-    const noSeller = await queryRunner.query(
-      `SELECT COUNT(*) as cnt FROM "_phase_cb_practices_no_seller"`,
-    );
-    // eslint-disable-next-line no-console
-    console.log(
-      `[PhaseCbBackfill] Pratiche ACTIVATED senza venditore (da assegnare manualmente): ${parseInt(noSeller[0]?.cnt ?? '0', 10)}`,
-    );
+    console.log(`[PhaseHBackfill] Membership create: ${afterCount}`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      UPDATE practices p
-      SET offer_id = NULL
-      FROM "_phase_cb_backfill_offer_id_changes" c
-      WHERE p.id = c.practice_id
+      DELETE FROM user_shop_memberships m
+      USING "_phase_h_membership_backfill_changes" c
+      WHERE m.user_id = c.user_id AND m.shop_id = c.shop_id
     `);
-    await queryRunner.query(`DROP TABLE IF EXISTS "_phase_cb_backfill_offer_id_changes"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "_phase_cb_practices_no_seller"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "_phase_h_membership_backfill_changes"`);
   }
 }

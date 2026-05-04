@@ -13,8 +13,10 @@ import {
 } from 'phosphor-react';
 import Link from 'next/link';
 import { useAuthStore } from '@/stores/authStore';
+import { usePermission } from '@/hooks/usePermission';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import MyPiecesWidget from '@/components/dashboard/MyPiecesWidget';
+import LiveCompetitionsWidget from '@/components/dashboard/LiveCompetitionsWidget';
 import { useApi } from '@/hooks/useApi';
 import { 
   LineChart, 
@@ -70,6 +72,7 @@ const CHART_COLORS = ['#6366f1', '#8b5cf6', '#f59e0b', '#10b981', '#64748b'];
 export default function OperatorDashboard() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const canManageCompetitions = usePermission('canManageCompetitions');
   const { request } = useApi();
   
   const [stats, setStats] = useState<DashboardStats>({
@@ -170,6 +173,9 @@ export default function OperatorDashboard() {
       {/* TAPPA 3.1 — Widget i miei pezzi del mese */}
       <div className="mb-8">
         <MyPiecesWidget />
+
+        {/* Phase H — Widget gare live in dashboard */}
+        <LiveCompetitionsWidget canManageCompetitions={canManageCompetitions} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

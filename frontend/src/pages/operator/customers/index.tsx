@@ -10,6 +10,7 @@ import {
 } from 'phosphor-react';
 import { useRouter } from 'next/router';
 import { useAuthStore } from '@/stores/authStore';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
 import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
@@ -26,7 +27,10 @@ interface Customer {
 
 export default function CustomersList() {
   const router = useRouter();
-  const { token, isAuthenticated,user } = useAuthStore();
+  const { token, isAuthenticated } = useAuthStore();
+  // Phase B — Permessi granulari
+  const canEditCustomers = usePermission('canEditCustomers');
+  const canDeleteCustomers = usePermission('canDeleteCustomers');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -92,16 +96,19 @@ export default function CustomersList() {
           <h1 className="text-3xl font-bold text-white mb-2">Clienti</h1>
           <p className="text-slate-400">Gestisci la tua anagrafica clienti</p>
         </div>
-        <Link href="/operator/customers/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
-          >
-            <Plus className="w-5 h-5" />
-            Nuovo Cliente
-          </motion.button>
-        </Link>
+        {canEditCustomers && (
+          <Link href="/operator/customers/new">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              data-testid="customers-new-btn"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+            >
+              <Plus className="w-5 h-5" />
+              Nuovo Cliente
+            </motion.button>
+          </Link>
+        )}
       </div>
 
       {/* Filtri */}
@@ -123,9 +130,11 @@ export default function CustomersList() {
         <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
           <Users className="w-16 h-16 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400 mb-2">Nessun cliente trovato</p>
-          <Link href="/operator/customers/new" className="text-indigo-400 hover:text-indigo-300">
-            Aggiungi il primo cliente
-          </Link>
+          {canEditCustomers && (
+            <Link href="/operator/customers/new" className="text-indigo-400 hover:text-indigo-300">
+              Aggiungi il primo cliente
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -166,11 +175,12 @@ export default function CustomersList() {
                   <div className="text-slate-500">
                     {new Date(customer.createdAt).toLocaleDateString('it-IT')}
                   </div>
-                  {/* Pulsante elimina - solo per ADMIN */}
-                  {user?.role === 'ADMIN' && (
+                  {/* Pulsante elimina — Phase B: usa canDeleteCustomers */}
+                  {canDeleteCustomers && (
                     <button
                       onClick={(e) => handleDelete(customer.id, e)}
                       disabled={deleteLoading === customer.id}
+                      data-testid={`customer-delete-${customer.id}`}
                       className="p-2 text-rose-400 hover:bg-rose-600/10 rounded-lg transition-all disabled:opacity-50"
                       title="Elimina cliente"
                     >

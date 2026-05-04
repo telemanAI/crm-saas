@@ -63,16 +63,21 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
   const activeMembership = shops.find((s) => s.shopId === activeShopId);
   const effectiveRole = activeMembership?.role || user?.role;
-  // FIX P1: canManageTeam ora deriva dai PERMESSI granulari della membership,
-  // non hard-coded sul ruolo. Così un FOUNDER può togliere "gestione team" a
-  // un singolo ADMIN se vuole (es. nuovo ADMIN ancora in prova).
-  // SUPER_ADMIN e FOUNDER hanno sempre bypass.
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const isFounder = effectiveRole === 'FOUNDER';
-  const canManageTeam =
-    isSuperAdmin ||
-    isFounder ||
-    activeMembership?.permissions?.canManageTeam === true;
+  const perms = (activeMembership?.permissions || {}) as Record<string, boolean>;
+
+  // ====== Helper: SUPER_ADMIN/FOUNDER bypassano sempre, altrimenti permesso ======
+  const has = (key: string) => isSuperAdmin || isFounder || perms[key] === true;
+
+  // ===== Phase B — UI condizionale completa =====
+  const canManageTeam = has('canManageTeam');
+  const canViewProducts = has('canViewProducts');
+  const canSellDevices = has('canSellDevices');
+  const canViewCompetitions = has('canViewCompetitions');
+  const canViewReports = has('canViewReports');
+  const canImportData = has('canImportData');
+  const canExportData = has('canExportData');
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -104,25 +109,10 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
     { href: '/operator/practices/energy', icon: Lightning, label: 'Luce e Gas' },
   ];
 
-  // ===== Tappa 2: Vendite (Catalogo + Storico) =====
-  const perms = activeMembership?.permissions || ({} as any);
-  const canViewProducts =
-    isSuperAdmin || isFounder || perms.canViewProducts === true;
-  const canSellDevices =
-    isSuperAdmin || isFounder || perms.canSellDevices === true;
-
   const salesSubmenu = [
-    ...(canViewProducts
-      ? [{ href: '/operator/products', icon: Tag, label: 'Catalogo' }]
-      : []),
-    ...(canSellDevices
-      ? [{ href: '/operator/sales', icon: Receipt, label: 'Storico vendite' }]
-      : []),
+    ...(canViewProducts ? [{ href: '/operator/products', icon: Tag, label: 'Catalogo' }] : []),
+    ...(canSellDevices ? [{ href: '/operator/sales', icon: Receipt, label: 'Storico vendite' }] : []),
   ];
-
-  // ===== Tappa 4: Gare (Competitions) =====
-  const canViewCompetitions =
-    isSuperAdmin || isFounder || perms.canViewCompetitions === true;
 
   const navItems = [
     { href: '/operator/dashboard', icon: ChartLine, label: 'Dashboard' },
@@ -130,12 +120,16 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
   ];
 
   const afterPracticesItems = [
-    { href: '/operator/reports', icon: ChartLine, label: 'Report' },
-    { href: '/operator/reports/pieces', icon: ChartLine, label: 'Pezzi venduti' },
+    ...(canViewReports
+      ? [
+          { href: '/operator/reports', icon: ChartLine, label: 'Report' },
+          { href: '/operator/reports/pieces', icon: ChartLine, label: 'Pezzi venduti' },
+        ]
+      : []),
     ...(canViewCompetitions ? [{ href: '/operator/competitions', icon: Trophy, label: 'Gare' }] : []),
     ...(canManageTeam ? [{ href: '/operator/team', icon: UsersThree, label: 'Team' }] : []),
-    { href: '/operator/imports', icon: UploadSimple, label: 'Import' },
-    { href: '/operator/exports', icon: DownloadSimple, label: 'Export' },
+    ...(canImportData ? [{ href: '/operator/imports', icon: UploadSimple, label: 'Import' }] : []),
+    ...(canExportData ? [{ href: '/operator/exports', icon: DownloadSimple, label: 'Export' }] : []),
     { href: '/operator/settings', icon: Buildings, label: 'Impostazioni' },
   ];
 
@@ -144,8 +138,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
       ? router.pathname === href
       : router.pathname === href || router.pathname.startsWith(href + '/');
 
-  // FIX routing audit logs: per il FOUNDER/ADMIN restiamo nella sidebar operatore.
-  // Solo il SUPER_ADMIN va nel pannello admin dedicato.
   const auditLogsHref = isSuperAdmin ? '/admin/audit' : '/operator/audit';
 
   return (
@@ -172,20 +164,11 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         </div>
       )}
 
-      {/*
-        SIDEBAR: layout flex-column per evitare lo scrollbar "anti-estetico".
-        - Header: altezza fissa, non scrolla
-        - <nav flex-1 overflow-y-auto>: area scrollabile con scrollbar sottile custom
-        - Footer utente: altezza fissa in fondo, sempre visibile
-        Niente più `absolute bottom-0` + `pb-28` (era la causa del footer che
-        spariva sotto il contenuto lungo + scrollbar largo).
-      */}
       <aside
         className={`fixed left-0 top-0 h-full w-64 border-r z-40 flex flex-col transition-colors duration-300 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'
         }`}
       >
-        {/* ===== Header logo ===== */}
         <div
           className={`p-6 border-b flex-shrink-0 ${
             isDark ? 'border-slate-800' : 'border-gray-200'
@@ -210,7 +193,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
           </Link>
         </div>
 
-        {/* ===== Navigazione (unica area scrollabile) ===== */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 sidebar-scroll">
           {navItems.map((item) => {
             const Icon = item.icon;
@@ -235,7 +217,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             );
           })}
 
-          {/* ===== Menu collassabile Pratiche ===== */}
           <div>
             <button
               onClick={() => setPracticesMenuOpen((v) => !v)}
@@ -292,7 +273,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             )}
           </div>
 
-          {/* ===== Tappa 2: Menu collassabile Vendite ===== */}
           {salesSubmenu.length > 0 && (
             <div>
               <button
@@ -391,7 +371,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             );
           })}
 
-          {/* ===== Sezione amministrativa ===== */}
           {(isSuperAdmin || isFounder) && (
             <div
               className={`mt-4 pt-4 border-t ${isDark ? 'border-slate-800' : 'border-gray-200'}`}
@@ -404,11 +383,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
                 Amministrazione
               </p>
 
-              {/*
-                Il link audit per il FOUNDER punta a /operator/audit (sidebar operatore).
-                Solo il SUPER_ADMIN va su /admin/audit (sidebar admin).
-                Fix del bug: "da FOUNDER clicco Audit logs e mi porta nella sidebar del super admin".
-              */}
               <Link
                 href={auditLogsHref}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
@@ -452,11 +426,6 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
           )}
         </nav>
 
-        {/*
-          ===== Footer utente =====
-          Niente più position:absolute. Ora è un flex child con altezza auto e
-          sempre visibile. Lo scrollbar appare solo sulla nav.
-        */}
         <div
           className={`flex-shrink-0 p-4 border-t ${
             isDark ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'

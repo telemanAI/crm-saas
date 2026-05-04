@@ -4,8 +4,11 @@ import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
+import { usePermission } from '../../../hooks/usePermission';
 
 export default function ExportsPage() {
+  // Phase B — Gate pagina su canExportData
+  const canExportData = usePermission('canExportData');
   const [exportType, setExportType] = useState<'practices' | 'customers'>('practices');
   const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');
   const [filters, setFilters] = useState({
@@ -63,6 +66,16 @@ export default function ExportsPage() {
   return (
     <OperatorLayout title="Esportazione Dati">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!canExportData ? (
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+            <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9-9V7a4 4 0 00-8 0v2M5 11h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+            </svg>
+            <h3 className="text-lg font-semibold text-gray-900" data-testid="exports-no-permission">Accesso negato</h3>
+            <p className="text-gray-500 text-sm mt-1">Non hai il permesso di esportare dati. Chiedi al founder di abilitarti.</p>
+          </div>
+        ) : (
+          <>
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Esportazione Dati</h1>
           <p className="text-gray-600 mt-1">Esporta i tuoi dati in Excel o CSV</p>
@@ -262,6 +275,8 @@ export default function ExportsPage() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </OperatorLayout>
   );

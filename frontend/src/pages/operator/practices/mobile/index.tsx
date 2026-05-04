@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
 import type { OperationalStatus } from '@/types/practice';
 
@@ -51,6 +52,8 @@ const getOperationalStatusBadge = (status?: OperationalStatus) => {
 
 export default function MobilePracticesList() {
   const router = useRouter();
+  // Phase B — Permessi granulari
+  const canCreatePractices = usePermission('canCreatePractices');
   const [practices, setPractices] = useState<MobilePractice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -135,17 +138,19 @@ export default function MobilePracticesList() {
           </h1>
           <p className="text-slate-400">Gestisci MNP, attivazioni SIM e TIM Unica</p>
         </div>
-        <Link href="/operator/practices/mobile/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
-            data-testid="mobile-new-practice-btn"
-          >
-            <Plus className="w-5 h-5" />
-            Nuova Pratica Mobile
-          </motion.button>
-        </Link>
+        {canCreatePractices && (
+          <Link href="/operator/practices/mobile/new">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+              data-testid="mobile-new-practice-btn"
+            >
+              <Plus className="w-5 h-5" />
+              Nuova Pratica Mobile
+            </motion.button>
+          </Link>
+        )}
       </div>
 
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
@@ -181,9 +186,11 @@ export default function MobilePracticesList() {
         <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
           <DeviceMobile className="w-16 h-16 text-slate-600 mx-auto mb-4" weight="duotone" />
           <p className="text-slate-400 mb-2">Nessuna pratica mobile trovata</p>
-          <Link href="/operator/practices/mobile/new" className="text-indigo-400 hover:text-indigo-300">
-            Crea la prima pratica mobile
-          </Link>
+          {canCreatePractices && (
+            <Link href="/operator/practices/mobile/new" className="text-indigo-400 hover:text-indigo-300">
+              Crea la prima pratica mobile
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -228,7 +235,7 @@ export default function MobilePracticesList() {
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-4">
-                    {p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress' ? (
+                    {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && canCreatePractices ? (
                       <Link href={`/operator/practices/mobile/new?edit=${p.id}`}>
                         <button
                           onClick={(e) => e.stopPropagation()}

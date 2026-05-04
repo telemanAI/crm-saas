@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -12,6 +12,7 @@ import {
   XCircle,
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import type { PracticeListItem, OperationalStatus, SkyTvStatus } from '@/types/practice';
@@ -88,6 +89,8 @@ const getSkyTvStatusBadge = (status?: SkyTvStatus | null) => {
 export default function PracticesList() {
   const router = useRouter();
   const { token, isAuthenticated } = useAuthStore();
+  // Phase B — Permessi granulari
+  const canCreatePractices = usePermission('canCreatePractices');
   const [practices, setPractices] = useState<PracticeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -191,16 +194,19 @@ export default function PracticesList() {
           <h1 className="text-3xl font-bold text-white mb-2">Pratiche</h1>
           <p className="text-slate-400">Gestisci le pratiche TIM e SKY</p>
         </div>
-        <Link href="/operator/practices/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
-          >
-            <Plus className="w-5 h-5" />
-            Nuova Pratica
-          </motion.button>
-        </Link>
+        {canCreatePractices && (
+          <Link href="/operator/practices/new">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              data-testid="practices-new-btn"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+            >
+              <Plus className="w-5 h-5" />
+              Nuova Pratica
+            </motion.button>
+          </Link>
+        )}
       </div>
 
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
@@ -283,9 +289,11 @@ export default function PracticesList() {
         <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
           <FileText className="w-16 h-16 text-slate-600 mx-auto mb-4" />
           <p className="text-slate-400 mb-2">Nessuna pratica trovata</p>
-          <Link href="/operator/practices/new" className="text-indigo-400 hover:text-indigo-300">
-            Crea la prima pratica
-          </Link>
+          {canCreatePractices && (
+            <Link href="/operator/practices/new" className="text-indigo-400 hover:text-indigo-300">
+              Crea la prima pratica
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -365,7 +373,7 @@ export default function PracticesList() {
                   </div>
 
                   <div className="shrink-0 flex items-center gap-4">
-                    {practice.status?.toLowerCase() === 'draft' && (
+                    {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
                       <Link href={`/operator/practices/new?edit=${practice.id}`}>
                         <button 
                           onClick={(e) => e.stopPropagation()}

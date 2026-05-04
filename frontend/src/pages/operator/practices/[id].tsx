@@ -28,6 +28,7 @@ import {
   NavigationArrow
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
@@ -121,6 +122,9 @@ export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
   const { token } = useAuthStore();
+  // Phase B — Permessi granulari
+  const canEditPractices = usePermission('canEditPractices');
+  const canDeletePractices = usePermission('canDeletePractices');
   const [practice, setPractice] = useState<IPracticeDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -579,21 +583,26 @@ export default function PracticeDetail() {
             </button>
           )}
           
-          <Link href={`/operator/practices/new?edit=${id}`}>
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
-              <Pencil className="w-4 h-4" />
-              Modifica Pratica
-            </button>
-          </Link>
+          {canEditPractices && (
+            <Link href={`/operator/practices/new?edit=${id}`}>
+              <button data-testid="practice-edit-btn" className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
+                <Pencil className="w-4 h-4" />
+                Modifica Pratica
+              </button>
+            </Link>
+          )}
           
-          <button 
-            onClick={handleDelete}
-            disabled={deleteLoading}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
-          >
-            <Trash className="w-4 h-4" />
-            {deleteLoading ? 'Eliminazione...' : 'Elimina'}
-          </button>
+          {canDeletePractices && (
+            <button 
+              onClick={handleDelete}
+              disabled={deleteLoading}
+              data-testid="practice-delete-btn"
+              className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
+            >
+              <Trash className="w-4 h-4" />
+              {deleteLoading ? 'Eliminazione...' : 'Elimina'}
+            </button>
+          )}
         </div>
       </div>
 

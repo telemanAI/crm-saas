@@ -13,6 +13,7 @@ import {
   XCircle,
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
+import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
 import type { OperationalStatus } from '@/types/practice';
 
@@ -51,6 +52,8 @@ const getOperationalStatusBadge = (status?: OperationalStatus) => {
 
 export default function EnergyPracticesList() {
   const router = useRouter();
+  // Phase B — Permessi granulari
+  const canCreatePractices = usePermission('canCreatePractices');
   const [practices, setPractices] = useState<EnergyPractice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -131,17 +134,19 @@ export default function EnergyPracticesList() {
           </h1>
           <p className="text-slate-400">Gestisci switch, volture, subentri e posa contatori</p>
         </div>
-        <Link href="/operator/practices/energy/new">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-600/25"
-            data-testid="energy-new-practice-btn"
-          >
-            <Plus className="w-5 h-5" />
-            Nuova Pratica Luce/Gas
-          </motion.button>
-        </Link>
+        {canCreatePractices && (
+          <Link href="/operator/practices/energy/new">
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-600/25"
+              data-testid="energy-new-practice-btn"
+            >
+              <Plus className="w-5 h-5" />
+              Nuova Pratica Luce/Gas
+            </motion.button>
+          </Link>
+        )}
       </div>
 
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
@@ -177,9 +182,11 @@ export default function EnergyPracticesList() {
         <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-2xl">
           <Lightning className="w-16 h-16 text-slate-600 mx-auto mb-4" weight="duotone" />
           <p className="text-slate-400 mb-2">Nessuna pratica luce/gas trovata</p>
-          <Link href="/operator/practices/energy/new" className="text-amber-400 hover:text-amber-300">
-            Crea la prima pratica luce/gas
-          </Link>
+          {canCreatePractices && (
+            <Link href="/operator/practices/energy/new" className="text-amber-400 hover:text-amber-300">
+              Crea la prima pratica luce/gas
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid gap-4">
@@ -226,7 +233,7 @@ export default function EnergyPracticesList() {
                     </div>
                   </div>
                   <div className="shrink-0 flex items-center gap-4">
-                    {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && (
+                    {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && canCreatePractices && (
                       <Link href={`/operator/practices/energy/new?edit=${p.id}`}>
                         <button
                           onClick={(e) => e.stopPropagation()}

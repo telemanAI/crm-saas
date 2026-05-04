@@ -16,17 +16,17 @@ export interface MembershipPermissions {
   canDeleteCustomers?: boolean;
   canExportData?: boolean;
   canImportData?: boolean;
-  canManageCashRegister?: boolean;
   canChangeUserRoles?: boolean;
 
-  // ===== Team (NUOVO — fix anomalia P1) =====
+  // ===== Team =====
   canManageTeam?: boolean;
 
-  // ===== Vendite & Gare (NUOVO — preparazione tappe successive) =====
+  // ===== Vendite & Gare =====
   canViewCompetitions?: boolean;
   canManageCompetitions?: boolean;
   canViewProducts?: boolean;
   canManageProducts?: boolean;
+  canManageSales?: boolean;          // NUOVO Phase B: gestisce reparto vendite (config moduli, refund, ecc.)
   canSellDevices?: boolean;
   canViewAllDeviceSales?: boolean;
 }
@@ -49,13 +49,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canDeleteCustomers: true,
     canExportData: true,
     canImportData: true,
-    canManageCashRegister: true,
     canChangeUserRoles: true,
     canManageTeam: true,
     canViewCompetitions: true,
     canManageCompetitions: true,
     canViewProducts: true,
     canManageProducts: true,
+    canManageSales: true,
     canSellDevices: true,
     canViewAllDeviceSales: true,
   },
@@ -69,13 +69,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canDeleteCustomers: true,
     canExportData: true,
     canImportData: true,
-    canManageCashRegister: true,
     canChangeUserRoles: true,
     canManageTeam: true,
     canViewCompetitions: true,
     canManageCompetitions: true,
     canViewProducts: true,
     canManageProducts: true,
+    canManageSales: true,
     canSellDevices: true,
     canViewAllDeviceSales: true,
   },
@@ -89,13 +89,13 @@ export const DEFAULT_PERMISSIONS: Record<MembershipRole, MembershipPermissions> 
     canDeleteCustomers: false,
     canExportData: false,
     canImportData: false,
-    canManageCashRegister: true,
     canChangeUserRoles: false,
     canManageTeam: false,
     canViewCompetitions: true,
     canManageCompetitions: false,
     canViewProducts: true,
     canManageProducts: false,
+    canManageSales: false,
     canSellDevices: true,
     canViewAllDeviceSales: true,
   },

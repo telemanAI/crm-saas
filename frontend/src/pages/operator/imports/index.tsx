@@ -4,15 +4,22 @@ import OperatorLayout from '../../../components/layout/OperatorLayout';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import axios from '../../../lib/axios';
+import { usePermission } from '../../../hooks/usePermission';
 
 export default function ImportsPage() {
   const router = useRouter();
+  // Phase B — Gate pagina su canImportData
+  const canImportData = usePermission('canImportData');
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!canImportData) {
+      setLoading(false);
+      return;
+    }
     loadJobs();
-  }, []);
+  }, [canImportData]);
 
   const loadJobs = async () => {
     try {
@@ -49,6 +56,16 @@ export default function ImportsPage() {
   return (
     <OperatorLayout title="Importazioni">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!canImportData ? (
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+            <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9-9V7a4 4 0 00-8 0v2M5 11h14a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2z" />
+            </svg>
+            <h3 className="text-lg font-semibold text-gray-900" data-testid="imports-no-permission">Accesso negato</h3>
+            <p className="text-gray-500 text-sm mt-1">Non hai il permesso di importare dati. Chiedi al founder di abilitarti.</p>
+          </div>
+        ) : (
+          <>
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -160,6 +177,8 @@ export default function ImportsPage() {
               </div>
             ))}
           </div>
+        )}
+          </>
         )}
       </div>
     </OperatorLayout>

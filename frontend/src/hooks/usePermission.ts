@@ -26,15 +26,15 @@ export type PermissionKey =
   | 'canDeleteCustomers'
   | 'canExportData'
   | 'canImportData'
-  | 'canManageCashRegister'
   | 'canChangeUserRoles'
   // Team
   | 'canManageTeam'
-  // Vendite & Gare (Tappe successive)
+  // Vendite & Gare
   | 'canViewCompetitions'
   | 'canManageCompetitions'
   | 'canViewProducts'
   | 'canManageProducts'
+  | 'canManageSales'
   | 'canSellDevices'
   | 'canViewAllDeviceSales';
 
@@ -48,13 +48,13 @@ const ALL_PERMISSIONS_TRUE: Record<PermissionKey, boolean> = {
   canDeleteCustomers: true,
   canExportData: true,
   canImportData: true,
-  canManageCashRegister: true,
   canChangeUserRoles: true,
   canManageTeam: true,
   canViewCompetitions: true,
   canManageCompetitions: true,
   canViewProducts: true,
   canManageProducts: true,
+  canManageSales: true,
   canSellDevices: true,
   canViewAllDeviceSales: true,
 };

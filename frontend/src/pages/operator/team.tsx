@@ -7,7 +7,7 @@ import {
 } from 'phosphor-react';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import { useAuthStore } from '@/stores/authStore';
-import { invitesApi, membershipsApi } from '@/lib/api';
+import { authApi, invitesApi, membershipsApi } from '@/lib/api';
 
 const PERMISSION_LABELS: Record<string, string> = {
   canViewAllCustomers: 'Vede clienti altrui',
@@ -19,8 +19,17 @@ const PERMISSION_LABELS: Record<string, string> = {
   canDeleteCustomers: 'Elimina clienti',
   canExportData: 'Esporta dati',
   canImportData: 'Importa dati',
-  canManageCashRegister: 'Gestisce cassa',
   canChangeUserRoles: 'Cambia ruoli utenti / crea operatori',
+  canManageTeam: 'Gestisce team',
+  // Gare
+  canViewCompetitions: 'Vede gare',
+  canManageCompetitions: 'Crea/modifica gare',
+  // Vendite
+  canViewProducts: 'Vede catalogo prodotti',
+  canManageProducts: 'Gestisce catalogo prodotti',
+  canManageSales: 'Gestisce reparto vendite',
+  canSellDevices: 'Vende dispositivi',
+  canViewAllDeviceSales: 'Vede vendite di tutti',
 };
 
 interface MemberCardProps {
@@ -173,7 +182,29 @@ export default function TeamPage() {
           <RemoveDialog m={removeDialog} onClose={() => setRemoveDialog(null)} onDone={() => { setRemoveDialog(null); load(); }} />
         ) : null}
         {editPermissions ? (
-          <EditPermissionsDialog m={editPermissions} isSuperAdmin={isSuperAdmin} onClose={() => setEditPermissions(null)} onDone={() => { setEditPermissions(null); load(); }} />
+          <EditPermissionsDialog
+            m={editPermissions}
+            isSuperAdmin={isSuperAdmin}
+            onClose={() => setEditPermissions(null)}
+            onDone={async () => {
+              const editedUserId = editPermissions.userId;
+              setEditPermissions(null);
+              load();
+              // Phase B — Se ho modificato i permessi del MIO utente,
+              // ricarico /auth/my-shops e rinfresco lo store Zustand
+              // così la sidebar e i bottoni si aggiornano subito senza logout.
+              if (editedUserId === user?.id) {
+                try {
+                  const fresh = await authApi.myShops();
+                  if (Array.isArray(fresh)) {
+                    useAuthStore.setState({ shops: fresh });
+                  }
+                } catch (e) {
+                  console.error('[team] refresh my-shops fallito:', e);
+                }
+              }
+            }}
+          />
         ) : null}
       </AnimatePresence>
     </OperatorLayout>

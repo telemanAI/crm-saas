@@ -94,6 +94,14 @@ export class InventoryMovement {
   @JoinColumn({ name: 'practice_id' })
   practice: Practice | null;
 
+  // ===== Phase D minimal: metodo di pagamento =====
+  // Valori liberi (es. 'CASH', 'CARD', 'BANK_TRANSFER', 'POS', 'FINANCING', ecc.)
+  // I dettagli completi del finanziamento (provider, rate, ecc.) verranno
+  // aggiunti in una fase successiva se servirà — qui registriamo solo
+  // l'indicazione operativa per la chiusura cassa.
+  @Column({ name: 'payment_method', type: 'varchar', length: 32, nullable: true })
+  paymentMethod: string | null;
+
   @Column({ name: 'created_at', type: 'timestamp', default: () => 'NOW()' })
   createdAt: Date;
 }

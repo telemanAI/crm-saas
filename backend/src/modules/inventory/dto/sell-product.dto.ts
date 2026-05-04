@@ -27,4 +27,13 @@ export class SellProductDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /**
+   * Phase D minimal: metodo di pagamento applicato.
+   * Valori liberi: 'CASH' | 'CARD' | 'BANK_TRANSFER' | 'POS' | 'FINANCING' | 'OTHER'.
+   * Verrà salvato nel movimento per la chiusura cassa e i report.
+   */
+  @IsOptional()
+  @IsString()
+  paymentMethod?: string;
 }

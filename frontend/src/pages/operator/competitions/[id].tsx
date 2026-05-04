@@ -129,7 +129,6 @@ export default function CompetitionDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
   const [recomputing, setRecomputing] = useState(false);
-  const [diagnosing, setDiagnosing] = useState(false);
 
   const handleRecompute = async () => {
     if (!id || typeof id !== 'string') return;
@@ -143,52 +142,6 @@ export default function CompetitionDetailPage() {
       alert(err?.response?.data?.message || 'Errore ricalcolo');
     } finally {
       setRecomputing(false);
-    }
-  };
-
-  /**
-   * Phase G — Diagnosi completa: spiega perché una gara non avanza.
-   * Mostra in alert un riepilogo human-readable, e logga l'oggetto completo in console
-   * per debug avanzato (utile da incollare nel chat con il supporto).
-   */
-  const handleDiagnose = async () => {
-    if (!id || typeof id !== 'string') return;
-    setDiagnosing(true);
-    try {
-      const res = await api.get(`/competitions/${id}/diagnose`);
-      const d = res.data;
-      // eslint-disable-next-line no-console
-      console.log('🔬 [Diagnosi gara]', d);
-
-      const lines: string[] = [];
-      lines.push(`📊 Diagnosi gara "${d.competition.title}"`);
-      lines.push(`Periodo: ${String(d.competition.startDate).slice(0, 10)} → ${String(d.competition.endDate).slice(0, 10)}`);
-      lines.push(`Scope: ${d.competition.scopeType} (${d.scopeShopIds.length} shop)`);
-      lines.push('');
-      lines.push(`Pratiche nel periodo: ${d.totalPracticesInPeriod}`);
-      lines.push(`  → idonee (ACTIVATED, non importate, con venditore): ${d.eligiblePractices}`);
-      lines.push(`  → escluse: ${d.excludedPractices}`);
-      lines.push(`Entries esistenti: ${d.totalEntriesExisting}`);
-      lines.push('');
-      lines.push('Per target:');
-      for (const t of d.perTarget) {
-        lines.push(`  • ${t.label} (${t.targetType}) — pratiche candidate: ${t.candidatePractices}, entries: ${t.existingEntries}`);
-      }
-      lines.push('');
-      const excluded = (d.practicesAnalysis || []).filter((p: any) => p.excluded);
-      if (excluded.length > 0) {
-        lines.push(`⚠️ Prime ${Math.min(5, excluded.length)} pratiche escluse:`);
-        for (const p of excluded.slice(0, 5)) {
-          lines.push(`  - ${p.offerName || p.id.slice(0, 8)} → ${p.reasons.join('; ')}`);
-        }
-      }
-      lines.push('');
-      lines.push('(Dettaglio completo in console del browser → F12)');
-      alert(lines.join('\n'));
-    } catch (err: any) {
-      alert(err?.response?.data?.message || 'Errore diagnosi');
-    } finally {
-      setDiagnosing(false);
     }
   };
 
@@ -325,15 +278,6 @@ export default function CompetitionDetailPage() {
 
             {canManage && (
               <div className="flex gap-2 flex-shrink-0">
-                <button
-                  onClick={handleDiagnose}
-                  disabled={diagnosing}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-cyan-300 text-sm font-medium inline-flex items-center gap-1 disabled:opacity-50"
-                  data-testid="detail-diagnose-btn"
-                  title="Diagnosi: perché la gara non avanza? Mostra pratiche escluse e motivazioni"
-                >
-                  🔬 {diagnosing ? 'Analisi...' : 'Diagnosi'}
-                </button>
                 <button
                   onClick={handleRecompute}
                   disabled={recomputing}

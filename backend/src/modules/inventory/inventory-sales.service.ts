@@ -85,6 +85,8 @@ export class InventorySalesService {
         ? `${m.soldByUser.firstName ?? ''} ${m.soldByUser.lastName ?? ''}`.trim()
         : null,
       notes: m.notes,
+      // Phase D minimal — metodo di pagamento esposto in lista
+      paymentMethod: m.paymentMethod ?? null,
     }));
   }
 

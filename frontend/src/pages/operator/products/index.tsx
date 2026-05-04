@@ -796,6 +796,8 @@ function SellModal({
   const [customerPractices, setCustomerPractices] = useState<any[]>([]);
   const [selectedPracticeId, setSelectedPracticeId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  // Phase D minimal — metodo di pagamento
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -810,6 +812,7 @@ function SellModal({
       setCustomerPractices([]);
       setSelectedPracticeId(null);
       setNotes('');
+      setPaymentMethod('CASH');
     }
   }, [open, product]);
 
@@ -863,6 +866,7 @@ function SellModal({
       if (selectedCustomer) payload.customerId = selectedCustomer.id;
       if (selectedPracticeId) payload.practiceId = selectedPracticeId;
       if (notes.trim()) payload.notes = notes.trim();
+      if (paymentMethod) payload.paymentMethod = paymentMethod;
 
       await api.post('/inventory/sales', payload);
       onSold();
@@ -1055,6 +1059,40 @@ function SellModal({
             className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm"
             placeholder="Es. sconto fedeltà, regalo natale..."
           />
+        </div>
+
+        {/* Phase D minimal — metodo di pagamento */}
+        <div>
+          <label className="text-sm text-slate-300 mb-1 block">Metodo di pagamento *</label>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { v: 'CASH', label: '💵 Contanti' },
+              { v: 'CARD', label: '💳 Carta' },
+              { v: 'POS', label: '🧾 POS' },
+              { v: 'BANK_TRANSFER', label: '🏦 Bonifico' },
+              { v: 'FINANCING', label: '📊 Finanziamento' },
+              { v: 'OTHER', label: '… Altro' },
+            ] as const).map((opt) => (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => setPaymentMethod(opt.v)}
+                data-testid={`sell-payment-${opt.v}`}
+                className={`px-2 py-2 rounded text-sm font-medium border transition ${
+                  paymentMethod === opt.v
+                    ? 'bg-emerald-500/20 border-emerald-400 text-emerald-200'
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {paymentMethod === 'FINANCING' && (
+            <p className="text-xs text-amber-400 mt-2">
+              ⓘ Il finanziamento è registrato come metodo. I dettagli completi (provider, rate, importo finanziato) verranno gestiti in un secondo step.
+            </p>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 mt-5">

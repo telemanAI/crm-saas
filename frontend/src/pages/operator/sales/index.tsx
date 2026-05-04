@@ -31,6 +31,28 @@ interface Sale {
   soldByUserId: string | null;
   soldByName: string | null;
   notes: string | null;
+  // Phase D minimal — metodo pagamento
+  paymentMethod: string | null;
+}
+
+// Phase D minimal — helpers visualizzazione metodo pagamento
+function paymentMethodLabel(pm: string): string {
+  const map: Record<string, string> = {
+    CASH: '💵 Contanti',
+    CARD: '💳 Carta',
+    POS: '🧾 POS',
+    BANK_TRANSFER: '🏦 Bonifico',
+    FINANCING: '📊 Finanziamento',
+    OTHER: '… Altro',
+  };
+  return map[pm] || pm;
+}
+function paymentMethodColor(pm: string): string {
+  if (pm === 'CASH') return 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30';
+  if (pm === 'CARD' || pm === 'POS') return 'bg-blue-500/15 text-blue-300 border border-blue-500/30';
+  if (pm === 'BANK_TRANSFER') return 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30';
+  if (pm === 'FINANCING') return 'bg-amber-500/15 text-amber-300 border border-amber-500/30';
+  return 'bg-slate-700/40 text-slate-300 border border-slate-600';
 }
 
 interface Summary {
@@ -286,6 +308,16 @@ export default function SalesHistoryPage() {
                               <span className="flex items-center gap-1 text-violet-300">
                                 <ClipboardText className="w-3 h-3" weight="fill" />
                                 Pratica: {sale.practiceCode}
+                              </span>
+                            )}
+                            {sale.paymentMethod && (
+                              <span
+                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] ${
+                                  paymentMethodColor(sale.paymentMethod)
+                                }`}
+                                data-testid={`sale-pm-${sale.id}`}
+                              >
+                                {paymentMethodLabel(sale.paymentMethod)}
                               </span>
                             )}
                           </div>

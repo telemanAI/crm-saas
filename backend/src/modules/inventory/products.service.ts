@@ -275,6 +275,8 @@ export class ProductsService {
           referenceType: dto.practiceId ? 'PRACTICE' : dto.customerId ? 'CUSTOMER' : null,
           referenceId: dto.practiceId || dto.customerId || null,
           notes: dto.notes || null,
+          // Phase D minimal — metodo di pagamento
+          paymentMethod: dto.paymentMethod || null,
         }),
       );
 

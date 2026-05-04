@@ -148,15 +148,20 @@ export class CompetitionsController {
   }
 
   /**
-   * Phase G — Endpoint diagnostico.
+   * Phase G — Endpoint diagnostico (Phase G.3: utilizzato dalla pagina SUPER_ADMIN).
    * Spiega esattamente perché una gara non avanza: lista pratiche del periodo,
    * motivo di esclusione di ognuna, match per target, conteggio entries.
+   *
+   * Per SUPER_ADMIN salta il check `tenantId` (può diagnosticare gare di qualsiasi shop).
    */
   @Get(':id/diagnose')
   @RequirePermission('canManageCompetitions')
   @HttpCode(HttpStatus.OK)
   async diagnose(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    await this.competitionsService.findOne(req.user.tenantId, id);
+    if (!req.user?.isSuperAdmin && req.user?.role !== 'SUPER_ADMIN') {
+      // Founder/Admin shop: deve essere una gara visibile dal suo tenant
+      await this.competitionsService.findOne(req.user.tenantId, id);
+    }
     return this.entriesService.diagnoseCompetition(id);
   }
 

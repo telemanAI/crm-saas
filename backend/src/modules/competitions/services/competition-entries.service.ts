@@ -129,6 +129,11 @@ export class CompetitionEntriesService {
    * Determina la lista di shop che contribuiscono alla gara.
    * - scopeType='shop'    → solo `comp.tenantId`
    * - scopeType='company' → tutti i tenant con stesso `companyId`
+   *
+   * Phase H — Hardening: se scope=company ma companyId è NULL (gara creata
+   * prima dell'introduzione delle company, o config errata del tenant),
+   * facciamo fallback al solo `comp.tenantId` invece di restituire `[null]`
+   * che faceva fallire `IN (:...shopIds)` con array contenente null.
    */
   private async resolveShopScope(comp: Competition): Promise<string[]> {
     if (comp.scopeType === 'company' && comp.companyId) {
@@ -136,9 +141,16 @@ export class CompetitionEntriesService {
         where: { companyId: comp.companyId },
         select: ['id'],
       });
-      return tenants.map((t) => t.id);
+      const ids = tenants.map((t) => t.id).filter(Boolean);
+      if (ids.length > 0) return ids;
     }
-    return [comp.tenantId];
+    if (comp.scopeType === 'company' && !comp.companyId) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[Competition ${comp.id}] scopeType=company ma companyId=null → fallback a tenantId solo`,
+      );
+    }
+    return [comp.tenantId].filter(Boolean) as string[];
   }
 
   /**
@@ -483,15 +495,31 @@ export class CompetitionEntriesService {
       order: { startDate: 'DESC' },
     });
 
+    // Phase H — Diagnostica: log esplicito per capire cosa filtriamo via.
+    // Visibile nei log Railway, utile quando il widget appare vuoto.
+    let filteredOutByPeriod = 0;
+    let filteredOutByScope = 0;
+
     const activeCompetitions: any[] = [];
     for (const comp of allComps) {
       const start = new Date(comp.startDate);
       const end = new Date(this.endOfDay(comp.endDate));
-      if (now < start || now > end) continue;
+      if (now < start || now > end) {
+        filteredOutByPeriod++;
+        continue;
+      }
 
       // verifica scope
       const scopeIds = await this.resolveShopScope(comp);
-      if (!scopeIds.includes(activeShopId)) continue;
+      if (!scopeIds.includes(activeShopId)) {
+        filteredOutByScope++;
+        // eslint-disable-next-line no-console
+        console.log(
+          `[monthlyOverview] gara "${comp.title}" esclusa: scope=${comp.scopeType} ` +
+            `shopIds=[${scopeIds.join(',')}] ma activeShopId=${activeShopId}`,
+        );
+        continue;
+      }
 
       // non mostrare gare nascoste agli operator (ma il founder le vede)
       // qui ritorniamo sempre, è il frontend a filtrare se serve
@@ -543,6 +571,16 @@ export class CompetitionEntriesService {
           pieces: parseInt(r.pieces, 10) || 0,
         })),
       });
+    }
+
+    // Phase H — log riepilogo diagnostica
+    if (allComps.length > 0 && activeCompetitions.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[monthlyOverview] activeShopId=${activeShopId}: ` +
+          `${allComps.length} gare attive nel DB, ${filteredOutByPeriod} fuori periodo, ` +
+          `${filteredOutByScope} fuori scope, 0 mostrate al widget.`,
+      );
     }
 
     return {

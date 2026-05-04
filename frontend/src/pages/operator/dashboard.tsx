@@ -15,8 +15,7 @@ import Link from 'next/link';
 import { useAuthStore } from '@/stores/authStore';
 import { usePermission } from '@/hooks/usePermission';
 import OperatorLayout from '@/components/layout/OperatorLayout';
-import MyPiecesWidget from '@/components/dashboard/MyPiecesWidget';
-import LiveCompetitionsWidget from '@/components/dashboard/LiveCompetitionsWidget';
+import CompetitionsHub from '@/components/dashboard/CompetitionsHub';
 import { useApi } from '@/hooks/useApi';
 import { 
   LineChart, 
@@ -172,10 +171,7 @@ export default function OperatorDashboard() {
 
       {/* TAPPA 3.1 — Widget i miei pezzi del mese */}
       <div className="mb-8">
-        <MyPiecesWidget />
-
-        {/* Phase H — Widget gare live in dashboard */}
-        <LiveCompetitionsWidget canManageCompetitions={canManageCompetitions} />
+        <CompetitionsHub canManageCompetitions={canManageCompetitions} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

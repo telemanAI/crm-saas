@@ -5,29 +5,28 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
+import { User } from '../users/entities/user.entity';
 
 /**
  * Strategy JWT con fallback robusto per tenantId.
- *
- * Caso d'uso del fallback (PHASE A — BUG #2):
- * Se il JWT è stato emesso prima della Tappa 0 multi-shop, può avere
- * `tenantId: null`. In quel caso le route che fanno INSERT con tenantId
- * crashano (es. inventory_items).
  *
  * Strategia di risoluzione (in ordine):
  *   1. payload.tenantId (caso normale, JWT recente)
  *   2. header `X-Active-Shop-Id` inviato dal frontend ShopSwitcher
  *   3. prima membership attiva dell'utente nel DB
- *   4. null (route che richiedono tenantId daranno 400 esplicito)
+ *   4. PHASE G.2: `users.tenant_id` direttamente (founder legacy senza riga in user_shop_memberships)
+ *   5. null (route che richiedono tenantId daranno 400 esplicito)
  *
  * Così l'utente non deve fare logout/login e il sistema resta robusto
- * a JWT non aggiornati.
+ * a JWT non aggiornati e a founder legacy.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     @InjectRepository(UserShopMembership)
     private readonly membershipRepo: Repository<UserShopMembership>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -63,6 +62,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           order: { joinedAt: 'ASC' },
         });
         if (first) tenantId = first.shopId;
+      }
+
+      // 4. PHASE G.2: users.tenant_id (founder legacy senza membership)
+      // Se l'utente è stato creato pre-multi-shop, ha solo users.tenant_id
+      // e nessuna riga in user_shop_memberships. Recuperiamo da lì.
+      if (!tenantId) {
+        const u = await this.userRepo.findOne({
+          where: { id: payload.sub },
+          select: ['id', 'tenantId'],
+        });
+        if (u?.tenantId) {
+          tenantId = u.tenantId;
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[JwtStrategy] tenantId fallback users.tenantId per user ${payload.sub} (${payload.email}) — considera di creare membership esplicita`,
+          );
+        }
       }
     }
 

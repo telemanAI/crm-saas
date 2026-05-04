@@ -160,6 +160,27 @@ export class CompetitionsController {
     return this.entriesService.diagnoseCompetition(id);
   }
 
+  /**
+   * Phase G.2 — Monitor mensile aggregato per la sidebar/dashboard.
+   * Ritorna un riepilogo dello shop attivo per il MESE CORRENTE:
+   *   - totale pratiche elaborate (ACTIVATED) del mese, breakdown per categoria
+   *   - per ogni gara in corso: total entries, sum target_pieces, top 3 venditori
+   * Indipendente dalle gare ("la gara prescinde dal monitor delle pratiche").
+   */
+  @Get('monthly-overview')
+  @HttpCode(HttpStatus.OK)
+  async monthlyOverview(@Req() req: any) {
+    if (!req.user?.tenantId) {
+      return {
+        practicesActivatedThisMonth: 0,
+        byCategory: {},
+        activeCompetitions: [],
+        monthLabel: '',
+      };
+    }
+    return this.entriesService.monthlyOverview(req.user.tenantId);
+  }
+
   @Patch(':id')
   @RequirePermission('canManageCompetitions')
   update(

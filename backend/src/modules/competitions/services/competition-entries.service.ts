@@ -446,7 +446,115 @@ export class CompetitionEntriesService {
   }
 
   // =====================================================================
-  //  Phase G — Diagnostica gara
+  //  Phase G.2 — Monitor mensile (totali + top 3 venditori per gara attiva)
+  // =====================================================================
+
+  async monthlyOverview(activeShopId: string): Promise<any> {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const monthLabel = monthStart.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+
+    // 1) Pratiche ACTIVATED del mese sullo shop attivo (indipendente dalle gare)
+    const activatedRaw = await this.practiceRepo
+      .createQueryBuilder('p')
+      .select('p.category', 'category')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('p.tenantId = :tid', { tid: activeShopId })
+      .andWhere('p.operationalStatus = :st', { st: 'ACTIVATED' })
+      .andWhere('p.createdAt >= :ms', { ms: monthStart })
+      .andWhere('p.createdAt <= :me', { me: monthEnd })
+      .groupBy('p.category')
+      .getRawMany();
+
+    const byCategory: Record<string, number> = {};
+    let practicesActivatedThisMonth = 0;
+    for (const r of activatedRaw) {
+      const c = r.category || 'UNKNOWN';
+      const n = parseInt(r.cnt, 10) || 0;
+      byCategory[c] = n;
+      practicesActivatedThisMonth += n;
+    }
+
+    // 2) Gare in corso che includono lo shop attivo
+    const allComps = await this.competitionRepo.find({
+      where: { isActive: true },
+      relations: ['targets'],
+      order: { startDate: 'DESC' },
+    });
+
+    const activeCompetitions: any[] = [];
+    for (const comp of allComps) {
+      const start = new Date(comp.startDate);
+      const end = new Date(this.endOfDay(comp.endDate));
+      if (now < start || now > end) continue;
+
+      // verifica scope
+      const scopeIds = await this.resolveShopScope(comp);
+      if (!scopeIds.includes(activeShopId)) continue;
+
+      // non mostrare gare nascoste agli operator (ma il founder le vede)
+      // qui ritorniamo sempre, è il frontend a filtrare se serve
+
+      const totalTargetPieces = (comp.targets || []).reduce(
+        (s, t) => s + (Number(t.targetPieces) || 0),
+        0,
+      );
+
+      const top3Raw = await this.entryRepo
+        .createQueryBuilder('e')
+        .leftJoin('users', 'u', 'u.id = e.userId')
+        .select('e.userId', 'userId')
+        .addSelect('u.first_name', 'firstName')
+        .addSelect('u.last_name', 'lastName')
+        .addSelect('SUM(e.pieces)', 'pieces')
+        .where('e.competitionId = :cid', { cid: comp.id })
+        .groupBy('e.userId')
+        .addGroupBy('u.first_name')
+        .addGroupBy('u.last_name')
+        .orderBy('pieces', 'DESC')
+        .limit(3)
+        .getRawMany();
+
+      const totalEntries = await this.entryRepo
+        .createQueryBuilder('e')
+        .select('COALESCE(SUM(e.pieces), 0)', 'total')
+        .where('e.competitionId = :cid', { cid: comp.id })
+        .getRawOne();
+
+      activeCompetitions.push({
+        id: comp.id,
+        title: comp.title,
+        startDate: comp.startDate,
+        endDate: comp.endDate,
+        scopeType: comp.scopeType,
+        isHidden: comp.isHidden === true,
+        totalTargetPieces,
+        totalEntriesPieces: parseInt(totalEntries?.total ?? '0', 10),
+        progressPercent: totalTargetPieces
+          ? Math.min(
+              100,
+              Math.round((parseInt(totalEntries?.total ?? '0', 10) / totalTargetPieces) * 100),
+            )
+          : 0,
+        top3: top3Raw.map((r) => ({
+          userId: r.userId,
+          name: [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Sconosciuto',
+          pieces: parseInt(r.pieces, 10) || 0,
+        })),
+      });
+    }
+
+    return {
+      monthLabel,
+      monthStart,
+      monthEnd,
+      practicesActivatedThisMonth,
+      byCategory,
+      activeCompetitions,
+    };
+  }
+
   // =====================================================================
 
   /**

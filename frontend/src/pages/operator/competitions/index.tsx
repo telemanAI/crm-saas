@@ -14,6 +14,10 @@ import {
   Target as TargetIcon,
   Gift,
   Copy,
+  Crown,
+  ChartBar,
+  ClipboardText,
+  EyeSlash,
 } from 'phosphor-react';
 import {
   Competition,
@@ -22,6 +26,32 @@ import {
   formatDate,
   getStatus,
 } from '@/components/competitions/CompetitionModals';
+
+type MonthlyOverview = {
+  monthLabel: string;
+  practicesActivatedThisMonth: number;
+  byCategory: Record<string, number>;
+  activeCompetitions: Array<{
+    id: string;
+    title: string;
+    startDate: string;
+    endDate: string;
+    scopeType: string;
+    isHidden: boolean;
+    totalTargetPieces: number;
+    totalEntriesPieces: number;
+    progressPercent: number;
+    top3: Array<{ userId: string; name: string; pieces: number }>;
+  }>;
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  FIXED_LINE: 'Linea Fissa',
+  MOBILE: 'Mobile',
+  ENERGY: 'Luce/Gas',
+  SKY: 'SKY',
+  UNKNOWN: 'Altro',
+};
 
 export default function CompetitionsListPage() {
   const router = useRouter();
@@ -32,6 +62,8 @@ export default function CompetitionsListPage() {
   const [comps, setComps] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [includeInactive, setIncludeInactive] = useState(false);
+  // Phase G.2 — monitor mensile
+  const [overview, setOverview] = useState<MonthlyOverview | null>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Competition | null>(null);
@@ -48,8 +80,9 @@ export default function CompetitionsListPage() {
       return;
     }
     fetchAll();
+    fetchOverview();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, canView, includeInactive]);
+  }, [isAuthenticated, canView, includeInactive, activeShopId]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -61,6 +94,16 @@ export default function CompetitionsListPage() {
       alert(err?.response?.data?.message || 'Errore caricamento');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOverview = async () => {
+    try {
+      const res = await api.get('/competitions/monthly-overview');
+      setOverview(res.data);
+    } catch (err) {
+      // overview è best-effort, non bloccante
+      console.warn('[CompetitionsListPage] overview non caricabile', err);
     }
   };
 
@@ -156,6 +199,11 @@ export default function CompetitionsListPage() {
             <span className="text-slate-300">Mostra anche gare disattivate</span>
           </label>
         </div>
+
+        {/* Phase G.2 — Monitor mensile a colpo d'occhio */}
+        {overview && (
+          <MonthlyMonitor overview={overview} canManage={canManage} />
+        )}
 
         {comps.length === 0 ? (
           <div className="text-center py-16 text-slate-500 border border-dashed border-slate-700 rounded-xl">
@@ -341,6 +389,149 @@ function CompetitionGroup({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Phase G.2 — Monitor mensile a colpo d'occhio.
+ * Mostra:
+ *  - totale pratiche ATTIVATE del mese (indipendente dalle gare)
+ *  - breakdown per categoria
+ *  - per ogni gara in corso: progress bar + top 3 venditori
+ */
+function MonthlyMonitor({ overview, canManage }: { overview: MonthlyOverview; canManage: boolean }) {
+  const cats = Object.entries(overview.byCategory).sort((a, b) => b[1] - a[1]);
+
+  return (
+    <div className="mb-6 space-y-4" data-testid="monthly-monitor">
+      {/* Header monitor: totale pratiche del mese */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-900/10 border border-amber-500/30 rounded-2xl p-5 shadow-lg shadow-amber-500/5">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-xs uppercase tracking-widest text-amber-400/80 mb-1 flex items-center gap-1.5">
+              <ClipboardText className="w-3.5 h-3.5" weight="duotone" />
+              Monitor mensile · {overview.monthLabel}
+            </div>
+            <div className="text-4xl font-black text-white" data-testid="monthly-total-practices">
+              {overview.practicesActivatedThisMonth}
+              <span className="text-sm text-slate-400 font-normal ml-2">pratiche attivate</span>
+            </div>
+            <div className="text-xs text-slate-500 mt-1">
+              Indipendente dalle gare — riflette tutte le ATTIVATE del mese sullo shop attivo.
+            </div>
+          </div>
+          {cats.length > 0 && (
+            <div className="flex flex-wrap gap-2 items-center">
+              {cats.map(([cat, n]) => (
+                <div
+                  key={cat}
+                  className="bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2 text-center min-w-[88px]"
+                  data-testid={`monthly-cat-${cat}`}
+                >
+                  <div className="text-[11px] text-slate-400 uppercase">
+                    {CATEGORY_LABELS[cat] || cat}
+                  </div>
+                  <div className="text-lg font-bold text-white">{n}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Per ogni gara in corso, una card spotlight */}
+      {overview.activeCompetitions.length > 0 && (
+        <div>
+          <div className="text-xs uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5">
+            <ChartBar className="w-3.5 h-3.5" weight="duotone" />
+            Gare in corso · live
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {overview.activeCompetitions.map((c) => (
+              <Link
+                key={c.id}
+                href={`/operator/competitions/${c.id}`}
+                className="block bg-slate-900 border border-slate-800 hover:border-amber-500/40 rounded-xl p-4 transition group"
+                data-testid={`live-comp-${c.id}`}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Trophy className="w-4 h-4 text-amber-400 flex-shrink-0" weight="fill" />
+                      <h3 className="font-bold text-white truncate group-hover:text-amber-300 transition">
+                        {c.title}
+                      </h3>
+                      {c.isHidden && canManage && (
+                        <span title="Nascosta agli operator" className="text-slate-500">
+                          <EyeSlash className="w-3.5 h-3.5" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {String(c.startDate).slice(0, 10)} → {String(c.endDate).slice(0, 10)} ·{' '}
+                      {c.scopeType === 'COMPANY' ? 'Tutti i negozi' : 'Solo questo negozio'}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-2xl font-black text-amber-400">
+                      {c.totalEntriesPieces}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      / {c.totalTargetPieces || '—'} pezzi
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                {c.totalTargetPieces > 0 && (
+                  <div className="mb-3">
+                    <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all"
+                        style={{ width: `${c.progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1 text-right">
+                      {c.progressPercent}%
+                    </div>
+                  </div>
+                )}
+
+                {/* Top 3 venditori */}
+                {c.top3.length > 0 ? (
+                  <div className="space-y-1.5">
+                    {c.top3.map((u, i) => {
+                      const colors = ['text-amber-400', 'text-slate-300', 'text-orange-700/80'];
+                      const bgs = ['bg-amber-500/10', 'bg-slate-700/30', 'bg-orange-900/20'];
+                      return (
+                        <div
+                          key={u.userId}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded ${bgs[i]}`}
+                        >
+                          {i === 0 ? (
+                            <Crown className={`w-4 h-4 ${colors[i]}`} weight="fill" />
+                          ) : (
+                            <span className={`w-4 h-4 text-center text-xs font-bold ${colors[i]}`}>
+                              {i + 1}
+                            </span>
+                          )}
+                          <span className="flex-1 text-sm text-slate-200 truncate">{u.name}</span>
+                          <span className={`font-bold ${colors[i]}`}>{u.pieces}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 italic py-2">
+                    Nessun venditore in classifica ancora.
+                  </div>
+                )}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

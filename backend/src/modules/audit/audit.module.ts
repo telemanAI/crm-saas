@@ -16,12 +16,10 @@ import { AllExceptionsFilter } from './all-exceptions.filter';
   providers: [
     AuditService,
     SystemErrorsService,
-    // Interceptor globale per l'audit trail (chi ha fatto cosa)
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
-    // Exception filter globale per registrare errori di sistema per tenant
     {
       provide: APP_FILTER,
       useFactory: (

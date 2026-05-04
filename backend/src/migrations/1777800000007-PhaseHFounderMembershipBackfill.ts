@@ -5,31 +5,14 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *
  * BACKFILL FOUNDER MEMBERSHIP.
  *
- * In produzione abbiamo founder che hanno `users.tenant_id` valorizzato
- * ma nessuna riga in `user_shop_memberships`. Questo causa:
- *   - JWT.tenantId = null → crash su INSERT inventory/practices/customers
- *   - lo switch shop non funziona perché non vede membership
- *   - la pagina team li mostra ma senza permessi configurabili
- *
- * Questa migration:
- *   1. Trova tutti gli utenti con `tenant_id IS NOT NULL` MA senza riga
- *      attiva in `user_shop_memberships` per quel `(user_id, shop_id)`.
- *   2. Crea la membership con role=FOUNDER e i permessi default founder.
- *   3. Logga il count.
- *   4. Idempotente: la INSERT ha ON CONFLICT DO NOTHING.
- *
- * Permission default founder (allineati alla Phase B):
- *   canCreatePractices, canEditPractices, canDeletePractices,
- *   canViewAllCustomers, canEditCustomers, canDeleteCustomers,
- *   canViewProducts, canManageProducts, canSellDevices, canManageSales,
- *   canViewCompetitions, canManageCompetitions,
- *   canManageTeam, canViewReports, canImportData, canExportData
+ * FIX: rimossi valori enum inesistenti (MANAGER, SALES). Solo FOUNDER/ADMIN/OPERATOR
+ * sono validi in membership_role_enum. Tutto il resto (SUPER_ADMIN, MANAGER, ecc.)
+ * viene mappato a FOUNDER.
  */
 export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationInterface {
   name = 'PhaseHFounderMembershipBackfill1777800000007';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Tabella di tracking per rollback safe
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "_phase_h_membership_backfill_changes" (
         "user_id" uuid NOT NULL,
@@ -39,7 +22,6 @@ export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationIn
       )
     `);
 
-    // Conta candidati prima
     const before = await queryRunner.query(`
       SELECT COUNT(*) as cnt
       FROM users u
@@ -54,8 +36,6 @@ export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationIn
     // eslint-disable-next-line no-console
     console.log(`[PhaseHBackfill] Founder/utenti senza membership esplicita: ${beforeCount}`);
 
-    // Inserisce le membership mancanti.
-    // Permissions: jsonb completo coi default founder (Phase B compliant).
     await queryRunner.query(`
       WITH inserted AS (
         INSERT INTO user_shop_memberships
@@ -63,7 +43,12 @@ export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationIn
         SELECT
           u.id,
           u.tenant_id,
-          COALESCE(NULLIF(UPPER(u.role::text), ''), 'FOUNDER'),
+          CASE UPPER(u.role::text)
+            WHEN 'FOUNDER'      THEN 'FOUNDER'::membership_role_enum
+            WHEN 'ADMIN'        THEN 'ADMIN'::membership_role_enum
+            WHEN 'OPERATOR'     THEN 'OPERATOR'::membership_role_enum
+            ELSE 'FOUNDER'::membership_role_enum
+          END,
           jsonb_build_object(
             'canCreatePractices', true,
             'canEditPractices', true,
@@ -107,7 +92,6 @@ export class PhaseHFounderMembershipBackfill1777800000007 implements MigrationIn
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    // Rollback: rimuove SOLO le membership create da questa migration
     await queryRunner.query(`
       DELETE FROM user_shop_memberships m
       USING "_phase_h_membership_backfill_changes" c

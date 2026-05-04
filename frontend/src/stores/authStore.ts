@@ -3,30 +3,101 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 /**
- * Storage adattivo: se "authRememberMe" vale "true" usa localStorage
- * (sessione persistente), altrimenti sessionStorage (si cancella alla
- * chiusura del browser/tab). setItem scrive sul primario e pulisce il
- * secondario per evitare residui che causavano account swap.
+ * Phase E — Multi-tab session isolation
+ * --------------------------------------
+ * PROBLEMA: con la versione precedente, aprire 2 tab con account diversi
+ * causava account swap: la key `auth-storage` su localStorage è condivisa
+ * tra tab, quindi l'ultimo login vinceva e tab1 si ritrovava loggata
+ * con l'utente di tab2 dopo qualunque refresh.
+ *
+ * SOLUZIONE: isolamento per tab tramite `tabId` univoco salvato in
+ * sessionStorage (sessionStorage è nativamente isolato per tab/finestra).
+ *
+ * Schema storage:
+ *   - sessionStorage[`auth-storage-${tabId}`]  → sessione attiva di QUESTA tab (sempre)
+ *   - localStorage[`auth-storage-master`]      → backup "remember me" cross-tab (solo se richiesto)
+ *
+ * Workflow:
+ *   1. Boot: leggi `tabId` da sessionStorage; se manca generane uno nuovo.
+ *   2. Login: scrivi su sessionStorage(per-tab); se "remember me" attivo,
+ *      copia anche su localStorage(master).
+ *   3. Refresh / nuova tab vuota: prova prima sessionStorage(per-tab);
+ *      se vuoto E localStorage(master) presente → ripristina da master
+ *      (utente vede ancora il login senza dover ridigitare).
+ *   4. Logout esplicito: pulisci ENTRAMBI gli storage (esce da ogni tab e dispositivo).
+ *
+ * Risultato: due tab con account A e B coesistono senza interferenze;
+ * chi rinfresca la tab vede sempre il proprio account.
  */
-const adaptiveStorage = {
-  getItem: (name: string) => {
+
+const TAB_ID_KEY = 'tabId';
+const MASTER_KEY = 'auth-storage-master';
+const REMEMBER_FLAG = 'authRememberMe';
+
+function generateTabId(): string {
+  // UUID v4 lite (non serve crypto.randomUUID polyfill server-side)
+  return 'tab-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+}
+
+function getTabId(): string {
+  if (typeof window === 'undefined') return 'ssr';
+  let id = window.sessionStorage.getItem(TAB_ID_KEY);
+  if (!id) {
+    id = generateTabId();
+    window.sessionStorage.setItem(TAB_ID_KEY, id);
+  }
+  return id;
+}
+
+const tabStorage = {
+  getItem: (_name: string) => {
     if (typeof window === 'undefined') return null;
-    const remember = window.localStorage.getItem('authRememberMe') === 'true';
-    const store = remember ? window.localStorage : window.sessionStorage;
-    return store.getItem(name);
+    const tabId = getTabId();
+    const perTabKey = `auth-storage-${tabId}`;
+    // 1) prova prima la chiave per-tab
+    const fromTab = window.sessionStorage.getItem(perTabKey);
+    if (fromTab) return fromTab;
+
+    // 2) se la tab è "vuota" (es. appena aperta) ma c'è un master "remember me"
+    //    su localStorage → ripristina la sessione da lì SOLO per questa tab.
+    const remember = window.localStorage.getItem(REMEMBER_FLAG) === 'true';
+    if (remember) {
+      const master = window.localStorage.getItem(MASTER_KEY);
+      if (master) {
+        // Cache anche su sessionStorage così le successive operazioni di
+        // questa tab non rileggono il master (e non si confondono con
+        // un'altra tab che intanto fa login con account diverso).
+        window.sessionStorage.setItem(perTabKey, master);
+        return master;
+      }
+    }
+    return null;
   },
-  setItem: (name: string, value: string) => {
+  setItem: (_name: string, value: string) => {
     if (typeof window === 'undefined') return;
-    const remember = window.localStorage.getItem('authRememberMe') === 'true';
-    const primary = remember ? window.localStorage : window.sessionStorage;
-    const secondary = remember ? window.sessionStorage : window.localStorage;
-    primary.setItem(name, value);
-    secondary.removeItem(name);
+    const tabId = getTabId();
+    const perTabKey = `auth-storage-${tabId}`;
+    // 1) sempre scrivi su sessionStorage(per-tab) → isolato dagli altri tab
+    window.sessionStorage.setItem(perTabKey, value);
+
+    // 2) se "remember me" è attivo, scrivi anche sul master (per ripristino
+    //    su NUOVE tab/restart browser). Altrimenti rimuovi il master per
+    //    sicurezza (l'utente non vuole sessione persistente).
+    const remember = window.localStorage.getItem(REMEMBER_FLAG) === 'true';
+    if (remember) {
+      window.localStorage.setItem(MASTER_KEY, value);
+    } else {
+      window.localStorage.removeItem(MASTER_KEY);
+    }
   },
-  removeItem: (name: string) => {
+  removeItem: (_name: string) => {
     if (typeof window === 'undefined') return;
-    window.localStorage.removeItem(name);
-    window.sessionStorage.removeItem(name);
+    const tabId = getTabId();
+    const perTabKey = `auth-storage-${tabId}`;
+    window.sessionStorage.removeItem(perTabKey);
+    // Logout esplicito: invalida anche il master così le altre tab/device
+    // perdono accesso al prossimo refresh.
+    window.localStorage.removeItem(MASTER_KEY);
   },
 };
 
@@ -126,6 +197,7 @@ export const useAuthStore = create<AuthState>()(
         if (!newToken) {
           // Bloccante: cambiare shopId senza emettere un nuovo JWT porta
           // inevitabilmente ad account swap. Meglio fallire esplicitamente.
+          // eslint-disable-next-line no-console
           console.warn(
             '[authStore] setActiveShop chiamato senza newToken: rifiuto per sicurezza ' +
               '(richiedi prima il nuovo JWT a /auth/switch-shop).',
@@ -154,10 +226,17 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         if (typeof window !== 'undefined') {
-          // Pulizia completa: entrambi gli storage + flag remember.
-          window.localStorage.removeItem('authRememberMe');
+          // Phase E — pulizia completa: tab corrente + master cross-tab.
+          // (Le altre tab perderanno accesso al primo refresh — desiderato
+          //  perché l'utente ha fatto logout esplicito).
+          window.localStorage.removeItem(REMEMBER_FLAG);
+          window.localStorage.removeItem(MASTER_KEY);
+          // Pulisci anche eventuali residui delle vecchie key (compat retro)
           window.localStorage.removeItem('auth-storage');
           window.sessionStorage.removeItem('auth-storage');
+          // Pulisci la chiave per-tab corrente
+          const tabId = getTabId();
+          window.sessionStorage.removeItem(`auth-storage-${tabId}`);
         }
         set({
           user: null,
@@ -197,8 +276,11 @@ export const useAuthStore = create<AuthState>()(
         })),
     }),
     {
+      // Phase E — il "name" qui è solo un'etichetta interna del middleware
+      // persist; la chiave reale di storage è gestita da `tabStorage` con
+      // prefisso `auth-storage-${tabId}` per garantire isolamento per-tab.
       name: 'auth-storage',
-      storage: createJSONStorage(() => adaptiveStorage),
+      storage: createJSONStorage(() => tabStorage),
       partialize: (state) => ({
         user: state.user,
         token: state.token,

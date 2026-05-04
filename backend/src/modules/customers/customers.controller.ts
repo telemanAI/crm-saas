@@ -18,6 +18,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { RequirePermission } from '../auth/decorators/require-permission.decorator';
 import { AuditLog } from '../audit/decorators/audit-log.decorator';
+import { MembershipsService } from '../memberships/memberships.service';
 
 /**
  * ORDINE GUARD:
@@ -31,7 +32,25 @@ import { AuditLog } from '../audit/decorators/audit-log.decorator';
 @Controller('customers')
 @UseGuards(JwtAuthGuard, PermissionsGuard, RolesGuard)
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly membershipsService: MembershipsService,
+  ) {}
+
+  /**
+   * PHASE A — BUG #3: helper per determinare se l'utente può vedere tutti i clienti.
+   * FOUNDER e SUPER_ADMIN sempre true. Altri: leggono il flag dalla membership.
+   */
+  private async canViewAllCustomers(req: any): Promise<boolean> {
+    if (req.user.role === 'SUPER_ADMIN' || req.user.isSuperAdmin) return true;
+    const m = await this.membershipsService.findActiveForUserAndShop(
+      req.user.userId || req.user.id,
+      req.user.tenantId,
+    );
+    if (!m) return false;
+    if (m.role === 'FOUNDER') return true;
+    return (m.permissions || ({} as any)).canViewAllCustomers === true;
+  }
 
   @Post()
   @Roles('ADMIN', 'OPERATOR', 'SUPER_ADMIN')
@@ -43,7 +62,8 @@ export class CustomersController {
   @Get()
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   async findAll(@Request() req) {
-    return this.customersService.findAll(req.user.tenantId);
+    const canViewAll = await this.canViewAllCustomers(req);
+    return this.customersService.findAll(req.user.tenantId, req.user.userId, canViewAll);
   }
 
   @Get('search/by-fiscal-code')

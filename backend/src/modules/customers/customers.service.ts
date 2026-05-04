@@ -52,11 +52,33 @@ export class CustomersService {
     return customerSaved;
   }
 
-  async findAll(tenantId: string): Promise<Customer[]> {
-    return this.customerRepo.find({
-      where: { tenantId },
-      order: { createdAt: 'DESC' },
-    });
+  /**
+   * PHASE A — BUG #3: filtra per `assignedTo` (o `createdBy` come fallback)
+   * quando l'utente NON ha il permesso `canViewAllCustomers`.
+   *
+   * @param tenantId  Shop attivo
+   * @param userId    User loggato (per filtrare a scope operatore)
+   * @param canViewAll Se true → niente filtro per scope operatore (founder/admin con permesso)
+   */
+  async findAll(
+    tenantId: string,
+    userId?: string,
+    canViewAll: boolean = true,
+  ): Promise<Customer[]> {
+    if (canViewAll || !userId) {
+      return this.customerRepo.find({
+        where: { tenantId },
+        order: { createdAt: 'DESC' },
+      });
+    }
+
+    // Operatore senza permesso: vede solo clienti assegnati a lui
+    return this.customerRepo
+      .createQueryBuilder('c')
+      .where('c.tenantId = :tenantId', { tenantId })
+      .andWhere('c.assignedTo = :userId', { userId })
+      .orderBy('c.createdAt', 'DESC')
+      .getMany();
   }
 
   async findOne(tenantId: string, id: string): Promise<any> {

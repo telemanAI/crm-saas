@@ -221,23 +221,41 @@ export function CompetitionModal({
 
     setSaving(true);
     try {
+      // PHASE A FIX BUG #1: strip dei campi non whitelistati nel DTO backend
+      // (forbidNonWhitelisted: true blocca id, competitionId, createdAt, updatedAt nei nested)
+      const cleanTargets = targets.map((t, i) => ({
+        // SOLO i campi previsti da TargetDto:
+        label: t.label.trim(),
+        category: t.category,
+        targetType: t.targetType || 'category_generic',
+        provider: t.provider?.trim() || null,
+        offerIds: t.targetType === 'specific' ? (t.offerIds || []) : [],
+        inventoryItemIds: t.inventoryItemIds || [],
+        matchProviders: (t.matchProviders || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
+        matchOfferKeywords: (t.matchOfferKeywords || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
+        matchPracticeTypes: (t.matchPracticeTypes || []).filter(Boolean),
+        targetPieces: Number(t.targetPieces) || 0,
+        sortOrder: i,
+      }));
+      const cleanPrizes = prizes.map((p, i) => ({
+        // SOLO i campi previsti da PrizeDto:
+        label: p.label.trim(),
+        scope: p.scope,
+        kind: p.kind,
+        category: p.category,
+        targetId: p.targetId || null,
+        threshold: Number(p.threshold) || 0,
+        prizeValue: p.prizeValue ?? null,
+        sortOrder: i,
+      }));
+
       const payload: any = {
         title: title.trim(),
         description: description.trim() || undefined,
         startDate, endDate, isActive, scopeType, isHidden,
         templateKey: templateKey.trim() || undefined,
-        targets: targets.map((t, i) => ({
-          ...t,
-          targetType: t.targetType || 'category_generic',
-          provider: t.provider?.trim() || null,
-          offerIds: t.targetType === 'specific' ? (t.offerIds || []) : [],
-          inventoryItemIds: t.inventoryItemIds || [],
-          matchProviders: (t.matchProviders || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
-          matchOfferKeywords: (t.matchOfferKeywords || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
-          matchPracticeTypes: (t.matchPracticeTypes || []).filter(Boolean),
-          sortOrder: i,
-        })),
-        prizes: prizes.map((p, i) => ({ ...p, sortOrder: i })),
+        targets: cleanTargets,
+        prizes: cleanPrizes,
       };
       if (isEdit) await api.patch(`/competitions/${initial!.id}`, payload);
       else await api.post('/competitions', payload);
@@ -345,7 +363,7 @@ export function CompetitionModal({
                     <EyeSlash className="w-4 h-4" /> Gara nascosta
                   </div>
                   <div className="text-xs text-slate-500">
-                    Solo Founder e Super Admin la vedranno (utile per bonus segreti o test).
+                    Solo i founder la vedranno (utile per bonus segreti o test interni).
                   </div>
                 </div>
               </label>

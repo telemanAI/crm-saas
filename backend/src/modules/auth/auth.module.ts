@@ -11,6 +11,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { User } from '../users/entities/user.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
 import { UsersModule } from '../users/users.module';
 import { MembershipsModule } from '../memberships/memberships.module';
 import { CompaniesModule } from '../companies/companies.module';
@@ -37,17 +38,15 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
 @Module({
   imports: [
     forwardRef(() => TenantsModule),
-    TypeOrmModule.forFeature([User, Tenant, OtpCode, PendingRegistration]),
+    // PHASE A — BUG #2: aggiunto UserShopMembership al forFeature per il
+    // fallback tenantId nella JwtStrategy
+    TypeOrmModule.forFeature([User, Tenant, OtpCode, PendingRegistration, UserShopMembership]),
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'your-secret-key',
       signOptions: { expiresIn: '24h' },
     }),
     UsersModule,
-    // MembershipsModule esporta MembershipsService, necessario per:
-    //  - PermissionsGuard (guard globale auth)
-    //  - AuthController.debug (nuovo endpoint diagnostico)
-    //  - SocialAuthService.switchActiveShop
     MembershipsModule,
     CompaniesModule,
     InvitesModule,

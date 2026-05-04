@@ -7,6 +7,7 @@ import { CompetitionEntry, EntrySourceType, EntryCategory } from '../entities/co
 import { Practice } from '../../practices/entities/practice.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Offer } from '../../offers/entities/offer.entity';
+import { User } from '../../users/entities/user.entity';
 
 /**
  * TAPPA 3.1 — Service Entries con due modalità complementari:
@@ -24,17 +25,24 @@ import { Offer } from '../../offers/entities/offer.entity';
  */
 
 /**
- * Phase G — Allineato col `recomputeCompetition`:
- * una pratica conta nelle gare SOLO quando è effettivamente attivata
- * (`operational_status = 'ACTIVATED'`). Bozze, in_progress, KO non contano.
+ * Una pratica conta nella gara SOLO quando è "ESEGUITA" — cioè inserita
+ * correttamente dall'operatore (status='completed', step finale del flow).
  *
- * Prima questa funzione accettava anche pratiche `in_progress` causando
- * disallineamento tra sync live e recompute (live le includeva, recompute no).
+ * Non aspettiamo l'attivazione operativa (operational_status='ACTIVATED'):
+ * quella arriva dopo dal back office e può richiedere giorni. Il pezzo
+ * gara è la VENDITA, non l'attivazione. Le pratiche annullate / KO
+ * vengono comunque escluse.
+ *
+ * REGOLA:
+ *   - status = 'completed'
+ *   - operationalStatus NON deve essere REJECTED / KO_*
  */
 function isPracticeCounting(practice: Practice): boolean {
   if (!practice) return false;
-  if (practice.status === 'cancelled' || practice.status === 'draft') return false;
-  return practice.operationalStatus === 'ACTIVATED';
+  if (practice.status !== 'completed') return false;
+  const op = practice.operationalStatus;
+  if (op === 'REJECTED' || op === 'KO_CREDITO' || op === 'KO_COPERTURA') return false;
+  return true;
 }
 
 @Injectable()
@@ -54,6 +62,8 @@ export class CompetitionEntriesService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Offer)
     private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -182,7 +192,12 @@ export class CompetitionEntriesService {
         'o.id = p.offerId',
       )
       .where('p.tenantId IN (:...shopIds)', { shopIds })
-      .andWhere('p.operationalStatus = :st', { st: 'ACTIVATED' })
+      // ⚠️ La gara è sulle pratiche ESEGUITE (= inserite correttamente),
+      // non aspettiamo l'attivazione operativa che arriva dopo dal back office.
+      .andWhere('p.status = :st', { st: 'completed' })
+      .andWhere(
+        "p.operationalStatus IS NULL OR p.operationalStatus NOT IN ('REJECTED', 'KO_CREDITO', 'KO_COPERTURA')",
+      )
       .andWhere('p.sourceImportJobId IS NULL')
       .andWhere('p.soldById IS NOT NULL')
       .andWhere('p.createdAt >= :s', { s: comp.startDate })
@@ -461,7 +476,11 @@ export class CompetitionEntriesService {
   //  Phase G.2 — Monitor mensile (totali + top 3 venditori per gara attiva)
   // =====================================================================
 
-  async monthlyOverview(activeShopId: string, topN: number = 3): Promise<any> {
+  async monthlyOverview(
+    activeShopId: string,
+    topN: number = 3,
+    viewerCanSeeHidden: boolean = false,
+  ): Promise<any> {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -502,6 +521,8 @@ export class CompetitionEntriesService {
 
     const activeCompetitions: any[] = [];
     for (const comp of allComps) {
+      // Filtra le gare nascoste agli utenti che non hanno il permesso di vederle
+      if (comp.isHidden === true && !viewerCanSeeHidden) continue;
       const start = new Date(comp.startDate);
       const end = new Date(this.endOfDay(comp.endDate));
       if (now < start || now > end) {
@@ -531,18 +552,48 @@ export class CompetitionEntriesService {
 
       const top3Raw = await this.entryRepo
         .createQueryBuilder('e')
-        .leftJoin('users', 'u', 'u.id = e.userId')
         .select('e.userId', 'userId')
-        .addSelect('u.first_name', 'firstName')
-        .addSelect('u.last_name', 'lastName')
         .addSelect('SUM(e.pieces)', 'pieces')
         .where('e.competitionId = :cid', { cid: comp.id })
         .groupBy('e.userId')
-        .addGroupBy('u.first_name')
-        .addGroupBy('u.last_name')
         .orderBy('pieces', 'DESC')
         .limit(topN)
         .getRawMany();
+
+      // Risolvi nomi venditore con repo (no raw join: più affidabile,
+      // non dipende da maiuscole/minuscole tabella e funziona anche per
+      // utenti di altri shop in scope COMPANY)
+      const userIds = top3Raw.map((r) => r.userId).filter(Boolean);
+      const users = userIds.length
+        ? await this.userRepo.find({
+            where: { id: In(userIds) },
+            select: ['id', 'firstName', 'lastName', 'email'],
+          })
+        : [];
+      const userMap = new Map(users.map((u) => [u.id, u]));
+
+      // Totale pratiche "completed" del periodo (in scope) per ciascun top user
+      // → serve per calcolare i "pezzi fuori gara" (totale - in-gara).
+      const totalsRaw = userIds.length
+        ? await this.practiceRepo
+            .createQueryBuilder('p')
+            .select('p.soldById', 'userId')
+            .addSelect('COUNT(*)', 'pieces')
+            .where('p.tenantId IN (:...shopIds)', { shopIds: scopeIds })
+            .andWhere('p.status = :st', { st: 'completed' })
+            .andWhere(
+              "p.operationalStatus IS NULL OR p.operationalStatus NOT IN ('REJECTED', 'KO_CREDITO', 'KO_COPERTURA')",
+            )
+            .andWhere('p.sourceImportJobId IS NULL')
+            .andWhere('p.soldById IN (:...uids)', { uids: userIds })
+            .andWhere('p.createdAt >= :s', { s: comp.startDate })
+            .andWhere('p.createdAt <= :e', { e: this.endOfDay(comp.endDate) })
+            .groupBy('p.soldById')
+            .getRawMany()
+        : [];
+      const totalsByUser = new Map<string, number>(
+        totalsRaw.map((r) => [r.userId, parseInt(r.pieces, 10) || 0]),
+      );
 
       const totalEntries = await this.entryRepo
         .createQueryBuilder('e')
@@ -565,11 +616,23 @@ export class CompetitionEntriesService {
               Math.round((parseInt(totalEntries?.total ?? '0', 10) / totalTargetPieces) * 100),
             )
           : 0,
-        top3: top3Raw.map((r) => ({
-          userId: r.userId,
-          name: [r.firstName, r.lastName].filter(Boolean).join(' ') || 'Sconosciuto',
-          pieces: parseInt(r.pieces, 10) || 0,
-        })),
+        top3: top3Raw.map((r) => {
+          const u = userMap.get(r.userId);
+          const name = u
+            ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.email
+            : 'Utente eliminato';
+          const inGara = parseInt(r.pieces, 10) || 0;
+          const totalUserPieces = totalsByUser.get(r.userId) ?? inGara;
+          const outOfGara = Math.max(0, totalUserPieces - inGara);
+          return {
+            userId: r.userId,
+            name: name || 'Sconosciuto',
+            // Backward compat: il vecchio frontend leggeva `pieces`
+            pieces: inGara,
+            inCompetitionPieces: inGara,
+            outOfCompetitionPieces: outOfGara,
+          };
+        }),
       });
     }
 

@@ -11,6 +11,9 @@ import { CompetitionTarget } from '../entities/competition-target.entity';
 import { CompetitionPrize } from '../entities/competition-prize.entity';
 import { CompetitionEntry } from '../entities/competition-entry.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { User } from '../../users/entities/user.entity';
+import { Practice } from '../../practices/entities/practice.entity';
+import { Offer } from '../../offers/entities/offer.entity';
 import { CompetitionEntriesService } from './competition-entries.service';
 import {
   CreateCompetitionDto,
@@ -33,6 +36,12 @@ export class CompetitionsService {
     private readonly entryRepo: Repository<CompetitionEntry>,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(Practice)
+    private readonly practiceRepo: Repository<Practice>,
+    @InjectRepository(Offer)
+    private readonly offerRepo: Repository<Offer>,
     private readonly dataSource: DataSource,
     private readonly entriesService: CompetitionEntriesService,
   ) {}
@@ -392,16 +401,120 @@ export class CompetitionsService {
         prizeValue: p.prizeValue !== null ? Number(p.prizeValue) : null,
         targetId: p.targetId,
       })),
-      operatorRanking: Array.from(byOperator.values())
-        .sort((a, b) => b.pieces - a.pieces)
-        .map((o, idx) => ({ ...o, rank: idx + 1 })),
+      operatorRanking: await this.enrichOperatorRanking(
+        Array.from(byOperator.values()).sort((a, b) => b.pieces - a.pieces),
+      ),
       totals: {
         pieces: totalPieces,
         revenue: Math.round(totalRevenue * 100) / 100,
         entriesCount: entries.length,
       },
       companyAggregate,
+      // Lista dettagliata pratiche-pezzo (per dropdown UI):
+      // ogni entry = una pratica con offerta, gestore, venditore, data
+      practiceBreakdown: await this.buildPracticeBreakdown(entries),
     };
+  }
+
+  /**
+   * Arricchisce ogni riga del ranking con firstName/lastName risolti dal DB
+   * direttamente, senza dipendere da endpoint esterni `/users/team`.
+   * Funziona anche per founder/admin di altri shop in scope COMPANY.
+   */
+  private async enrichOperatorRanking(
+    rows: Array<{ userId: string; pieces: number; revenue: number }>,
+  ): Promise<Array<any>> {
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.userId);
+    const users = await this.userRepo.find({
+      where: { id: In(ids) },
+      select: ['id', 'firstName', 'lastName', 'email'],
+    });
+    const map = new Map(users.map((u) => [u.id, u]));
+    return rows.map((r, idx) => {
+      const u = map.get(r.userId);
+      return {
+        ...r,
+        rank: idx + 1,
+        firstName: u?.firstName ?? null,
+        lastName: u?.lastName ?? null,
+        email: u?.email ?? null,
+        displayName: u
+          ? `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim() || u.email
+          : `Utente eliminato`,
+      };
+    });
+  }
+
+  /**
+   * Per ogni entry, carica la pratica corrispondente (sourceType=PRACTICE)
+   * e risolve venditore + offerta. Output usato dal dropdown UI per mostrare
+   * "quale promo è stata fatta per riempire la gara".
+   */
+  private async buildPracticeBreakdown(entries: CompetitionEntry[]): Promise<Array<any>> {
+    const practiceIds = entries
+      .filter((e) => e.sourceType === 'PRACTICE' && e.sourceId)
+      .map((e) => e.sourceId as string);
+    if (practiceIds.length === 0) return [];
+
+    const practices = await this.practiceRepo.find({
+      where: { id: In(practiceIds) },
+      select: [
+        'id',
+        'tenantId',
+        'type',
+        'category',
+        'offerName',
+        'offerCode',
+        'offerId',
+        'soldById',
+        'createdAt',
+        'status',
+        'operationalStatus',
+      ],
+    });
+    const sellerIds = Array.from(
+      new Set(practices.map((p) => p.soldById).filter(Boolean) as string[]),
+    );
+    const sellers = await this.userRepo.find({
+      where: { id: In(sellerIds.length ? sellerIds : ['00000000-0000-0000-0000-000000000000']) },
+      select: ['id', 'firstName', 'lastName', 'email'],
+    });
+    const sellerMap = new Map(sellers.map((u) => [u.id, u]));
+
+    const offerIds = Array.from(
+      new Set(practices.map((p) => p.offerId).filter(Boolean) as string[]),
+    );
+    const offers = await this.offerRepo.find({
+      where: { id: In(offerIds.length ? offerIds : ['00000000-0000-0000-0000-000000000000']) },
+      select: ['id', 'name', 'provider'],
+    });
+    const offerMap = new Map(offers.map((o) => [o.id, o]));
+
+    return entries
+      .filter((e) => e.sourceType === 'PRACTICE' && e.sourceId)
+      .map((e) => {
+        const p = practices.find((x) => x.id === e.sourceId);
+        const seller = p?.soldById ? sellerMap.get(p.soldById) : null;
+        const offer = p?.offerId ? offerMap.get(p.offerId) : null;
+        return {
+          entryId: e.id,
+          targetId: e.targetId,
+          pieces: e.pieces,
+          revenue: Number(e.revenue || 0),
+          practiceId: p?.id ?? null,
+          practiceCreatedAt: p?.createdAt ?? null,
+          provider: offer?.provider ?? p?.type ?? null,
+          offerName: offer?.name ?? p?.offerName ?? null,
+          category: p?.category ?? null,
+          status: p?.status ?? null,
+          operationalStatus: p?.operationalStatus ?? null,
+          sellerId: p?.soldById ?? null,
+          sellerName: seller
+            ? `${seller.firstName ?? ''} ${seller.lastName ?? ''}`.trim() || seller.email
+            : 'Sconosciuto',
+        };
+      });
   }
 
   // ===================== HELPERS =====================

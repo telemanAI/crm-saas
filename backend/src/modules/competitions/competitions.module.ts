@@ -7,6 +7,7 @@ import { CompetitionEntry } from './entities/competition-entry.entity';
 import { Practice } from '../practices/entities/practice.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Offer } from '../offers/entities/offer.entity';
+import { User } from '../users/entities/user.entity';
 import { CompetitionsService } from './services/competitions.service';
 import { CompetitionEntriesService } from './services/competition-entries.service';
 import { CompetitionsAutoMonthlyService } from './services/competitions-auto-monthly.service';
@@ -22,13 +23,13 @@ import { MembershipsModule } from '../memberships/memberships.module';
       CompetitionEntry,
       Practice,
       Tenant,
-      Offer, // ← TAPPA 3.1: necessario per CompetitionEntriesService (lookup offer e dropdown)
+      Offer,
+      User, // CompetitionsService.enrichOperatorRanking() risolve i nomi dal DB
     ]),
     MembershipsModule,
   ],
   providers: [CompetitionsService, CompetitionEntriesService, CompetitionsAutoMonthlyService],
   controllers: [CompetitionsController],
-  // CompetitionEntriesService viene usato da PracticesService per gli hook
   exports: [CompetitionEntriesService, CompetitionsService],
 })
 export class CompetitionsModule {}

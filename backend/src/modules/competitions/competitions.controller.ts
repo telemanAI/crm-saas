@@ -184,7 +184,11 @@ export class CompetitionsController {
       };
     }
     const topN = top ? Math.max(1, Math.min(50, parseInt(top, 10) || 3)) : 3;
-    return this.entriesService.monthlyOverview(req.user.tenantId, topN);
+    // Solo founder/admin/super_admin vedono le gare nascoste (isHidden=true)
+    const role = req.user?.role || '';
+    const viewerCanSeeHidden =
+      role === 'SUPER_ADMIN' || role === 'FOUNDER' || role === 'ADMIN';
+    return this.entriesService.monthlyOverview(req.user.tenantId, topN, viewerCanSeeHidden);
   }
 
   @Patch(':id')

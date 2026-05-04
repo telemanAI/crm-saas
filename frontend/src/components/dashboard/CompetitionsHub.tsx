@@ -8,25 +8,37 @@ import {
   EyeSlash,
   ArrowRight,
   ChartBar,
+  Storefront,
+  User as UserIcon,
 } from 'phosphor-react';
 import api from '@/lib/axios';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
- * UNIFIED — Widget gare + I miei pezzi.
+ * UNIFIED — Widget gare + I miei pezzi (con dropdown dettaglio).
  *
- * Sostituisce sia `MyPiecesWidget` che il vecchio `LiveCompetitionsWidget`,
- * che apparivano "appiccicati" e ridondanti sulla dashboard.
+ * Sostituisce sia `MyPiecesWidget` che il vecchio `LiveCompetitionsWidget`.
  *
- * Layout in due tier:
+ * Layout:
  *   1. Header con "I miei pezzi del mese" (totale + breakdown categorie)
- *   2. Lista gare in corso con progress bar + top 3 venditori
- *      (espandibile a top 20)
+ *   2. Per ogni gara in corso, una card che mostra:
+ *      - Totali gara (pezzi raccolti / target)
+ *      - Per ogni operatore in classifica:
+ *          NOME · pezzi IN gara · pezzi FUORI gara
+ *      - Espandendo: lista delle PRATICHE che riempiono la gara con
+ *        offerta · gestore (provider) · venditore · data
+ *        → fonte: GET /competitions/:id/leaderboard (practiceBreakdown)
  *
- * Se l'utente NON è in classifica nelle top N, mostriamo comunque
- * la sua posizione (chiamata addizionale con top=50).
+ * Le gare nascoste (isHidden=true) NON arrivano al frontend per gli utenti
+ * non founder/admin: il filtro è applicato lato backend.
  */
-type Top = { userId: string; name: string; pieces: number };
+type Top = {
+  userId: string;
+  name: string;
+  pieces: number; // backward compat
+  inCompetitionPieces?: number;
+  outOfCompetitionPieces?: number;
+};
 type Live = {
   id: string;
   title: string;
@@ -53,6 +65,26 @@ type MyPieces = {
     total: number;
   }>;
 };
+type PracticeRow = {
+  entryId: string;
+  practiceId: string;
+  practiceCreatedAt: string;
+  provider: string | null;
+  offerName: string | null;
+  category: string | null;
+  sellerId: string | null;
+  sellerName: string;
+  pieces: number;
+};
+type Leaderboard = {
+  competition: { id: string; title: string };
+  operatorRanking: Array<{
+    userId: string;
+    pieces: number;
+    displayName: string;
+  }>;
+  practiceBreakdown: PracticeRow[];
+};
 
 const CAT_LABEL: Record<string, string> = {
   FIXED_LINE: 'Rete fissa',
@@ -72,7 +104,9 @@ export default function CompetitionsHub({
   const [overview, setOverview] = useState<Overview | null>(null);
   const [myPieces, setMyPieces] = useState<MyPieces | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedRanking, setExpandedRanking] = useState<Record<string, Top[]>>({});
+  const [extendedRanking, setExtendedRanking] = useState<Record<string, Top[]>>({});
+  const [leaderboards, setLeaderboards] = useState<Record<string, Leaderboard>>({});
+  const [leaderboardLoading, setLeaderboardLoading] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -87,6 +121,7 @@ export default function CompetitionsHub({
         setOverview(ovRes.data);
         setMyPieces(myRes.data);
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.warn('[CompetitionsHub]', err);
       } finally {
         if (!cancelled) setLoading(false);
@@ -103,15 +138,33 @@ export default function CompetitionsHub({
       return;
     }
     setExpandedId(compId);
-    if (expandedRanking[compId]) return;
-    try {
-      const res = await api.get('/competitions/monthly-overview?top=20');
-      const target = (res.data as Overview).activeCompetitions.find((c) => c.id === compId);
-      if (target) {
-        setExpandedRanking((s) => ({ ...s, [compId]: target.top3 }));
+
+    // 1. Carica top esteso (top=20) se non già fatto
+    if (!extendedRanking[compId]) {
+      try {
+        const res = await api.get('/competitions/monthly-overview?top=20');
+        const target = (res.data as Overview).activeCompetitions.find((c) => c.id === compId);
+        if (target) {
+          setExtendedRanking((s) => ({ ...s, [compId]: target.top3 }));
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[CompetitionsHub] expand top failed', err);
       }
-    } catch (err) {
-      console.warn('[CompetitionsHub] expand failed', err);
+    }
+
+    // 2. Carica practiceBreakdown (dettaglio promo + gestore + venditore)
+    if (!leaderboards[compId]) {
+      setLeaderboardLoading((s) => ({ ...s, [compId]: true }));
+      try {
+        const res = await api.get(`/competitions/${compId}/leaderboard`);
+        setLeaderboards((s) => ({ ...s, [compId]: res.data }));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[CompetitionsHub] leaderboard fetch failed', err);
+      } finally {
+        setLeaderboardLoading((s) => ({ ...s, [compId]: false }));
+      }
     }
   };
 
@@ -157,6 +210,7 @@ export default function CompetitionsHub({
           <Link
             href="/operator/reports/pieces"
             className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 self-start mt-1"
+            data-testid="hub-link-report"
           >
             Report completo <ArrowRight className="w-3 h-3" />
           </Link>
@@ -188,6 +242,7 @@ export default function CompetitionsHub({
           <Link
             href="/operator/competitions"
             className="text-xs text-slate-400 hover:text-amber-300"
+            data-testid="hub-link-all-competitions"
           >
             Vedi tutte →
           </Link>
@@ -200,6 +255,7 @@ export default function CompetitionsHub({
               <Link
                 href="/operator/competitions"
                 className="text-amber-400 hover:text-amber-300"
+                data-testid="hub-cta-create-competition"
               >
                 Crea la prima gara
               </Link>
@@ -209,17 +265,18 @@ export default function CompetitionsHub({
           <div className="space-y-3">
             {comps.map((c) => {
               const isExpanded = expandedId === c.id;
-              const ranking = isExpanded && expandedRanking[c.id] ? expandedRanking[c.id] : c.top3;
-              const myEntry = ranking.find((r) => r.userId === user?.id);
-              const myPosition = myEntry
-                ? ranking.findIndex((r) => r.userId === user?.id) + 1
-                : null;
+              const ranking =
+                isExpanded && extendedRanking[c.id] ? extendedRanking[c.id] : c.top3;
+              const lb = leaderboards[c.id];
+              const lbLoading = leaderboardLoading[c.id];
+
               return (
                 <div
                   key={c.id}
                   className="border border-slate-800 rounded-xl bg-slate-950/50 overflow-hidden"
                   data-testid={`hub-comp-${c.id}`}
                 >
+                  {/* Header card: titolo + totali */}
                   <Link
                     href={`/operator/competitions/${c.id}`}
                     className="block p-3 hover:bg-slate-900/60 transition"
@@ -261,10 +318,13 @@ export default function CompetitionsHub({
                     )}
                   </Link>
 
+                  {/* Operatori → in gara / fuori gara */}
                   {ranking.length > 0 && (
-                    <div className="px-3 pb-3 space-y-1">
+                    <div className="px-3 pb-3 space-y-1.5">
                       {ranking.map((u, i) => {
                         const isMe = u.userId === user?.id;
+                        const inG = u.inCompetitionPieces ?? u.pieces;
+                        const outG = u.outOfCompetitionPieces ?? 0;
                         const colors =
                           i === 0
                             ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
@@ -277,33 +337,33 @@ export default function CompetitionsHub({
                         return (
                           <div
                             key={u.userId}
-                            className={`flex items-center gap-2 px-2 py-1 rounded border text-xs ${colors} ${meRing}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded border text-xs ${colors} ${meRing}`}
+                            data-testid={`hub-op-${c.id}-${u.userId}`}
                           >
                             {i === 0 ? (
                               <Crown className="w-3.5 h-3.5" weight="fill" />
                             ) : (
                               <span className="w-3.5 text-center font-bold">{i + 1}</span>
                             )}
-                            <span className="flex-1 truncate">
+                            <span className="flex-1 truncate font-semibold">
                               {u.name}
                               {isMe && (
                                 <span className="text-cyan-300 ml-1 font-semibold">(tu)</span>
                               )}
                             </span>
-                            <span className="font-bold">{u.pieces}</span>
+                            <span className="font-bold text-amber-300" title="Pezzi in gara">
+                              {inG} <span className="font-normal opacity-70">in gara</span>
+                            </span>
+                            <span className="text-slate-400" title="Pezzi fuori gara nel periodo">
+                              · {outG} <span className="opacity-70">fuori</span>
+                            </span>
                           </div>
                         );
                       })}
-
-                      {/* Se non sono nei mostrati e c'è uno me piazzato più in giù */}
-                      {!myEntry && user?.id && c.top3.length === 0 && (
-                        <div className="text-[11px] text-slate-500 italic py-1 text-center">
-                          Sii il primo a mettere a segno un pezzo.
-                        </div>
-                      )}
                     </div>
                   )}
 
+                  {/* Bottone espandi */}
                   <button
                     onClick={() => handleExpand(c.id)}
                     className="w-full text-xs text-slate-400 hover:text-amber-300 py-1.5 border-t border-slate-800 flex items-center justify-center gap-1 transition"
@@ -311,20 +371,63 @@ export default function CompetitionsHub({
                   >
                     {isExpanded ? (
                       <>
-                        <CaretUp className="w-3 h-3" /> Mostra meno
+                        <CaretUp className="w-3 h-3" /> Chiudi dettagli
                       </>
                     ) : (
                       <>
-                        <CaretDown className="w-3 h-3" /> Estendi · vedi tutta la classifica
+                        <CaretDown className="w-3 h-3" /> Vedi dettagli pratiche · classifica completa
                       </>
                     )}
                   </button>
 
-                  {myPosition && myPosition > 3 && !isExpanded && (
-                    <div className="px-3 pb-2 -mt-1">
-                      <div className="text-[10px] text-cyan-400 text-center">
-                        Sei in {myPosition}ª posizione · clicca "Estendi"
-                      </div>
+                  {/* Dropdown: dettaglio pratiche */}
+                  {isExpanded && (
+                    <div
+                      className="border-t border-slate-800 bg-slate-900/40 px-3 py-3"
+                      data-testid={`hub-comp-details-${c.id}`}
+                    >
+                      {lbLoading && (
+                        <div className="text-xs text-slate-500 italic text-center py-2">
+                          Caricamento dettaglio…
+                        </div>
+                      )}
+                      {!lbLoading && lb && lb.practiceBreakdown.length === 0 && (
+                        <div className="text-xs text-slate-500 italic text-center py-2">
+                          Nessuna pratica registrata per questa gara.
+                        </div>
+                      )}
+                      {!lbLoading && lb && lb.practiceBreakdown.length > 0 && (
+                        <div>
+                          <div className="text-[11px] uppercase tracking-widest text-slate-500 mb-2">
+                            Pratiche che hanno riempito la gara · {lb.practiceBreakdown.length}
+                          </div>
+                          <div className="space-y-1 max-h-72 overflow-auto pr-1">
+                            {lb.practiceBreakdown.map((p) => (
+                              <div
+                                key={p.entryId}
+                                className="flex flex-wrap items-center gap-2 bg-slate-950/60 border border-slate-800 rounded px-2 py-1.5 text-[11px]"
+                              >
+                                <span className="text-slate-300 font-semibold flex-1 min-w-[120px] truncate">
+                                  {p.offerName || '— offerta —'}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-slate-400">
+                                  <Storefront className="w-3 h-3" />
+                                  {p.provider || 'n/d'}
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-cyan-300">
+                                  <UserIcon className="w-3 h-3" />
+                                  {p.sellerName}
+                                </span>
+                                <span className="text-slate-500">
+                                  {p.practiceCreatedAt
+                                    ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
+                                    : ''}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

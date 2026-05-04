@@ -222,7 +222,11 @@ export class PracticesService {
     }
 
     await this.practiceRepo.save(practice);
-    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch((err) => {
+      // Phase G — non swallowiamo: logghiamo per diagnosi gare
+      // eslint-disable-next-line no-console
+      console.error(`[CompetitionSync] updateStep practiceId=${practiceId} → sync failed:`, err);
+    });
     const updated = await this.findById(tenantId, practiceId);
     return new PracticeResponseDto(updated);
   }
@@ -599,7 +603,11 @@ export class PracticesService {
     }
 
     await this.practiceRepo.save(practice);
-    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch((err) => {
+      // Phase G — non swallowiamo: logghiamo per diagnosi gare
+      // eslint-disable-next-line no-console
+      console.error(`[CompetitionSync] updateOperationalStatus practiceId=${practiceId} → sync failed:`, err);
+    });
     return new PracticeResponseDto(practice);
   }
 
@@ -680,7 +688,11 @@ export class PracticesService {
       practice.completedSteps = [...practice.completedSteps, maxStep];
     }
     await this.practiceRepo.save(practice);
-    await this.competitionEntries.syncPracticeEntries(practiceId).catch(() => {});
+    await this.competitionEntries.syncPracticeEntries(practiceId).catch((err) => {
+      // Phase G — non swallowiamo: logghiamo per diagnosi gare
+      // eslint-disable-next-line no-console
+      console.error(`[CompetitionSync] forceComplete practiceId=${practiceId} → sync failed:`, err);
+    });
     return new PracticeResponseDto(await this.findById(tenantId, practiceId));
   }
 }

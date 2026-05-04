@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -69,6 +70,12 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.CREATED)
   createGroup(@Req() req: any, @Body() dto: CreateProductGroupDto) {
+    // Phase G — Defensive: stesso safety check del create product
+    if (!req.user?.tenantId) {
+      throw new BadRequestException(
+        'Nessuno shop attivo. Fai logout e login per rigenerare la sessione.',
+      );
+    }
     return this.groupsService.create(req.user.tenantId, dto);
   }
 
@@ -130,6 +137,12 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.CREATED)
   createProduct(@Req() req: any, @Body() dto: CreateProductDto) {
+    // Phase G — Defensive: errore chiaro invece di crash PostgreSQL
+    if (!req.user?.tenantId) {
+      throw new BadRequestException(
+        'Nessuno shop attivo. Fai logout e login per rigenerare la sessione, oppure seleziona uno shop dallo switcher in alto a destra.',
+      );
+    }
     return this.productsService.create(req.user.tenantId, dto, req.user.userId);
   }
 

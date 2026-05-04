@@ -466,18 +466,44 @@ function TargetRow({
 }) {
   const [opts, setOpts] = useState<OffersOptions>({ providers: [], grouped: {} });
   const [search, setSearch] = useState('');
+  // Phase G — UX promo specifiche: prima il provider, poi le sue offerte
+  const [specificProvider, setSpecificProvider] = useState<string>('');
 
   useEffect(() => {
     fetchOffersOptions(target.category).then(setOpts);
   }, [target.category]);
 
+  // Quando cambia categoria/tipoTarget reset provider+offerIds
+  useEffect(() => {
+    setSpecificProvider('');
+  }, [target.category, target.targetType]);
+
+  // All'edit di una gara già esistente: deduce provider iniziale dalle offerIds salvate
+  useEffect(() => {
+    if (target.targetType !== 'specific') return;
+    if (specificProvider) return;
+    if (!target.offerIds || target.offerIds.length === 0) return;
+    if (!opts.grouped) return;
+    for (const [prov, list] of Object.entries(opts.grouped)) {
+      if (list.some((o) => target.offerIds!.includes(o.id))) {
+        setSpecificProvider(prov);
+        break;
+      }
+    }
+  }, [opts, target.offerIds, target.targetType, specificProvider]);
+
   const flatOffers = useMemo(() => {
     const res: Array<{ id: string; name: string; provider: string; canone: string }> = [];
+    // Phase G — Se è in modalità specific E un provider è stato scelto,
+    // mostriamo SOLO le offerte di quel provider (evita la lista lunghissima)
+    const filterByProvider =
+      target.targetType === 'specific' && specificProvider ? specificProvider : null;
     for (const [prov, offers] of Object.entries(opts.grouped)) {
+      if (filterByProvider && prov !== filterByProvider) continue;
       for (const o of offers) res.push({ id: o.id, name: o.name, provider: prov, canone: o.canone });
     }
     return res;
-  }, [opts]);
+  }, [opts, target.targetType, specificProvider]);
 
   const filteredOffers = useMemo(() => {
     if (!search.trim()) return flatOffers;
@@ -561,34 +587,97 @@ function TargetRow({
       )}
 
       {target.targetType === 'specific' && (
-        <div className="mt-2">
-          <label className="text-xs text-slate-400 mb-1 block">
-            Promo selezionate ({target.offerIds?.length || 0}) *
-          </label>
-          {flatOffers.length === 0 ? (
-            <div className="text-xs text-slate-500 py-2">Nessuna promo nel catalogo per questa categoria.</div>
+        <div className="mt-2 space-y-3">
+          {/* Phase G — Step 1: prima scegli il provider */}
+          <div>
+            <label className="text-xs text-slate-400 mb-1 block">
+              Provider * <span className="text-slate-600">(scegli prima il gestore della promo)</span>
+            </label>
+            <select
+              value={specificProvider}
+              onChange={(e) => {
+                setSpecificProvider(e.target.value);
+                // Cambio provider: pulisco selezioni precedenti per evitare mix tra provider diversi
+                onUpdate({ offerIds: [] });
+                setSearch('');
+              }}
+              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
+              data-testid={`tt-specific-provider-${idx}`}
+            >
+              <option value="">— Seleziona gestore —</option>
+              {opts.providers.map((p) => (
+                <option key={p} value={p}>
+                  {p} ({(opts.grouped[p] || []).length} promo)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Step 2: lista promo SOLO del provider scelto */}
+          {specificProvider ? (
+            <div>
+              <label className="text-xs text-slate-400 mb-1 block">
+                Promo {specificProvider} selezionate ({target.offerIds?.length || 0}) *
+              </label>
+              {flatOffers.length === 0 ? (
+                <div className="text-xs text-slate-500 py-2">
+                  Nessuna promo {specificProvider} attiva nel catalogo.
+                </div>
+              ) : (
+                <>
+                  <div className="relative mb-2">
+                    <MagnifyingGlass className="w-4 h-4 absolute left-2 top-2 text-slate-500" />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder={`Cerca tra le promo ${specificProvider}...`}
+                      className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-2 py-1.5 text-white text-sm"
+                    />
+                  </div>
+                  <div className="max-h-44 overflow-y-auto bg-slate-900 border border-slate-700 rounded">
+                    {filteredOffers.map((o) => {
+                      const checked = (target.offerIds || []).includes(o.id);
+                      return (
+                        <label
+                          key={o.id}
+                          className={`flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-slate-800 ${checked ? 'bg-amber-500/10 border-l-2 border-amber-400' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleOffer(o.id)}
+                            className="w-3.5 h-3.5"
+                          />
+                          <span className="text-slate-200 flex-1">{o.name}</span>
+                          <span className="text-slate-500">{o.canone}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-between items-center mt-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => onUpdate({ offerIds: filteredOffers.map((o) => o.id) })}
+                      className="text-amber-400 hover:text-amber-300"
+                    >
+                      Seleziona tutte
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onUpdate({ offerIds: [] })}
+                      className="text-slate-500 hover:text-slate-300"
+                    >
+                      Deseleziona tutte
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           ) : (
-            <>
-              <div className="relative mb-2">
-                <MagnifyingGlass className="w-4 h-4 absolute left-2 top-2 text-slate-500" />
-                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Cerca per nome o provider..."
-                  className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-2 py-1.5 text-white text-sm" />
-              </div>
-              <div className="max-h-44 overflow-y-auto bg-slate-900 border border-slate-700 rounded">
-                {filteredOffers.map((o) => {
-                  const checked = (target.offerIds || []).includes(o.id);
-                  return (
-                    <label key={o.id} className={`flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer hover:bg-slate-800 ${checked ? 'bg-amber-500/5' : ''}`}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleOffer(o.id)} className="w-3.5 h-3.5" />
-                      <span className="font-mono text-slate-500 w-20 truncate">{o.provider}</span>
-                      <span className="text-slate-200 flex-1">{o.name}</span>
-                      <span className="text-slate-500">{o.canone}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </>
+            <div className="text-xs text-slate-500 bg-slate-900/40 rounded p-2">
+              👆 Seleziona prima il gestore della promo. Poi vedrai SOLO le offerte di quel provider.
+            </div>
           )}
         </div>
       )}

@@ -147,6 +147,19 @@ export class CompetitionsController {
     };
   }
 
+  /**
+   * Phase G — Endpoint diagnostico.
+   * Spiega esattamente perché una gara non avanza: lista pratiche del periodo,
+   * motivo di esclusione di ognuna, match per target, conteggio entries.
+   */
+  @Get(':id/diagnose')
+  @RequirePermission('canManageCompetitions')
+  @HttpCode(HttpStatus.OK)
+  async diagnose(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
+    await this.competitionsService.findOne(req.user.tenantId, id);
+    return this.entriesService.diagnoseCompetition(id);
+  }
+
   @Patch(':id')
   @RequirePermission('canManageCompetitions')
   update(

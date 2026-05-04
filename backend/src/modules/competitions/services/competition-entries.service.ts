@@ -23,11 +23,18 @@ import { Offer } from '../../offers/entities/offer.entity';
  * `source_import_job_id` valorizzato vengono escluse (non contano per le gare).
  */
 
+/**
+ * Phase G — Allineato col `recomputeCompetition`:
+ * una pratica conta nelle gare SOLO quando è effettivamente attivata
+ * (`operational_status = 'ACTIVATED'`). Bozze, in_progress, KO non contano.
+ *
+ * Prima questa funzione accettava anche pratiche `in_progress` causando
+ * disallineamento tra sync live e recompute (live le includeva, recompute no).
+ */
 function isPracticeCounting(practice: Practice): boolean {
   if (!practice) return false;
   if (practice.status === 'cancelled' || practice.status === 'draft') return false;
-  if (practice.operationalStatus === 'REJECTED') return false;
-  return practice.status === 'completed' || practice.status === 'in_progress';
+  return practice.operationalStatus === 'ACTIVATED';
 }
 
 @Injectable()
@@ -436,6 +443,133 @@ export class CompetitionEntriesService {
 
   async removeForPractice(practiceId: string): Promise<void> {
     await this.entryRepo.delete({ sourceType: 'PRACTICE', sourceId: practiceId });
+  }
+
+  // =====================================================================
+  //  Phase G — Diagnostica gara
+  // =====================================================================
+
+  /**
+   * Ritorna un dump completo dello stato di una gara per debugging:
+   *  - dettagli gara + targets + scope
+   *  - shopIds inclusi
+   *  - per ogni target: numero pratiche candidate, primi 5 esempi (con motivo
+   *    di match/mismatch), conteggio entries esistenti
+   *  - lista pratiche "vicine" che NON entrano e relativa motivazione
+   *
+   * Utile quando l'utente dice "la mia gara non avanza, perché?".
+   */
+  async diagnoseCompetition(competitionId: string): Promise<any> {
+    const comp = await this.competitionRepo.findOne({
+      where: { id: competitionId },
+      relations: ['targets'],
+    });
+    if (!comp) throw new NotFoundException('Gara non trovata');
+
+    const shopIds = await this.resolveShopScope(comp);
+    const existingEntries = await this.entryRepo.find({ where: { competitionId } });
+
+    // Tutte le pratiche del periodo nello scope (senza filtri di match)
+    const allPracticesInPeriod = await this.practiceRepo
+      .createQueryBuilder('p')
+      .leftJoinAndMapOne('p.offer', Offer, 'o', 'o.id = p.offerId')
+      .where('p.tenantId IN (:...shopIds)', { shopIds })
+      .andWhere('p.createdAt >= :s', { s: comp.startDate })
+      .andWhere('p.createdAt <= :e', { e: this.endOfDay(comp.endDate) })
+      .orderBy('p.createdAt', 'DESC')
+      .getMany();
+
+    // Per ogni pratica capisci perché entra/non entra
+    const practicesAnalysis = allPracticesInPeriod.map((p) => {
+      const reasons: string[] = [];
+      let baseEligible = true;
+      if (p.operationalStatus !== 'ACTIVATED') {
+        baseEligible = false;
+        reasons.push(`status=${p.operationalStatus} (richiesto: ACTIVATED)`);
+      }
+      if (p.sourceImportJobId) {
+        baseEligible = false;
+        reasons.push(`importata (sourceImportJobId valorizzato)`);
+      }
+      if (!p.soldById) {
+        baseEligible = false;
+        reasons.push(`soldById=null (manca venditore)`);
+      }
+
+      let matchedTargets: string[] = [];
+      if (baseEligible && comp.targets?.length) {
+        for (const t of comp.targets) {
+          if (this.targetMatchesPractice(t, p, (p as any).offer || null)) {
+            matchedTargets.push(t.label);
+          }
+        }
+        if (matchedTargets.length === 0) {
+          reasons.push(`nessun target matcha (category=${p.category}, provider=${(p as any).offer?.provider || p.type || 'n/a'}, offerId=${p.offerId || 'null'})`);
+        }
+      }
+
+      return {
+        practiceId: p.id,
+        createdAt: p.createdAt,
+        category: p.category,
+        offerName: p.offerName,
+        offerId: p.offerId,
+        offerProvider: (p as any).offer?.provider || null,
+        type: p.type,
+        operationalStatus: p.operationalStatus,
+        soldById: p.soldById,
+        sourceImportJobId: p.sourceImportJobId,
+        eligibleBase: baseEligible,
+        matchedTargets,
+        excluded: !baseEligible || matchedTargets.length === 0,
+        reasons,
+      };
+    });
+
+    // Sommari per target
+    const perTarget = (comp.targets || []).map((t) => {
+      const entriesForTarget = existingEntries.filter((e) => e.targetId === t.id);
+      const matchingPractices = practicesAnalysis.filter((pa) =>
+        pa.matchedTargets.includes(t.label),
+      );
+      return {
+        targetId: t.id,
+        label: t.label,
+        targetType: t.targetType,
+        category: t.category,
+        provider: t.provider,
+        offerIds: t.offerIds,
+        targetPieces: t.targetPieces,
+        existingEntries: entriesForTarget.length,
+        candidatePractices: matchingPractices.length,
+        candidateExamples: matchingPractices.slice(0, 5).map((p) => ({
+          id: p.practiceId,
+          offer: p.offerName,
+          createdAt: p.createdAt,
+        })),
+      };
+    });
+
+    return {
+      competition: {
+        id: comp.id,
+        title: comp.title,
+        startDate: comp.startDate,
+        endDate: comp.endDate,
+        scopeType: comp.scopeType,
+        isActive: comp.isActive,
+        isHidden: comp.isHidden,
+        companyId: comp.companyId,
+        tenantId: comp.tenantId,
+      },
+      scopeShopIds: shopIds,
+      totalPracticesInPeriod: allPracticesInPeriod.length,
+      eligiblePractices: practicesAnalysis.filter((p) => p.eligibleBase).length,
+      excludedPractices: practicesAnalysis.filter((p) => p.excluded).length,
+      totalEntriesExisting: existingEntries.length,
+      perTarget,
+      practicesAnalysis,
+    };
   }
 
   // =====================================================================

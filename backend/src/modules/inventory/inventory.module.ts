@@ -9,6 +9,9 @@ import { ProductGroupsService } from './product-groups.service';
 import { ProductsService } from './products.service';
 import { InventorySalesService } from './inventory-sales.service';
 import { MembershipsModule } from '../memberships/memberships.module';
+// Phase H — repos per fallback tenantId blindato
+import { User } from '../users/entities/user.entity';
+import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
 
 @Module({
   imports: [
@@ -17,6 +20,8 @@ import { MembershipsModule } from '../memberships/memberships.module';
       InventoryMovement,
       ProductGroup,
       ProductCustomField,
+      User,
+      UserShopMembership,
     ]),
     MembershipsModule,
   ],

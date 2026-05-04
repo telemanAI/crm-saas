@@ -449,7 +449,7 @@ export class CompetitionEntriesService {
   //  Phase G.2 — Monitor mensile (totali + top 3 venditori per gara attiva)
   // =====================================================================
 
-  async monthlyOverview(activeShopId: string): Promise<any> {
+  async monthlyOverview(activeShopId: string, topN: number = 3): Promise<any> {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -513,7 +513,7 @@ export class CompetitionEntriesService {
         .addGroupBy('u.first_name')
         .addGroupBy('u.last_name')
         .orderBy('pieces', 'DESC')
-        .limit(3)
+        .limit(topN)
         .getRawMany();
 
       const totalEntries = await this.entryRepo

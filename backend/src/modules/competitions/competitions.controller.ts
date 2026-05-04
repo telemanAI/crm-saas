@@ -174,7 +174,7 @@ export class CompetitionsController {
    */
   @Get('monthly-overview')
   @HttpCode(HttpStatus.OK)
-  async monthlyOverview(@Req() req: any) {
+  async monthlyOverview(@Req() req: any, @Query('top') top?: string) {
     if (!req.user?.tenantId) {
       return {
         practicesActivatedThisMonth: 0,
@@ -183,7 +183,8 @@ export class CompetitionsController {
         monthLabel: '',
       };
     }
-    return this.entriesService.monthlyOverview(req.user.tenantId);
+    const topN = top ? Math.max(1, Math.min(50, parseInt(top, 10) || 3)) : 3;
+    return this.entriesService.monthlyOverview(req.user.tenantId, topN);
   }
 
   @Patch(':id')

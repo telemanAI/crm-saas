@@ -9,6 +9,9 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { SellProductDto } from './dto/sell-product.dto';
 import { StockMovementDto } from './dto/stock-movement.dto';
+// Phase H — fallback tenantId blindato
+import { User } from '../users/entities/user.entity';
+import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
 
 export type StockStatus = 'OK' | 'LOW' | 'OUT';
 
@@ -46,8 +49,60 @@ export class ProductsService {
     private readonly groupRepo: Repository<ProductGroup>,
     @InjectRepository(ProductCustomField)
     private readonly fieldRepo: Repository<ProductCustomField>,
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>,
+    @InjectRepository(UserShopMembership)
+    private readonly membershipRepo: Repository<UserShopMembership>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Phase H — fallback BLINDATO per tenantId.
+   *
+   * In produzione abbiamo visto utenti (founder legacy) che arrivano qui con
+   * `tenantId = null` perché:
+   *  - JWT vecchio prima della Tappa 0 multi-shop;
+   *  - users.tenant_id valorizzato ma nessuna riga in user_shop_memberships;
+   *  - Phase G/G2 non deployate sul backend Railway.
+   *
+   * Questa funzione è chiamata SEMPRE prima di INSERT su inventory_items
+   * e cerca il tenantId in 3 posti, in ordine:
+   *  1. Il valore passato (caso normale)
+   *  2. users.tenant_id (founder legacy)
+   *  3. Prima membership attiva dell'utente
+   *  4. Errore esplicito 400 con messaggio chiaro (NON crash PostgreSQL)
+   */
+  private async resolveTenantId(rawTenantId: string | null | undefined, userId: string): Promise<string> {
+    if (rawTenantId) return rawTenantId;
+
+    // 2) users.tenant_id
+    const u = await this.userRepo.findOne({
+      where: { id: userId },
+      select: ['id', 'tenantId'],
+    });
+    if (u?.tenantId) {
+      // eslint-disable-next-line no-console
+      console.warn(`[ProductsService] tenantId fallback users.tenantId per user ${userId}`);
+      return u.tenantId;
+    }
+
+    // 3) Prima membership attiva
+    const m = await this.membershipRepo.findOne({
+      where: { userId, isActive: true },
+      order: { joinedAt: 'ASC' },
+    });
+    if (m?.shopId) {
+      // eslint-disable-next-line no-console
+      console.warn(`[ProductsService] tenantId fallback membership per user ${userId} → shopId=${m.shopId}`);
+      return m.shopId;
+    }
+
+    throw new BadRequestException(
+      'Nessuno shop attivo per il tuo utente. Contatta il super amministratore: ' +
+        'manca la membership in user_shop_memberships. ' +
+        '(workaround: logout + login con il tasto "Cambia negozio" dopo)',
+    );
+  }
 
   // ============ READ ============
 
@@ -84,6 +139,9 @@ export class ProductsService {
   // ============ WRITE ============
 
   async create(tenantId: string, dto: CreateProductDto, performedBy: string): Promise<ProductView> {
+    // Phase H — fallback BLINDATO: garantisce tenantId valido prima del save
+    tenantId = await this.resolveTenantId(tenantId, performedBy);
+
     if (dto.groupId) await this.assertGroupExists(tenantId, dto.groupId);
     if (dto.customFields && dto.groupId) {
       await this.validateCustomFields(dto.groupId, dto.customFields);
@@ -185,6 +243,8 @@ export class ProductsService {
     dto: StockMovementDto,
     performedBy: string,
   ): Promise<ProductView> {
+    // Phase H — fallback BLINDATO
+    tenantId = await this.resolveTenantId(tenantId, performedBy);
     return this.dataSource.transaction(async (manager) => {
       const itemRepo = manager.getRepository(InventoryItem);
       const movRepo = manager.getRepository(InventoryMovement);
@@ -239,6 +299,8 @@ export class ProductsService {
     dto: SellProductDto,
     performedBy: string,
   ): Promise<{ movement: InventoryMovement; product: ProductView }> {
+    // Phase H — fallback BLINDATO
+    tenantId = await this.resolveTenantId(tenantId, performedBy);
     return this.dataSource.transaction(async (manager) => {
       const itemRepo = manager.getRepository(InventoryItem);
       const movRepo = manager.getRepository(InventoryMovement);

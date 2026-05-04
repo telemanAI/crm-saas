@@ -12,13 +12,11 @@ import { User } from '../users/entities/user.entity';
  *
  * Strategia di risoluzione (in ordine):
  *   1. payload.tenantId (caso normale, JWT recente)
+ *   1b. payload.shopId (fallback se il JWT usa shopId al posto di tenantId)
  *   2. header `X-Active-Shop-Id` inviato dal frontend ShopSwitcher
  *   3. prima membership attiva dell'utente nel DB
  *   4. PHASE G.2: `users.tenant_id` direttamente (founder legacy senza riga in user_shop_memberships)
  *   5. null (route che richiedono tenantId daranno 400 esplicito)
- *
- * Così l'utente non deve fare logout/login e il sistema resta robusto
- * a JWT non aggiornati e a founder legacy.
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -41,7 +39,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token non contiene ID utente');
     }
 
-    let tenantId: string | null = payload.tenantId ?? null;
+    // CHIRURGIA 1: cattura sia tenantId che shopId dal JWT
+    let tenantId: string | null = (payload.tenantId || payload.shopId || null);
 
     // PHASE A — BUG #2: fallback se tenantId mancante nel JWT
     if (!tenantId) {
@@ -65,8 +64,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       }
 
       // 4. PHASE G.2: users.tenant_id (founder legacy senza membership)
-      // Se l'utente è stato creato pre-multi-shop, ha solo users.tenant_id
-      // e nessuna riga in user_shop_memberships. Recuperiamo da lì.
       if (!tenantId) {
         const u = await this.userRepo.findOne({
           where: { id: payload.sub },
@@ -85,6 +82,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       id: payload.sub,
       userId: payload.sub,
+      sub: payload.sub,                 // CHIRURGIA 2: retro-compat per req.user.sub
       email: payload.email,
       tenantId,
       role: payload.role,

@@ -142,7 +142,22 @@ type OffersOptions = {
   providers: string[];
   grouped: Record<string, Array<{ id: string; name: string; canone: string; type: string }>>;
 };
+type DeviceGroup = {
+  id: string;
+  name: string;
+  sortOrder?: number;
+  products: Array<{
+    id: string;
+    name: string;
+    quantity: number;
+    availableQuantity: number;
+    unitCost: number | null;
+    sellingPrice: number | null;
+    sku: string;
+  }>;
+};
 const offersCache: Record<string, OffersOptions> = {};
+const deviceGroupsCache: Record<string, DeviceGroup[]> = {};
 
 async function fetchOffersOptions(category: TargetCategory): Promise<OffersOptions> {
   if (offersCache[category]) return offersCache[category];
@@ -157,6 +172,18 @@ async function fetchOffersOptions(category: TargetCategory): Promise<OffersOptio
     return res.data;
   } catch {
     return { providers: [], grouped: {} };
+  }
+}
+
+async function fetchDeviceGroups(q?: string): Promise<DeviceGroup[]> {
+  const cacheKey = q || '_all';
+  if (deviceGroupsCache[cacheKey]) return deviceGroupsCache[cacheKey];
+  try {
+    const res = await api.get(`/inventory/groups-with-products${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+    deviceGroupsCache[cacheKey] = res.data;
+    return res.data;
+  } catch {
+    return [];
   }
 }
 
@@ -229,6 +256,9 @@ export function CompetitionModal({
       }
       if (t.targetType === 'specific' && (!t.offerIds || t.offerIds.length === 0)) {
         return alert(`Target "${t.label}": seleziona almeno una promo`);
+      }
+      if (t.category === 'DEVICE' && (!t.inventoryItemIds || t.inventoryItemIds.length === 0)) {
+        return alert(`Target "${t.label}": seleziona almeno un prodotto dal catalogo`);
       }
     }
     for (const p of prizes) if (!p.label.trim()) return alert('Tutti i premi devono avere un nome');
@@ -560,10 +590,20 @@ function TargetRow({
   const [search, setSearch] = useState('');
   // Phase G — UX promo specifiche: prima il provider, poi le sue offerte
   const [specificProvider, setSpecificProvider] = useState<string>('');
+  // DEVICE — gruppi catalogo con prodotti
+  const [deviceGroups, setDeviceGroups] = useState<DeviceGroup[]>([]);
+  const [deviceSearch, setDeviceSearch] = useState('');
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOffersOptions(target.category).then(setOpts);
   }, [target.category]);
+
+  useEffect(() => {
+    if (target.category === 'DEVICE') {
+      fetchDeviceGroups(deviceSearch).then(setDeviceGroups);
+    }
+  }, [target.category, deviceSearch]);
 
   // Quando cambia categoria/tipoTarget reset provider+offerIds
   useEffect(() => {
@@ -771,6 +811,101 @@ function TargetRow({
               👆 Seleziona prima il gestore della promo. Poi vedrai SOLO le offerte di quel provider.
             </div>
           )}
+        </div>
+      )}
+
+      {/* DEVICE — Selezione prodotti dal catalogo */}
+      {target.category === 'DEVICE' && (
+        <div className="mt-3 space-y-2">
+          <label className="text-xs text-slate-400 block">
+            Prodotti del catalogo ({target.inventoryItemIds?.length || 0} selezionati)
+          </label>
+          <div className="relative">
+            <MagnifyingGlass className="w-4 h-4 absolute left-2 top-2 text-slate-500" />
+            <input
+              type="text"
+              value={deviceSearch}
+              onChange={(e) => setDeviceSearch(e.target.value)}
+              placeholder="Cerca dispositivo (es. iPhone 15 Pro 256 Nero)..."
+              className="w-full bg-slate-900 border border-slate-700 rounded pl-8 pr-2 py-1.5 text-white text-sm"
+            />
+          </div>
+          {deviceGroups.length === 0 ? (
+            <div className="text-xs text-slate-500 py-2">
+              Nessun prodotto trovato. Aggiungi prodotti al catalogo vendita.
+            </div>
+          ) : (
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {deviceGroups.map((g) => {
+                const isExpanded = expandedGroup === g.id;
+                const selectedInGroup = g.products.filter((p) =>
+                  (target.inventoryItemIds || []).includes(p.id)
+                ).length;
+                return (
+                  <div key={g.id} className="border border-slate-700 rounded bg-slate-900/40">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedGroup(isExpanded ? null : g.id)}
+                      className="w-full flex items-center justify-between px-2 py-1.5 text-xs hover:bg-slate-800/50 transition"
+                    >
+                      <span className="font-semibold text-slate-300">{g.name}</span>
+                      <span className="text-slate-500">
+                        {g.products.length} prodotti
+                        {selectedInGroup > 0 && (
+                          <span className="text-amber-400 ml-1">({selectedInGroup} sel.)</span>
+                        )}
+                      </span>
+                    </button>
+                    {isExpanded && (
+                      <div className="border-t border-slate-700/50">
+                        {g.products.map((p) => {
+                          const checked = (target.inventoryItemIds || []).includes(p.id);
+                          return (
+                            <label
+                              key={p.id}
+                              className={`flex items-center gap-2 px-2 py-1.5 text-[11px] cursor-pointer hover:bg-slate-800 ${checked ? 'bg-amber-500/10 border-l-2 border-amber-400' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  const current = target.inventoryItemIds || [];
+                                  const next = current.includes(p.id)
+                                    ? current.filter((x) => x !== p.id)
+                                    : [...current, p.id];
+                                  onUpdate({ inventoryItemIds: next });
+                                }}
+                                className="w-3.5 h-3.5"
+                              />
+                              <span className="text-slate-200 flex-1">{p.name}</span>
+                              <span className="text-slate-500">Stock: {p.availableQuantity}</span>
+                              {p.sellingPrice !== null && (
+                                <span className="text-emerald-400">
+                                  €{Number(p.sellingPrice).toFixed(0)}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex justify-between items-center text-[11px]">
+            <button
+              type="button"
+              onClick={() => onUpdate({ inventoryItemIds: [] })}
+              className="text-slate-500 hover:text-slate-300"
+            >
+              Deseleziona tutto
+            </button>
+            <span className="text-slate-500">
+              {target.inventoryItemIds?.length || 0} prodotti selezionati
+            </span>
+          </div>
         </div>
       )}
 

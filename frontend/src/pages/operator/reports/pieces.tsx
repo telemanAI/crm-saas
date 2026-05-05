@@ -133,6 +133,24 @@ export default function PiecesReportPage() {
     URL.revokeObjectURL(url);
   };
 
+  const exportPdf = async () => {
+    try {
+      const month = from.slice(0, 7); // YYYY-MM
+      const res = await api.post('/exports/monthly-pieces-pdf', { month }, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-pezzi-${month}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Errore generazione PDF');
+    }
+  };
+
   return (
     <OperatorLayout>
       <div className="max-w-6xl mx-auto" data-testid="pieces-report-page">
@@ -148,11 +166,18 @@ export default function PiecesReportPage() {
             </p>
           </div>
           {data && data.rows.length > 0 && (
-            <button onClick={exportCsv}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-sm font-medium inline-flex items-center gap-1"
-              data-testid="export-csv">
-              <FileArrowDown className="w-4 h-4" /> Esporta CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={exportPdf}
+                className="px-3 py-2 bg-amber-600 hover:bg-amber-700 border border-amber-500 rounded text-white text-sm font-medium inline-flex items-center gap-1"
+                data-testid="export-pdf">
+                <FileArrowDown className="w-4 h-4" /> Scarica PDF
+              </button>
+              <button onClick={exportCsv}
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-sm font-medium inline-flex items-center gap-1"
+                data-testid="export-csv">
+                <FileArrowDown className="w-4 h-4" /> Esporta CSV
+              </button>
+            </div>
           )}
         </div>
 

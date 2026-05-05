@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import NotificationBell from './NotificationBell';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -49,6 +50,7 @@ export default function Layout({ children, title = 'CRM' }: LayoutProps) {
         <header className="bg-white shadow-sm p-4 flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <span className="text-sm text-gray-600">admin@demo.com</span>
             <button className="text-sm text-red-600 hover:text-red-800">Logout</button>
           </div>
@@ -58,6 +60,12 @@ export default function Layout({ children, title = 'CRM' }: LayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Container per toast notifiche */}
+      <div
+        id="toast-container"
+        className="fixed top-4 right-4 z-[100] flex flex-col items-end pointer-events-none"
+      />
     </div>
   );
 }

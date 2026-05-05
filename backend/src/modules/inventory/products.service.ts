@@ -156,39 +156,84 @@ export class ProductsService {
     // vogliamo capirlo subito dai log Railway senza dover arrivare al client
     // un crash anonimo.
     try {
-      // FIX BULLETPROOF: Raw SQL diretto per bypassare COMPLETAMENTE
-      // il mapping TypeORM che mappava tenantId in posizione sbagliata.
-      // Il DB ha tenant_id in posizione 2 (dopo id), e senza questo fix
-      // il valore finiva in group_id o altre colonne causando 23502.
-      const insertResult = await this.dataSource.query(
-        `INSERT INTO inventory_items
-          (tenant_id, sku, name, description, category,
-           quantity, reserved_quantity, reorder_level,
-           unit_cost, selling_price, group_id, custom_fields,
-           is_for_sale, supplier_info, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
-         RETURNING id`,
-        [
+      // FIX BULLETPROOF-2: raw SQL con log estremo + fallback se RETURNING fallisce.
+      // Convertiamo esplicitamente tutti i valori per evitare undefined che
+      // potrebbero confondere il driver pg.
+      const params = [
+        tenantId,                       // $1 tenant_id
+        sku,                            // $2 sku
+        dto.name.trim(),                // $3 name
+        dto.description?.trim() || null, // $4 description
+        dto.category?.trim() || null,   // $5 category
+        Number(dto.quantity ?? 0),      // $6 quantity
+        0,                              // $7 reserved_quantity
+        Number(dto.reorderLevel ?? 5),  // $8 reorder_level
+        dto.unitCost != null ? Number(dto.unitCost) : null,  // $9 unit_cost
+        dto.sellingPrice != null ? Number(dto.sellingPrice) : null, // $10 selling_price
+        dto.groupId || null,            // $11 group_id
+        dto.customFields ? JSON.stringify(dto.customFields) : null, // $12 custom_fields
+        dto.isForSale === false ? false : true, // $13 is_for_sale
+        null,                           // $14 supplier_info
+      ];
+
+      // eslint-disable-next-line no-console
+      console.log('[ProductsService.create] RAW SQL params:', params);
+
+      let insertResult: any;
+      try {
+        insertResult = await this.dataSource.query(
+          `INSERT INTO inventory_items
+            (tenant_id, sku, name, description, category,
+             quantity, reserved_quantity, reorder_level,
+             unit_cost, selling_price, group_id, custom_fields,
+             is_for_sale, supplier_info, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+           RETURNING id`,
+          params,
+        );
+      } catch (rawErr: any) {
+        // eslint-disable-next-line no-console
+        console.error('[ProductsService.create] RAW SQL FAILED:', rawErr?.message, rawErr?.detail);
+        // Fallback: usa TypeORM save con entity completa
+        const item = this.itemRepo.create({
           tenantId,
           sku,
-          dto.name.trim(),
-          dto.description?.trim() || null,
-          dto.category?.trim() || null,
-          dto.quantity ?? 0,
-          0,
-          dto.reorderLevel ?? 5,
-          dto.unitCost ?? null,
-          dto.sellingPrice ?? null,
-          dto.groupId || null,
-          dto.customFields ? JSON.stringify(dto.customFields) : null,
-          dto.isForSale ?? true,
-          null,
-        ],
-      );
+          name: dto.name.trim(),
+          description: dto.description?.trim() || null,
+          category: dto.category?.trim() || null,
+          groupId: dto.groupId || null,
+          customFields: dto.customFields || null,
+          isForSale: dto.isForSale === false ? false : true,
+          quantity: Number(dto.quantity ?? 0),
+          reservedQuantity: 0,
+          reorderLevel: Number(dto.reorderLevel ?? 5),
+          unitCost: dto.unitCost != null ? Number(dto.unitCost) : null,
+          sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
+        } as any);
+        const saved = await this.itemRepo.save(item);
+        insertResult = [{ id: saved.id }];
+      }
 
-      const savedId = insertResult?.[0]?.id;
+      // eslint-disable-next-line no-console
+      console.log('[ProductsService.create] RAW SQL result:', JSON.stringify(insertResult));
+
+      // Postgres RETURNING può restituire formati diversi a seconda del driver
+      let savedId: string | null = null;
+      if (Array.isArray(insertResult) && insertResult.length > 0) {
+        savedId = insertResult[0]?.id || insertResult[0]?.[0] || null;
+      }
+
+      // Se ancora senza ID, cerca per SKU + tenant (ultimo inserito)
       if (!savedId) {
-        throw new Error('INSERT inventory_items non ha restituito un ID');
+        const found = await this.dataSource.query(
+          `SELECT id FROM inventory_items WHERE tenant_id = $1 AND sku = $2 ORDER BY created_at DESC LIMIT 1`,
+          [tenantId, sku],
+        );
+        savedId = found?.[0]?.id || null;
+      }
+
+      if (!savedId) {
+        throw new Error('INSERT inventory_items non ha restituito un ID e fallback SELECT ha fallito');
       }
 
       // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale

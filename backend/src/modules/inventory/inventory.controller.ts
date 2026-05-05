@@ -50,6 +50,26 @@ export class InventoryController {
     private readonly salesService: InventorySalesService,
   ) {}
 
+  /**
+   * Garantisce che il JWT abbia un tenantId valido prima di permettere
+   * scritture sul DB. Sostituisce l'errore raw "null value in column tenantId"
+   * di Postgres con un messaggio chiaro.
+   *
+   * Casi tipici in cui scattava:
+   *  - JWT super-admin (tenantId=null) usato per pagine operatore
+   *  - JWT vecchio issued prima del fix Phase E (storage chiave diversa)
+   *  - sessione persa dopo refresh: getToken() leggeva la chiave sbagliata
+   */
+  private requireTenantId(req: any): string {
+    const tid = req?.user?.tenantId;
+    if (!tid) {
+      throw new BadRequestException(
+        'Nessun negozio attivo selezionato per questa sessione. Effettua di nuovo il login per scegliere un negozio.',
+      );
+    }
+    return tid;
+  }
+
   // ============================================================
   // GRUPPI PRODOTTI
   // ============================================================
@@ -70,13 +90,7 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.CREATED)
   createGroup(@Req() req: any, @Body() dto: CreateProductGroupDto) {
-    // Phase G — Defensive: stesso safety check del create product
-    if (!req.user?.tenantId) {
-      throw new BadRequestException(
-        'Nessuno shop attivo. Fai logout e login per rigenerare la sessione.',
-      );
-    }
-    return this.groupsService.create(req.user.tenantId, dto);
+    return this.groupsService.create(this.requireTenantId(req), dto);
   }
 
   /**
@@ -87,7 +101,7 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.OK)
   reorderGroups(@Req() req: any, @Body() body: { items: { id: string; sortOrder: number }[] }) {
-    return this.groupsService.reorder(req.user.tenantId, body.items);
+    return this.groupsService.reorder(this.requireTenantId(req), body.items);
   }
 
   @Patch('groups/:id')
@@ -97,14 +111,14 @@ export class InventoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductGroupDto,
   ) {
-    return this.groupsService.update(req.user.tenantId, id, dto);
+    return this.groupsService.update(this.requireTenantId(req), id, dto);
   }
 
   @Delete('groups/:id')
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.OK)
   deleteGroup(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.groupsService.remove(req.user.tenantId, id);
+    return this.groupsService.remove(this.requireTenantId(req), id);
   }
 
   // ============================================================
@@ -137,13 +151,7 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.CREATED)
   createProduct(@Req() req: any, @Body() dto: CreateProductDto) {
-    // Phase G — Defensive: errore chiaro invece di crash PostgreSQL
-    if (!req.user?.tenantId) {
-      throw new BadRequestException(
-        'Nessuno shop attivo. Fai logout e login per rigenerare la sessione, oppure seleziona uno shop dallo switcher in alto a destra.',
-      );
-    }
-    return this.productsService.create(req.user.tenantId, dto, req.user.userId);
+    return this.productsService.create(this.requireTenantId(req), dto, req.user.userId);
   }
 
   @Patch('products/:id')
@@ -153,14 +161,14 @@ export class InventoryController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateProductDto,
   ) {
-    return this.productsService.update(req.user.tenantId, id, dto, this.canSeeCost(req));
+    return this.productsService.update(this.requireTenantId(req), id, dto, this.canSeeCost(req));
   }
 
   @Delete('products/:id')
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.OK)
   deleteProduct(@Req() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.productsService.remove(req.user.tenantId, id);
+    return this.productsService.remove(this.requireTenantId(req), id);
   }
 
   /**
@@ -170,7 +178,7 @@ export class InventoryController {
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.OK)
   stockMovement(@Req() req: any, @Body() dto: StockMovementDto) {
-    return this.productsService.stockMovement(req.user.tenantId, dto, req.user.userId);
+    return this.productsService.stockMovement(this.requireTenantId(req), dto, req.user.userId);
   }
 
   // ============================================================
@@ -181,7 +189,7 @@ export class InventoryController {
   @RequirePermission('canSellDevices')
   @HttpCode(HttpStatus.CREATED)
   sell(@Req() req: any, @Body() dto: SellProductDto) {
-    return this.productsService.sell(req.user.tenantId, dto, req.user.userId);
+    return this.productsService.sell(this.requireTenantId(req), dto, req.user.userId);
   }
 
   @Get('sales')

@@ -3,33 +3,54 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
- * Legge il token di autenticazione rispettando STRETTAMENTE lo storage scelto
- * da adaptiveStorage in authStore.ts.
+ * Lettura token compatibile con Phase E (tabId-prefixed sessionStorage)
+ * + fallback master localStorage + legacy `auth-storage` (per non rompere
+ * eventuali sessioni residue di utenti loggati prima della Phase E).
  *
- * Perché è importante leggere STRICT (no fallback verso l'altro storage):
- *  - Se un FOUNDER si è loggato con remember=true in localStorage e poi fa
- *    logout + login come OPERATOR con remember=false, la session attuale è in
- *    sessionStorage. Se leggessimo da localStorage come fallback, in caso di
- *    residui stale (bug precedente) avremmo un account swap che autentica le
- *    chiamate API come l'utente sbagliato.
- *  - clearAuth() rimuove da ENTRAMBI gli storage, ma se qualche tab legacy o
- *    estensione popola localStorage, dobbiamo comunque ignorarlo.
+ * Ordine di lookup:
+ *   1) sessionStorage[`auth-storage-${tabId}`]   ← tab corrente (Phase E)
+ *   2) localStorage[`auth-storage-master`]        ← remember-me cross-tab (Phase E)
+ *   3) sessionStorage[`auth-storage`]             ← legacy session
+ *   4) localStorage[`auth-storage`]               ← legacy persisted
  *
- * Il contratto è: la sessione viva si trova NEL SOLO storage selezionato da
- * authRememberMe. Punto.
+ * Senza questa logica, dopo il deploy di Phase E le chiamate fatte tramite
+ * `apiClient` (fetch) NON trovavano più il token e tornavano 401 (es. il
+ * 401 su /auth/switch-shop visto in produzione).
  */
-function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  const remember = window.localStorage.getItem('authRememberMe') === 'true';
-  const store = remember ? window.localStorage : window.sessionStorage;
-  const raw = store.getItem('auth-storage');
+function readTokenFromRaw(raw: string | null): string | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    return parsed.state?.token || null;
+    return parsed?.state?.token || null;
   } catch {
     return null;
   }
+}
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+
+  // 1) Phase E: per-tab key (sessionStorage isolato per scheda)
+  const tabId = window.sessionStorage.getItem('tabId');
+  if (tabId) {
+    const t = readTokenFromRaw(window.sessionStorage.getItem(`auth-storage-${tabId}`));
+    if (t) return t;
+  }
+
+  // 2) Phase E: master remember-me
+  const remember = window.localStorage.getItem('authRememberMe') === 'true';
+  if (remember) {
+    const t = readTokenFromRaw(window.localStorage.getItem('auth-storage-master'));
+    if (t) return t;
+  }
+
+  // 3) Legacy fallback (utenti loggati prima della Phase E)
+  const legacyS = readTokenFromRaw(window.sessionStorage.getItem('auth-storage'));
+  if (legacyS) return legacyS;
+  const legacyL = readTokenFromRaw(window.localStorage.getItem('auth-storage'));
+  if (legacyL) return legacyL;
+
+  return null;
 }
 
 async function apiClient(endpoint: string, options: RequestInit = {}) {

@@ -55,11 +55,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
             : 'Esiste già un record con questi dati. Verifica e riprova.',
         };
       case '23502': // not_null_violation
-        return {
-          status: HttpStatus.BAD_REQUEST,
-          message:
-            'Dati mancanti o sessione scaduta. Effettua di nuovo il login e ritenta.',
-        };
+        {
+          // Estrae il nome della colonna dal detail Postgres, es:
+          // "null value in column "reserved_quantity" violates not-null constraint"
+          const colMatch = String(detail).match(/column "([^"]+)"/);
+          const columnName = colMatch ? colMatch[1] : 'campo richiesto';
+          const fieldLabel = this.fieldLabelForDb(columnName);
+          return {
+            status: HttpStatus.BAD_REQUEST,
+            message: `Campo obbligatorio mancante: ${fieldLabel} (${columnName}). Verifica che tutti i dati siano compilati e ritenta.`,
+          };
+        }
       case '23503': // foreign_key_violation
         return {
           status: HttpStatus.BAD_REQUEST,
@@ -92,6 +98,34 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message: 'Errore di salvataggio sul database. Riprova o contatta l\'assistenza.',
         };
     }
+  }
+
+  /** Traduce nomi colonne DB in label user-friendly per il messaggio d'errore. */
+  private fieldLabelForDb(columnName: string): string {
+    const map: Record<string, string> = {
+      tenant_id: 'Negozio',
+      tenantId: 'Negozio',
+      sku: 'Codice SKU',
+      name: 'Nome',
+      quantity: 'Quantità',
+      reserved_quantity: 'Quantità riservata',
+      reservedQuantity: 'Quantità riservata',
+      reorder_level: 'Soglia scorta bassa',
+      reorderLevel: 'Soglia scorta bassa',
+      unit_cost: 'Prezzo di acquisto',
+      unitCost: 'Prezzo di acquisto',
+      selling_price: 'Prezzo di vendita',
+      sellingPrice: 'Prezzo di vendita',
+      is_for_sale: 'Disponibile in vendita',
+      isForSale: 'Disponibile in vendita',
+      group_id: 'Gruppo prodotto',
+      groupId: 'Gruppo prodotto',
+      category: 'Categoria',
+      description: 'Descrizione',
+      created_at: 'Data creazione',
+      updated_at: 'Data aggiornamento',
+    };
+    return map[columnName] || columnName;
   }
 
   async catch(exception: unknown, host: ArgumentsHost): Promise<void> {

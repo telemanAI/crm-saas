@@ -163,6 +163,7 @@ export class ProductsService {
         customFields: dto.customFields || null,
         isForSale: dto.isForSale ?? true,
         quantity: dto.quantity ?? 0,
+        reservedQuantity: 0, // ← FIX: il DB richiede questo campo (NOT NULL senza DEFAULT)
         reorderLevel: dto.reorderLevel ?? 5,
         unitCost: dto.unitCost ?? null,
         sellingPrice: dto.sellingPrice ?? null,

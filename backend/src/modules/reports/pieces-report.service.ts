@@ -49,6 +49,7 @@ export class PiecesReportService {
     category?: string;
     provider?: string;
     operatorId?: string;
+    includePractices?: boolean;
   }) {
     const from = params.from || this.firstOfThisMonth();
     const to = params.to || this.today();
@@ -138,7 +139,7 @@ export class PiecesReportService {
     const rows = Array.from(map.values()).sort((a, b) => b.total - a.total);
     const grandTotal = rows.reduce((s, r) => s + r.total, 0);
 
-    return {
+    const result: any = {
       from,
       to,
       scope: params.scope,
@@ -150,10 +151,45 @@ export class PiecesReportService {
       grandTotal,
       rows,
     };
+
+    // Se richiesto, allega anche l'elenco raw delle pratiche (per UI espandibile)
+    if (params.includePractices) {
+      const shopNames = new Map<string, string>();
+      if (params.scope === 'company' && params.companyId) {
+        const tenants = await this.tenantRepo.find({
+          where: { companyId: params.companyId },
+          select: ['id', 'name'],
+        });
+        tenants.forEach((t) => shopNames.set(t.id, t.name));
+      } else {
+        const tenant = await this.tenantRepo.findOne({ where: { id: params.tenantId } });
+        if (tenant) shopNames.set(tenant.id, tenant.name);
+      }
+
+      result.practices = practices.map((p) => {
+        const offer = (p as any).offer as Offer | undefined;
+        const seller = (p as any).seller as User | undefined;
+        const sellerName = seller
+          ? [seller.firstName, seller.lastName].filter(Boolean).join(' ').trim() || seller.email
+          : p.soldById?.slice(0, 8) || '?';
+        return {
+          id: p.id,
+          offerName: p.offerName || null,
+          provider: (offer?.provider || p.offerType || p.type || null)?.toString().toUpperCase() || null,
+          category: p.category || null,
+          customerName: null, // non carichiamo customer qui per performance
+          createdAt: p.createdAt,
+          shopName: shopNames.get(p.tenantId) || p.tenantId.slice(0, 8),
+          sellerName,
+        };
+      });
+    }
+
+    return result;
   }
 
   /** "I miei pezzi del mese" per il widget dashboard operator. */
-  async getMyPieces(userId: string, tenantId: string) {
+  async getMyPieces(userId: string, tenantId: string, includePractices?: boolean) {
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     return this.getPieces({
       scope: 'shop',
@@ -162,6 +198,7 @@ export class PiecesReportService {
       operatorId: userId,
       from: this.firstOfThisMonth(),
       to: this.today(),
+      includePractices,
     });
   }
 

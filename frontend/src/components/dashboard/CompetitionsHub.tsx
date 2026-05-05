@@ -95,6 +95,15 @@ type Leaderboard = {
   }>;
   practiceBreakdown: PracticeRow[];
 };
+type MyPractice = {
+  id: string;
+  offerName: string | null;
+  provider: string | null;
+  category: string | null;
+  createdAt: string;
+  shopName: string | null;
+  sellerName: string;
+};
 
 const CAT_LABEL: Record<string, string> = {
   FIXED_LINE: 'Rete fissa',
@@ -125,6 +134,9 @@ export default function CompetitionsHub({
   const { user } = useAuthStore();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [myPieces, setMyPieces] = useState<MyPieces | null>(null);
+  const [myPracticesExpanded, setMyPracticesExpanded] = useState(false);
+  const [myPractices, setMyPractices] = useState<MyPractice[]>([]);
+  const [myPracticesLoading, setMyPracticesLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [extendedRanking, setExtendedRanking] = useState<Record<string, Top[]>>({});
   const [leaderboards, setLeaderboards] = useState<Record<string, Leaderboard>>({});
@@ -153,6 +165,23 @@ export default function CompetitionsHub({
       cancelled = true;
     };
   }, []);
+
+  const handleToggleMyPractices = async () => {
+    const next = !myPracticesExpanded;
+    setMyPracticesExpanded(next);
+    if (next && myPractices.length === 0) {
+      setMyPracticesLoading(true);
+      try {
+        const res = await api.get('/reports/pieces/me?includePractices=true');
+        setMyPractices(res.data.practices || []);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[CompetitionsHub] my practices fetch failed', err);
+      } finally {
+        setMyPracticesLoading(false);
+      }
+    }
+  };
 
   const handleExpand = async (compId: string) => {
     if (expandedId === compId) {
@@ -248,6 +277,75 @@ export default function CompetitionsHub({
                   {CAT_LABEL[cat] || cat}: <strong className="text-amber-300">{n}</strong>
                 </span>
               ))}
+          </div>
+        )}
+
+        {/* Le mie pratiche del mese — espandibile */}
+        <button
+          onClick={handleToggleMyPractices}
+          className="mt-3 w-full text-xs text-slate-400 hover:text-amber-300 py-1.5 border-t border-slate-800 flex items-center justify-center gap-1 transition"
+        >
+          {myPracticesExpanded ? (
+            <>
+              <CaretUp className="w-3 h-3" /> Chiudi le mie pratiche
+            </>
+          ) : (
+            <>
+              <CaretDown className="w-3 h-3" /> Vedi le mie pratiche del mese
+            </>
+          )}
+        </button>
+
+        {myPracticesExpanded && (
+          <div className="border-t border-slate-800 bg-slate-950/40 px-3 py-2.5">
+            {myPracticesLoading && (
+              <div className="text-xs text-slate-500 italic text-center py-2">
+                Caricamento pratiche…
+              </div>
+            )}
+            {!myPracticesLoading && myPractices.length === 0 && (
+              <div className="text-xs text-slate-500 italic text-center py-2">
+                Nessuna pratica completata questo mese.
+              </div>
+            )}
+            {!myPracticesLoading && myPractices.length > 0 && (
+              <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
+                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                  {myPractices.length} pratiche · click per aprire
+                </div>
+                {myPractices.map((p) => (
+                  <Link
+                    key={p.id}
+                    href={`/operator/practices/${p.id}`}
+                    className="block bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                        {p.offerName || '— offerta —'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-slate-400">
+                        <Storefront className="w-3 h-3" />
+                        {p.provider || 'n/d'}
+                      </span>
+                      <span className="text-slate-500">
+                        {p.createdAt
+                          ? new Date(p.createdAt).toLocaleDateString('it-IT')
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                      <span className="text-cyan-300">
+                        Venduto da: <strong>{p.sellerName}</strong>
+                      </span>
+                      {p.shopName && (
+                        <span className="text-fuchsia-300">{p.shopName}</span>
+                      )}
+                      <span className="text-amber-400 ml-auto opacity-70">Apri →</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

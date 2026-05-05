@@ -59,10 +59,10 @@ export class PiecesReportController {
   }
 
   @Get('pieces/me')
-  async getMine(@Req() req: any) {
+  async getMine(@Req() req: any, @Query('includePractices') includePractices?: string) {
     const userId = req.user.id || req.user.sub;
     const tenantId = req.user.tenantId;
     if (!tenantId) throw new BadRequestException('Nessuno shop attivo');
-    return this.service.getMyPieces(userId, tenantId);
+    return this.service.getMyPieces(userId, tenantId, includePractices === 'true');
   }
 }

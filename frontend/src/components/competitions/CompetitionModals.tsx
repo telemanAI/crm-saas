@@ -662,7 +662,7 @@ function TargetRow({
         </div>
         <div className="col-span-3">
           <label className="text-xs text-slate-400 mb-1 block">Categoria</label>
-          <select value={target.category} onChange={(e) => onUpdate({ category: e.target.value as TargetCategory, offerIds: [], provider: null })}
+          <select value={target.category} onChange={(e) => onUpdate({ category: e.target.value as TargetCategory, offerIds: [], provider: null, ...(e.target.value === 'DEVICE' ? { targetType: 'category_generic' } : {}) })}
             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm">
             {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
@@ -678,33 +678,35 @@ function TargetRow({
         </div>
       </div>
 
-      {/* Tipo target */}
-      <div className="mt-3">
-        <label className="text-xs text-slate-400 mb-1 block">Tipo di target</label>
-        <div className="grid grid-cols-3 gap-2">
-          {(['category_generic', 'provider_generic', 'specific'] as TargetType[]).map((tt) => (
-            <button key={tt} type="button"
-              onClick={() => onUpdate({ targetType: tt })}
-              className={`px-2 py-1.5 rounded text-xs font-medium border transition ${
-                target.targetType === tt
-                  ? 'border-amber-400 bg-amber-500/10 text-amber-200'
-                  : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'}`}
-              data-testid={`tt-${tt}-${idx}`}>
-              {TARGET_TYPE_LABEL[tt]}
-            </button>
-          ))}
+      {/* Tipo target — NASCOSTO per DEVICE (usa direttamente prodotti catalogo) */}
+      {target.category !== 'DEVICE' && (
+        <div className="mt-3">
+          <label className="text-xs text-slate-400 mb-1 block">Tipo di target</label>
+          <div className="grid grid-cols-3 gap-2">
+            {(['category_generic', 'provider_generic', 'specific'] as TargetType[]).map((tt) => (
+              <button key={tt} type="button"
+                onClick={() => onUpdate({ targetType: tt })}
+                className={`px-2 py-1.5 rounded text-xs font-medium border transition ${
+                  target.targetType === tt
+                    ? 'border-amber-400 bg-amber-500/10 text-amber-200'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:text-slate-200'}`}
+                data-testid={`tt-${tt}-${idx}`}>
+                {TARGET_TYPE_LABEL[tt]}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Configurazione condizionale */}
-      {target.targetType === 'category_generic' && (
+      {/* Configurazione condizionale — NON DEVICE */}
+      {target.category !== 'DEVICE' && target.targetType === 'category_generic' && (
         <div className="mt-2 text-xs text-slate-500 bg-slate-900/40 rounded p-2">
           Conterà <b>tutte</b> le pratiche di categoria <b>{CATEGORY_LABEL[target.category]}</b> nel periodo
           (ACTIVATED, non importate, con venditore assegnato).
         </div>
       )}
 
-      {target.targetType === 'provider_generic' && (
+      {target.category !== 'DEVICE' && target.targetType === 'provider_generic' && (
         <div className="mt-2">
           <label className="text-xs text-slate-400 mb-1 block">Provider *</label>
           <select value={target.provider || ''} onChange={(e) => onUpdate({ provider: e.target.value || null })}
@@ -718,7 +720,7 @@ function TargetRow({
         </div>
       )}
 
-      {target.targetType === 'specific' && (
+      {target.category !== 'DEVICE' && target.targetType === 'specific' && (
         <div className="mt-2 space-y-3">
           {/* Phase G — Step 1: prima scegli il provider */}
           <div>

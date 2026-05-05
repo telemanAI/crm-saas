@@ -74,13 +74,30 @@ export default function NotificationBell() {
 
     const connect = () => {
       const token = localStorage.getItem('token') || '';
-      if (!token) return;
+      if (!token) {
+        // eslint-disable-next-line no-console
+        console.warn('[NotificationBell] No token found');
+        return;
+      }
 
       const baseUrl = api.defaults.baseURL || '';
       const url = `${baseUrl}/notifications/stream?token=${encodeURIComponent(token)}`;
-      const es = new EventSource(url);
+      // eslint-disable-next-line no-console
+      console.log('[NotificationBell] SSE connecting to:', url);
+
+      let es: EventSource;
+      try {
+        es = new EventSource(url);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[NotificationBell] EventSource creation failed:', err);
+        retryTimer = setTimeout(connect, SSE_RETRY_MS);
+        return;
+      }
 
       es.onopen = () => {
+        // eslint-disable-next-line no-console
+        console.log('[NotificationBell] SSE connected');
         setConnected(true);
         setError(null);
       };
@@ -104,6 +121,8 @@ export default function NotificationBell() {
       };
 
       es.onerror = () => {
+        // eslint-disable-next-line no-console
+        console.warn('[NotificationBell] SSE error, reconnecting in', SSE_RETRY_MS, 'ms');
         setConnected(false);
         es.close();
         retryTimer = setTimeout(connect, SSE_RETRY_MS);
@@ -135,7 +154,11 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
-  const toggle = () => {
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // eslint-disable-next-line no-console
+    console.log('[NotificationBell] toggle clicked, current open:', open);
     const next = !open;
     setOpen(next);
     if (next) {
@@ -158,11 +181,13 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={toggle}
-        className="relative p-2 rounded-full hover:bg-slate-800 transition cursor-pointer"
+        onMouseDown={(e) => e.stopPropagation()}
+        className="relative p-2 rounded-full hover:bg-slate-800 transition cursor-pointer z-10"
         aria-label="Notifiche"
+        style={{ touchAction: 'manipulation' }}
       >
         <svg
-          className="w-5 h-5 text-slate-400"
+          className="w-5 h-5 text-slate-400 pointer-events-none"
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
@@ -175,15 +200,15 @@ export default function NotificationBell() {
           />
         </svg>
         {count > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+          <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 pointer-events-none">
             {count > 99 ? '99+' : count}
           </span>
         )}
         {connected && count === 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full pointer-events-none" />
         )}
         {!connected && !error && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-600 rounded-full" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-600 rounded-full pointer-events-none" />
         )}
       </button>
 
@@ -200,7 +225,7 @@ export default function NotificationBell() {
             </h3>
             {count > 0 && (
               <button
-                onClick={markAllRead}
+                onClick={(e) => { e.stopPropagation(); markAllRead(); }}
                 className="text-xs text-amber-400 hover:text-amber-300 transition"
               >
                 Segna tutte come lette

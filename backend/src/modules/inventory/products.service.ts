@@ -529,4 +529,8 @@ export class ProductsService {
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '')
       .substring(0, 8);
-    const count = await this.itemRepo.count({ where: { tena
+    const count = await this.itemRepo.count({ where: { tenantId } as any });
+    const suffix = String(count + 1).padStart(4, '0');
+    return `${base}-${suffix}`;
+  }
+}

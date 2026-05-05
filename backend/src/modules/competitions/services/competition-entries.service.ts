@@ -70,9 +70,9 @@ export class CompetitionEntriesService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(InventoryMovement)
     private readonly movementRepo: Repository<InventoryMovement>,
+    private readonly dataSource: DataSource,
     @Optional()
     private readonly notificationsService?: NotificationsService,
-    private readonly dataSource: DataSource,
   ) {}
 
   // =====================================================================

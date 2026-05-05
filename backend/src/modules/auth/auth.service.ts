@@ -18,7 +18,10 @@ import { User } from '../users/entities/user.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { v4 as uuidv4 } from 'uuid';
 
-const SUPER_ADMIN_CODE = '847293516';
+const SUPER_ADMIN_CODE = process.env.SUPER_ADMIN_CODE || '';
+if (!SUPER_ADMIN_CODE && process.env.NODE_ENV === 'production') {
+  throw new Error('SUPER_ADMIN_CODE non configurato. Impostala nelle variabili d\'ambiente.');
+}
 
 @Injectable()
 export class AuthService {
@@ -51,8 +54,7 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const SUPER_ADMIN_CODE = '847293516';
-    if (loginDto.subscriptionCode === SUPER_ADMIN_CODE) {
+    if (SUPER_ADMIN_CODE && loginDto.subscriptionCode === SUPER_ADMIN_CODE) {
       const user = await this.validateSuperAdmin(loginDto.email, loginDto.password);
 
       const payload = {

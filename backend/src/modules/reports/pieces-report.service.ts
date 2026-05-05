@@ -60,7 +60,12 @@ export class PiecesReportService {
       .leftJoinAndMapOne('p.offer', Offer, 'o', 'o.id = p.offerId')
       .leftJoinAndMapOne('p.seller', User, 'u', 'u.id = p.soldById')
       .where('p.tenantId IN (:...shopIds)', { shopIds })
-      .andWhere('p.operationalStatus = :st', { st: 'ACTIVATED' })
+      // Allineato con le gare (fix-final5): conta le pratiche completate
+      // dall'operatore, non solo quelle già attivate dal back-office.
+      .andWhere('p.status = :st', { st: 'completed' })
+      .andWhere(
+        "p.operationalStatus IS NULL OR p.operationalStatus NOT IN ('REJECTED', 'KO_CREDITO', 'KO_COPERTURA')",
+      )
       .andWhere('p.sourceImportJobId IS NULL')
       .andWhere('p.soldById IS NOT NULL')
       .andWhere('p.createdAt >= :from', { from })

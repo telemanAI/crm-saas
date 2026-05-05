@@ -9,6 +9,7 @@ import {
   Req,
   ForbiddenException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -27,6 +28,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 tentativi / min
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
@@ -34,6 +36,7 @@ export class AuthController {
   @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } }) // 3 registrazioni / min
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
@@ -41,6 +44,7 @@ export class AuthController {
   @Public()
   @Post('admin/login')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 tentativi / min
   async superAdminLogin(@Body() loginDto: SuperAdminLoginDto) {
     return this.authService.superAdminLogin(loginDto);
   }

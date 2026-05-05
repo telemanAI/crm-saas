@@ -20,6 +20,7 @@ import { InvitesService } from '../invites/invites.service';
 import { GoogleAuthGuard, FacebookAuthGuard } from './guards/oauth.guards';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { FastLoginDto } from './dto/fast-login.dto';
 import {
   RequestOtpDto,
@@ -43,6 +44,7 @@ export class AuthFlowsController {
   @Public()
   @Post('login-v2')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 tentativi / min
   async loginV2(@Body() dto: FastLoginDto) {
     return this.authService.fastLogin(dto);
   }
@@ -50,6 +52,7 @@ export class AuthFlowsController {
   @Public()
   @Post('register-shop-owner')
   @HttpCode(HttpStatus.CREATED)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } }) // 3 registrazioni / min
   async registerShopOwner(@Body() dto: RegisterShopOwnerDto) {
     return this.authService.registerShopOwner(dto);
   }
@@ -57,6 +60,7 @@ export class AuthFlowsController {
   @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 3, ttl: 60_000 } }) // 3 OTP / min
   async requestOtp(@Body() dto: RequestOtpDto) {
     return this.otpService.requestOtp(dto.email);
   }
@@ -64,6 +68,7 @@ export class AuthFlowsController {
   @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } }) // 5 verifiche / min
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     await this.otpService.verifyOtp(dto.email, dto.code);
     return this.socialAuthService.handleSocialOrOtpLogin({

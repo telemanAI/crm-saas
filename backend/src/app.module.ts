@@ -2,7 +2,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './modules/auth/auth.module';
+import { JWT_SECRET } from './modules/auth/jwt-config';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -31,6 +34,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { InvitesModule } from './modules/invites/invites.module';
+import { HealthModule } from './modules/health/health.module';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -100,9 +104,17 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
 
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: JWT_SECRET,
       signOptions: { expiresIn: '24h' },
     }),
+
+    // Rate limiting: 60 req/min default, protezione brute-force
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60_000,
+        limit: 60,
+      },
+    ]),
 
     AuthModule,
     TenantsModule,
@@ -128,7 +140,14 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
     CompaniesModule,
     MembershipsModule,
     InvitesModule,
+    HealthModule,
   ],
-  providers: [],
+  providers: [
+    // Rate limiter globale — 60 req/min di default
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

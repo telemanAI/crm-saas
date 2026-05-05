@@ -8,6 +8,7 @@ import { AuthFlowsController } from './auth-flows.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { JWT_SECRET } from './jwt-config';
 import { RolesGuard } from './guards/roles.guard';
 import { User } from '../users/entities/user.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
@@ -43,7 +44,7 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
     TypeOrmModule.forFeature([User, Tenant, OtpCode, PendingRegistration, UserShopMembership]),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'your-secret-key',
+      secret: JWT_SECRET,
       signOptions: { expiresIn: '24h' },
     }),
     UsersModule,

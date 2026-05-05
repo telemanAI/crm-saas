@@ -8,12 +8,13 @@ import { Practice } from '../practices/entities/practice.entity';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { MembershipsModule } from '../memberships/memberships.module';
+import { JWT_SECRET } from '../auth/jwt-config';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Customer, Practice]),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'super-secret',
+      secret: JWT_SECRET,
       signOptions: { expiresIn: '24h' },
     }),
     CustomFieldsModule,

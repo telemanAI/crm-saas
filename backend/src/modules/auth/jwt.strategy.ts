@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { Request } from 'express';
 import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
 import { User } from '../users/entities/user.entity';
+import { JWT_SECRET } from './jwt-config';
 
 /**
  * Strategy JWT con fallback robusto per tenantId.
@@ -29,7 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'super-secret',
+      secretOrKey: JWT_SECRET,
       passReqToCallback: true,
     });
   }

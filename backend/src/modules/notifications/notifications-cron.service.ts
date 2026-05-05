@@ -88,14 +88,17 @@ export class NotificationsCronService {
     });
 
     for (const comp of competitions) {
-      const target = comp.target ?? 0;
-      if (target <= 0) continue;
+      const targetPieces = (comp.targets || []).reduce(
+        (s, t) => s + (Number(t.targetPieces) || 0),
+        0,
+      );
+      if (targetPieces <= 0) continue;
 
       const piecesDone = await this.entryRepo.count({
         where: { competitionId: comp.id },
       });
-      const remaining = target - piecesDone;
-      const pctRemaining = remaining / target;
+      const remaining = targetPieces - piecesDone;
+      const pctRemaining = remaining / targetPieces;
 
       // Notifica solo se mancano meno del 20% e la gara non è ancora completata
       if (pctRemaining > 0.2 || remaining <= 0) continue;
@@ -117,7 +120,7 @@ export class NotificationsCronService {
             userId: uid,
             type: NotificationType.COMPETITION_REMINDER,
             title: 'Gara in chiusura!',
-            message: `Dai, stiamo chiudendo la gara "${comp.title}" di ${this.monthYearLabel(comp.startDate)}: mancano ${remaining} pezzi per completarla!`,
+            message: `Dai, stiamo chiudendo la gara "${comp.title}" di ${this.monthYearLabel(String(comp.startDate))}: mancano ${remaining} pezzi per completarla!`,
             linkUrl: `/operator/competitions/${comp.id}`,
             linkLabel: 'Vedi gara',
           });

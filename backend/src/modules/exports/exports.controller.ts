@@ -59,6 +59,29 @@ export class ExportsController {
    * Phase F — Export multi-categoria: workbook xlsx con un foglio per categoria.
    *  Linea Fissa, Mobile, Luce/Gas, SKY, Clienti.
    */
+  /**
+   * Report PDF mensile pezzi venduti — solo founder.
+   */
+  @Post('monthly-pieces-pdf')
+  @RequirePermission('canExportData')
+  async monthlyPiecesPDF(
+    @Body() body: { month?: string },
+    @Req() req,
+    @Res() res: Response,
+  ) {
+    const filePath = await this.exportsService.generateMonthlyReportPDF({
+      tenantId: req.user.tenantId,
+      userId: req.user.userId || req.user.id || req.user.sub,
+      companyId: req.user.companyId || null,
+      month: body.month,
+    });
+    const fileName = filePath.split('/').pop();
+    res.download(filePath, fileName, (err) => {
+      if (err) console.error('Error downloading PDF:', err);
+      try { fs.unlinkSync(filePath); } catch {}
+    });
+  }
+
   @Post('practices-multi-sheet')
   @RequirePermission('canExportData')
   async exportPracticesMultiSheet(

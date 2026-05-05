@@ -36,7 +36,7 @@ import { MembershipsModule } from './modules/memberships/memberships.module';
 import { InvitesModule } from './modules/invites/invites.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
-import { PdfReportModule } from './modules/reports/pdf/pdf-report.module';
+
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
@@ -147,18 +147,12 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
     InvitesModule,
     HealthModule,
     NotificationsModule,
-    PdfReportModule,
   ],
   providers: [
     // Rate limiter globale — 60 req/min di default
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
-    },
-  ],
-})
-export class AppModule {}
-: ThrottlerGuard,
     },
   ],
 })

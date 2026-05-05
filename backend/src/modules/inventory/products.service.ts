@@ -211,7 +211,7 @@ export class ProductsService {
           sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
         } as any);
         const saved = await this.itemRepo.save(item);
-        insertResult = [{ id: saved.id }];
+        insertResult = [{ id: Array.isArray(saved) ? saved[0]?.id : saved.id }];
       }
 
       // eslint-disable-next-line no-console

@@ -148,39 +148,62 @@ export class ProductsService {
     }
 
     const sku = dto.sku?.trim() || (await this.generateSku(tenantId, dto.name));
-    const item = this.itemRepo.create({
-      tenantId,
-      sku,
-      name: dto.name.trim(),
-      description: dto.description?.trim() || null,
-      category: dto.category?.trim() || null,
-      groupId: dto.groupId || null,
-      customFields: dto.customFields || null,
-      isForSale: dto.isForSale ?? true,
-      quantity: dto.quantity ?? 0,
-      reorderLevel: dto.reorderLevel ?? 5,
-      unitCost: dto.unitCost ?? null,
-      sellingPrice: dto.sellingPrice ?? null,
-    });
-    const saved = await this.itemRepo.save(item);
 
-    // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale
-    if ((dto.quantity ?? 0) > 0) {
-      await this.movementRepo.save(
-        this.movementRepo.create({
-          tenantId,
-          itemId: saved.id,
-          movementType: 'PURCHASE',
-          quantity: dto.quantity!,
-          unitCost: dto.unitCost ?? null,
-          referenceType: 'INITIAL_STOCK',
-          performedBy,
-          notes: 'Stock iniziale alla creazione del prodotto',
-        }),
-      );
+    // fix-final5 — log diagnostico esplicito: se qualcosa va storto nel save,
+    // vogliamo capirlo subito dai log Railway senza dover arrivare al client
+    // un crash anonimo.
+    try {
+      const item = this.itemRepo.create({
+        tenantId,
+        sku,
+        name: dto.name.trim(),
+        description: dto.description?.trim() || null,
+        category: dto.category?.trim() || null,
+        groupId: dto.groupId || null,
+        customFields: dto.customFields || null,
+        isForSale: dto.isForSale ?? true,
+        quantity: dto.quantity ?? 0,
+        reorderLevel: dto.reorderLevel ?? 5,
+        unitCost: dto.unitCost ?? null,
+        sellingPrice: dto.sellingPrice ?? null,
+      });
+      const saved = await this.itemRepo.save(item);
+
+      // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale
+      if ((dto.quantity ?? 0) > 0) {
+        await this.movementRepo.save(
+          this.movementRepo.create({
+            tenantId,
+            itemId: saved.id,
+            movementType: 'PURCHASE',
+            quantity: dto.quantity!,
+            unitCost: dto.unitCost ?? null,
+            referenceType: 'INITIAL_STOCK',
+            performedBy,
+            notes: 'Stock iniziale alla creazione del prodotto',
+          }),
+        );
+      }
+
+      return this.findOne(tenantId, saved.id, true);
+    } catch (err: any) {
+      // Logga il dettaglio dell'errore (sarà catturato anche dal filter,
+      // ma qui aggiungiamo contesto specifico al modulo inventory).
+      // eslint-disable-next-line no-console
+      console.error('[ProductsService.create] FAILED', {
+        tenantId,
+        performedBy,
+        sku,
+        groupId: dto.groupId,
+        code: err?.code,
+        constraint: err?.constraint,
+        column: err?.column,
+        detail: err?.detail,
+        message: err?.message,
+      });
+      // Rilancia: il filter globale lo tradurrà in messaggio italiano
+      throw err;
     }
-
-    return this.findOne(tenantId, saved.id, true);
   }
 
   async update(

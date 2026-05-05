@@ -73,7 +73,7 @@ type MyPieces = {
 };
 type PracticeRow = {
   entryId: string;
-  practiceId: string;
+  practiceId: string | null;
   practiceCreatedAt: string;
   provider: string | null;
   offerName: string | null;
@@ -478,9 +478,11 @@ export default function CompetitionsHub({
                           </div>
                           <div className="space-y-1.5 max-h-80 overflow-auto pr-1">
                             {lb.practiceBreakdown.map((p) => (
-                              <div
+                              <Link
                                 key={p.entryId}
-                                className="bg-slate-950/60 border border-slate-800 rounded px-2.5 py-2 text-[11px]"
+                                href={p.practiceId ? `/operator/practices/${p.practiceId}` : '#'}
+                                className="block bg-slate-950/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
+                                data-testid={`hub-practice-${p.entryId}`}
                               >
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
                                   <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
@@ -511,8 +513,9 @@ export default function CompetitionsHub({
                                       <Buildings className="w-3 h-3" /> {p.shopName}
                                     </span>
                                   )}
+                                  <span className="text-amber-400 ml-auto opacity-70">Apri →</span>
                                 </div>
-                              </div>
+                              </Link>
                             ))}
                           </div>
                         </div>

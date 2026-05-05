@@ -150,6 +150,8 @@ export default function CompetitionDetailPage() {
   const [loading, setLoading] = useState(true);
   // Tappa 3.2 — riga operatore espansa nel dropdown classifica
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  // fix-final5 — target espanso nella sezione Target (mostra le pratiche)
+  const [expandedTarget, setExpandedTarget] = useState<string | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -423,34 +425,108 @@ export default function CompetitionDetailPage() {
               {board.targets.map((t) => {
                 const pct = t.progressPercent ?? 0;
                 const reached = t.targetPieces > 0 && t.currentPieces >= t.targetPieces;
+                const isExpanded = expandedTarget === t.id;
+                // fix-final5 — pratiche di QUESTO target dal practiceBreakdown
+                const targetPractices = (board.practiceBreakdown || []).filter(
+                  (p) => p.targetId === t.id,
+                );
                 return (
                   <div
                     key={t.id}
-                    className={`bg-slate-900 border rounded-lg p-3 ${
+                    className={`bg-slate-900 border rounded-lg overflow-hidden ${
                       reached ? 'border-emerald-500/40' : 'border-slate-700'
                     }`}
                     data-testid={`target-${t.id}`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-300">
-                          {CATEGORY_LABEL[t.category as keyof typeof CATEGORY_LABEL] || t.category}
-                        </span>
-                        <span className="text-white font-medium truncate">{t.label}</span>
-                        {reached && (
-                          <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
-                            ✓ Target raggiunto
+                    <button
+                      type="button"
+                      onClick={() => setExpandedTarget(isExpanded ? null : t.id)}
+                      className="w-full text-left p-3 hover:bg-slate-800/40 transition"
+                      data-testid={`target-toggle-${t.id}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <span className="text-xs font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                            {CATEGORY_LABEL[t.category as keyof typeof CATEGORY_LABEL] || t.category}
                           </span>
+                          <span className="text-white font-medium truncate">{t.label}</span>
+                          {reached && (
+                            <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">
+                              ✓ Target raggiunto
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                          <div className="text-sm font-bold text-white">
+                            {t.currentPieces}
+                            <span className="text-slate-500 font-normal"> / {t.targetPieces}</span>
+                          </div>
+                          <span className="text-slate-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
+                        </div>
+                      </div>
+                      {progressBar(pct, reached ? 'bg-emerald-500' : 'bg-amber-500')}
+                      {t.progressPercent !== null && (
+                        <div className="text-xs text-slate-500 text-right mt-1">{pct}%</div>
+                      )}
+                    </button>
+
+                    {/* fix-final5 — Dropdown: pratiche che hanno riempito QUESTO target.
+                        Ogni riga è cliccabile → naviga a /operator/practices/[id] */}
+                    {isExpanded && (
+                      <div
+                        className="border-t border-slate-700 bg-slate-950/40 px-3 py-2.5"
+                        data-testid={`target-details-${t.id}`}
+                      >
+                        {targetPractices.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic py-1">
+                            Nessuna pratica registrata per questo target.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                              {targetPractices.length} pratiche · click per aprire
+                            </div>
+                            {targetPractices.map((p) => (
+                              <Link
+                                key={p.entryId}
+                                href={p.practiceId ? `/operator/practices/${p.practiceId}` : '#'}
+                                className="block bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
+                                data-testid={`target-practice-${p.entryId}`}
+                              >
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                                    {p.offerName || '— offerta —'}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-slate-400">
+                                    {p.provider || 'n/d'}
+                                  </span>
+                                  <span className="text-slate-500">
+                                    {p.practiceCreatedAt
+                                      ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
+                                      : ''}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                                  <span className="text-cyan-300">
+                                    Venduto da: <strong>{p.sellerName}</strong>
+                                  </span>
+                                  {p.customerName && (
+                                    <span className="text-emerald-300">
+                                      Cliente: <strong>{p.customerName}</strong>
+                                    </span>
+                                  )}
+                                  {p.shopName && (
+                                    <span className="text-fuchsia-300">{p.shopName}</span>
+                                  )}
+                                  <span className="text-amber-400 ml-auto opacity-70">
+                                    Apri →
+                                  </span>
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <div className="text-sm font-bold text-white flex-shrink-0 ml-2">
-                        {t.currentPieces}
-                        <span className="text-slate-500 font-normal"> / {t.targetPieces}</span>
-                      </div>
-                    </div>
-                    {progressBar(pct, reached ? 'bg-emerald-500' : 'bg-amber-500')}
-                    {t.progressPercent !== null && (
-                      <div className="text-xs text-slate-500 text-right mt-1">{pct}%</div>
                     )}
                   </div>
                 );

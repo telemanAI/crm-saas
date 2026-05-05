@@ -209,9 +209,10 @@ export class ProductsService {
           reorderLevel: Number(dto.reorderLevel ?? 5),
           unitCost: dto.unitCost != null ? Number(dto.unitCost) : null,
           sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
-        } as any);
-        const saved = await this.itemRepo.save(item);
-        insertResult = [{ id: Array.isArray(saved) ? saved[0]?.id : saved.id }];
+        } as InventoryItem);
+        const savedResult = await this.itemRepo.save(item) as InventoryItem | InventoryItem[];
+        const savedId = Array.isArray(savedResult) ? savedResult[0]?.id : savedResult.id;
+        insertResult = [{ id: savedId }];
       }
 
       // eslint-disable-next-line no-console
@@ -528,7 +529,4 @@ export class ProductsService {
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, '')
       .substring(0, 8);
-    const count = await this.itemRepo.count({ where: { tenantId } });
-    return `${base || 'PRD'}-${String(count + 1).padStart(4, '0')}`;
-  }
-}
+    const count = await this.itemRepo.count({ where: { tena

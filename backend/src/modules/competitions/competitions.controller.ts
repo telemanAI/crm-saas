@@ -86,6 +86,37 @@ export class CompetitionsController {
   }
 
   /**
+   * Phase G.2 — Monitor mensile aggregato per la sidebar/dashboard.
+   * Ritorna un riepilogo dello shop attivo per il MESE CORRENTE:
+   *   - totale pratiche elaborate (ACTIVATED) del mese, breakdown per categoria
+   *   - per ogni gara in corso: total entries, sum target_pieces, top 3 venditori
+   * Indipendente dalle gare ("la gara prescinde dal monitor delle pratiche").
+   *
+   * IMPORTANTE: questa rotta DEVE stare PRIMA di `:id` altrimenti NestJS la
+   * matcha come `@Get(':id')` con ParseUUIDPipe → 400 Bad Request perché
+   * "monthly-overview" non è un UUID valido. Era questo il bug della dashboard
+   * che mostrava vuoto in produzione.
+   */
+  @Get('monthly-overview')
+  @HttpCode(HttpStatus.OK)
+  async monthlyOverview(@Req() req: any, @Query('top') top?: string) {
+    if (!req.user?.tenantId) {
+      return {
+        practicesActivatedThisMonth: 0,
+        byCategory: {},
+        activeCompetitions: [],
+        monthLabel: '',
+      };
+    }
+    const topN = top ? Math.max(1, Math.min(50, parseInt(top, 10) || 3)) : 3;
+    // Solo founder/admin/super_admin vedono le gare nascoste (isHidden=true)
+    const role = req.user?.role || '';
+    const viewerCanSeeHidden =
+      role === 'SUPER_ADMIN' || role === 'FOUNDER' || role === 'ADMIN';
+    return this.entriesService.monthlyOverview(req.user.tenantId, topN, viewerCanSeeHidden);
+  }
+
+  /**
    * TAPPA 3.1 — Dropdown offerte per modale gara.
    * Restituisce offers raggruppate per provider (per category fixed_line/mobile/energy).
    */
@@ -114,6 +145,38 @@ export class CompetitionsController {
       providers: Array.from(providers).sort(),
       grouped,
     };
+  }
+
+  /**
+   * Tappa 3.2 — Lista degli shop della company del tenant attivo.
+   * Usato dal modale "Crea/Modifica Gara" per popolare il selettore
+   * "shop partecipanti" quando scopeType=company.
+   */
+  @Get('company/shops')
+  @RequirePermission('canViewCompetitions')
+  async companyShops(@Req() req: any) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: req.user.tenantId } });
+    if (!tenant?.companyId) {
+      // Niente company → ritorna solo lo shop attivo
+      return [
+        {
+          shopId: tenant?.id ?? req.user.tenantId,
+          name: tenant?.name ?? 'Negozio attivo',
+          isActiveShop: true,
+        },
+      ];
+    }
+    const shops = await this.tenantRepo.find({
+      where: { companyId: tenant.companyId },
+      select: ['id', 'name', 'subscriptionCode'],
+      order: { name: 'ASC' },
+    });
+    return shops.map((s) => ({
+      shopId: s.id,
+      name: s.name,
+      subscriptionCode: s.subscriptionCode,
+      isActiveShop: s.id === req.user.tenantId,
+    }));
   }
 
   @Get(':id')
@@ -163,32 +226,6 @@ export class CompetitionsController {
       await this.competitionsService.findOne(req.user.tenantId, id);
     }
     return this.entriesService.diagnoseCompetition(id);
-  }
-
-  /**
-   * Phase G.2 — Monitor mensile aggregato per la sidebar/dashboard.
-   * Ritorna un riepilogo dello shop attivo per il MESE CORRENTE:
-   *   - totale pratiche elaborate (ACTIVATED) del mese, breakdown per categoria
-   *   - per ogni gara in corso: total entries, sum target_pieces, top 3 venditori
-   * Indipendente dalle gare ("la gara prescinde dal monitor delle pratiche").
-   */
-  @Get('monthly-overview')
-  @HttpCode(HttpStatus.OK)
-  async monthlyOverview(@Req() req: any, @Query('top') top?: string) {
-    if (!req.user?.tenantId) {
-      return {
-        practicesActivatedThisMonth: 0,
-        byCategory: {},
-        activeCompetitions: [],
-        monthLabel: '',
-      };
-    }
-    const topN = top ? Math.max(1, Math.min(50, parseInt(top, 10) || 3)) : 3;
-    // Solo founder/admin/super_admin vedono le gare nascoste (isHidden=true)
-    const role = req.user?.role || '';
-    const viewerCanSeeHidden =
-      role === 'SUPER_ADMIN' || role === 'FOUNDER' || role === 'ADMIN';
-    return this.entriesService.monthlyOverview(req.user.tenantId, topN, viewerCanSeeHidden);
   }
 
   @Patch(':id')

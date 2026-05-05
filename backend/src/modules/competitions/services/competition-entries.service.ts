@@ -138,7 +138,10 @@ export class CompetitionEntriesService {
   /**
    * Determina la lista di shop che contribuiscono alla gara.
    * - scopeType='shop'    → solo `comp.tenantId`
-   * - scopeType='company' → tutti i tenant con stesso `companyId`
+   * - scopeType='company' + selectedShopIds VALORIZZATO → solo quegli shop
+   *   (Tappa 3.2: permette al founder di creare gare company con un sotto-
+   *   insieme di negozi, es. company con 10 shop → 2 gare da 5 shop l'una)
+   * - scopeType='company' senza selectedShopIds → tutti i tenant con stesso `companyId`
    *
    * Phase H — Hardening: se scope=company ma companyId è NULL (gara creata
    * prima dell'introduzione delle company, o config errata del tenant),
@@ -146,18 +149,23 @@ export class CompetitionEntriesService {
    * che faceva fallire `IN (:...shopIds)` con array contenente null.
    */
   private async resolveShopScope(comp: Competition): Promise<string[]> {
-    if (comp.scopeType === 'company' && comp.companyId) {
-      const tenants = await this.tenantRepo.find({
-        where: { companyId: comp.companyId },
-        select: ['id'],
-      });
-      const ids = tenants.map((t) => t.id).filter(Boolean);
-      if (ids.length > 0) return ids;
-    }
-    if (comp.scopeType === 'company' && !comp.companyId) {
+    if (comp.scopeType === 'company') {
+      // Tappa 3.2: sotto-selezione esplicita
+      if (Array.isArray(comp.selectedShopIds) && comp.selectedShopIds.length > 0) {
+        return comp.selectedShopIds.filter(Boolean);
+      }
+      // Default: tutti gli shop della company
+      if (comp.companyId) {
+        const tenants = await this.tenantRepo.find({
+          where: { companyId: comp.companyId },
+          select: ['id'],
+        });
+        const ids = tenants.map((t) => t.id).filter(Boolean);
+        if (ids.length > 0) return ids;
+      }
       // eslint-disable-next-line no-console
       console.warn(
-        `[Competition ${comp.id}] scopeType=company ma companyId=null → fallback a tenantId solo`,
+        `[Competition ${comp.id}] scopeType=company ma companyId=null e selectedShopIds vuoto → fallback a tenantId solo`,
       );
     }
     return [comp.tenantId].filter(Boolean) as string[];
@@ -601,15 +609,47 @@ export class CompetitionEntriesService {
         .where('e.competitionId = :cid', { cid: comp.id })
         .getRawOne();
 
+      // Tappa 3.2 — Breakdown per shop (per il chart multi-negozio sulla
+      // dashboard). Ha senso solo per gare scope=company che coinvolgono
+      // più shop, ma ritorniamo sempre la lista per uniformità.
+      const byShopRaw = await this.entryRepo
+        .createQueryBuilder('e')
+        .select('e.tenantId', 'shopId')
+        .addSelect('SUM(e.pieces)', 'pieces')
+        .where('e.competitionId = :cid', { cid: comp.id })
+        .groupBy('e.tenantId')
+        .getRawMany();
+      const shopMap = new Map(
+        (
+          await this.tenantRepo.find({
+            where: { id: In(scopeIds.length ? scopeIds : ['00000000-0000-0000-0000-000000000000']) },
+            select: ['id', 'name'],
+          })
+        ).map((t) => [t.id, t.name]),
+      );
+      // Includi anche gli shop in scope ma con 0 pezzi (così il chart è completo)
+      const byShop = scopeIds.map((sid) => {
+        const row = byShopRaw.find((r) => r.shopId === sid);
+        return {
+          shopId: sid,
+          shopName: shopMap.get(sid) || sid.slice(0, 8),
+          pieces: row ? parseInt(row.pieces, 10) || 0 : 0,
+        };
+      });
+      // Ordina per pezzi DESC poi nome
+      byShop.sort((a, b) => b.pieces - a.pieces || a.shopName.localeCompare(b.shopName));
+
       activeCompetitions.push({
         id: comp.id,
         title: comp.title,
         startDate: comp.startDate,
         endDate: comp.endDate,
         scopeType: comp.scopeType,
+        selectedShopIds: comp.selectedShopIds || null,
         isHidden: comp.isHidden === true,
         totalTargetPieces,
         totalEntriesPieces: parseInt(totalEntries?.total ?? '0', 10),
+        byShop, // Tappa 3.2: chart multi-shop per gare company
         progressPercent: totalTargetPieces
           ? Math.min(
               100,

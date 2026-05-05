@@ -142,6 +142,15 @@ export class CreateCompetitionDto {
   @IsBoolean()
   isHidden?: boolean;
 
+  /**
+   * Tappa 3.2: shop selezionati per gare scope=company.
+   * Se omesso o array vuoto e scope=company → tutti gli shop della company.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  selectedShopIds?: string[];
+
   @IsOptional()
   @IsString()
   @MaxLength(80)
@@ -191,6 +200,15 @@ export class UpdateCompetitionDto {
   @IsOptional()
   @IsBoolean()
   isHidden?: boolean;
+
+  /**
+   * Tappa 3.2: shop selezionati per gare scope=company.
+   * Se omesso o array vuoto e scope=company → tutti gli shop della company.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  selectedShopIds?: string[];
 
   @IsOptional()
   @IsString()

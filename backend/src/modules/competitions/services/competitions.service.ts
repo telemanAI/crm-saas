@@ -113,6 +113,11 @@ export class CompetitionsService {
         templateKey: dto.templateKey?.trim() || null,
         scopeType: dto.scopeType ?? 'shop',           // Tappa 3.1
         isHidden: dto.isHidden ?? false,              // Tappa 3.1
+        // Tappa 3.2: sotto-selezione shop per gare company
+        selectedShopIds:
+          dto.scopeType === 'company' && Array.isArray(dto.selectedShopIds) && dto.selectedShopIds.length
+            ? dto.selectedShopIds
+            : null,
         createdById: createdBy,
       });
       const saved = await compRepo.save(comp);
@@ -160,6 +165,15 @@ export class CompetitionsService {
       if (dto.isActive !== undefined) c.isActive = dto.isActive;
       if (dto.scopeType !== undefined) c.scopeType = dto.scopeType;       // Tappa 3.1
       if (dto.isHidden !== undefined) c.isHidden = dto.isHidden;          // Tappa 3.1
+      // Tappa 3.2: aggiorna sotto-selezione shop (se scope diventa shop, azzera)
+      if (dto.selectedShopIds !== undefined) {
+        c.selectedShopIds =
+          (dto.scopeType ?? c.scopeType) === 'company' && dto.selectedShopIds.length
+            ? dto.selectedShopIds
+            : null;
+      } else if (dto.scopeType === 'shop') {
+        c.selectedShopIds = null;
+      }
       if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
       await compRepo.save(c);
 
@@ -448,8 +462,9 @@ export class CompetitionsService {
 
   /**
    * Per ogni entry, carica la pratica corrispondente (sourceType=PRACTICE)
-   * e risolve venditore + offerta. Output usato dal dropdown UI per mostrare
-   * "quale promo è stata fatta per riempire la gara".
+   * e risolve venditore + offerta + cliente + shop. Output usato dal dropdown
+   * UI per mostrare "quale promo è stata fatta per riempire la gara, da chi
+   * e per quale cliente".
    */
   private async buildPracticeBreakdown(entries: CompetitionEntry[]): Promise<Array<any>> {
     const practiceIds = entries
@@ -457,22 +472,29 @@ export class CompetitionsService {
       .map((e) => e.sourceId as string);
     if (practiceIds.length === 0) return [];
 
-    const practices = await this.practiceRepo.find({
-      where: { id: In(practiceIds) },
-      select: [
-        'id',
-        'tenantId',
-        'type',
-        'category',
-        'offerName',
-        'offerCode',
-        'offerId',
-        'soldById',
-        'createdAt',
-        'status',
-        'operationalStatus',
-      ],
-    });
+    // Usiamo QueryBuilder per evitare di dover importare Customer entity in
+    // questo service: facciamo un raw join opzionale su customers (per nome).
+    const practices = await this.practiceRepo
+      .createQueryBuilder('p')
+      .leftJoin('customers', 'c', 'c.id = p.customer_id')
+      .select([
+        'p.id AS id',
+        'p.tenant_id AS "tenantId"',
+        'p.type AS type',
+        'p.category AS category',
+        'p.offer_name AS "offerName"',
+        'p.offer_code AS "offerCode"',
+        'p.offer_id AS "offerId"',
+        'p.sold_by_id AS "soldById"',
+        'p.customer_id AS "customerId"',
+        'p.created_at AS "createdAt"',
+        'p.status AS status',
+        'p.operational_status AS "operationalStatus"',
+        'TRIM(CONCAT(COALESCE(c.first_name, \'\'), \' \', COALESCE(c.last_name, \'\'))) AS "customerName"',
+      ])
+      .where('p.id IN (:...ids)', { ids: practiceIds })
+      .getRawMany();
+
     const sellerIds = Array.from(
       new Set(practices.map((p) => p.soldById).filter(Boolean) as string[]),
     );
@@ -490,6 +512,16 @@ export class CompetitionsService {
       select: ['id', 'name', 'provider'],
     });
     const offerMap = new Map(offers.map((o) => [o.id, o]));
+
+    // Risolvi i nomi degli shop (gare scope=company → entries di shop diversi)
+    const shopIds = Array.from(
+      new Set(practices.map((p) => p.tenantId).filter(Boolean) as string[]),
+    );
+    const shops = await this.tenantRepo.find({
+      where: { id: In(shopIds.length ? shopIds : ['00000000-0000-0000-0000-000000000000']) },
+      select: ['id', 'name'],
+    });
+    const shopMap = new Map(shops.map((t) => [t.id, t.name]));
 
     return entries
       .filter((e) => e.sourceType === 'PRACTICE' && e.sourceId)
@@ -513,6 +545,11 @@ export class CompetitionsService {
           sellerName: seller
             ? `${seller.firstName ?? ''} ${seller.lastName ?? ''}`.trim() || seller.email
             : 'Sconosciuto',
+          // Tappa 3.2 — cliente e shop di vendita
+          customerId: p?.customerId ?? null,
+          customerName: p?.customerName?.trim() || null,
+          shopId: p?.tenantId ?? null,
+          shopName: p?.tenantId ? shopMap.get(p.tenantId) ?? null : null,
         };
       });
   }

@@ -10,27 +10,26 @@ import {
   ChartBar,
   Storefront,
   User as UserIcon,
+  Buildings,
 } from 'phosphor-react';
 import api from '@/lib/axios';
 import { useAuthStore } from '@/stores/authStore';
 
 /**
- * UNIFIED — Widget gare + I miei pezzi (con dropdown dettaglio).
+ * UNIFIED — Widget gare + I miei pezzi + Chart multi-shop.
  *
- * Sostituisce sia `MyPiecesWidget` che il vecchio `LiveCompetitionsWidget`.
- *
- * Layout:
- *   1. Header con "I miei pezzi del mese" (totale + breakdown categorie)
- *   2. Per ogni gara in corso, una card che mostra:
- *      - Totali gara (pezzi raccolti / target)
- *      - Per ogni operatore in classifica:
- *          NOME · pezzi IN gara · pezzi FUORI gara
- *      - Espandendo: lista delle PRATICHE che riempiono la gara con
- *        offerta · gestore (provider) · venditore · data
- *        → fonte: GET /competitions/:id/leaderboard (practiceBreakdown)
- *
- * Le gare nascoste (isHidden=true) NON arrivano al frontend per gli utenti
- * non founder/admin: il filtro è applicato lato backend.
+ * Layout per ogni gara:
+ *   ┌──────────────────────────────────────────────────────┐
+ *   │ Titolo · 12/20 pezzi · 60% [progress bar globale]    │
+ *   ├──────────────────────────────────────────────────────┤
+ *   │ Operatori (top): nome · in gara · fuori gara         │
+ *   ├──────────────────────────────────────────────────────┤
+ *   │ Shops (solo se scope=company): Mascalucia 5 · ...    │  ← Tappa 3.2
+ *   ├──────────────────────────────────────────────────────┤
+ *   │ ▼ Vedi dettagli pratiche · classifica completa       │
+ *   └──────────────────────────────────────────────────────┘
+ *      ↓ click espandi
+ *   Lista pratiche: offerta · gestore · venditore · cliente · data
  */
 type Top = {
   userId: string;
@@ -39,16 +38,23 @@ type Top = {
   inCompetitionPieces?: number;
   outOfCompetitionPieces?: number;
 };
+type ShopSlice = {
+  shopId: string;
+  shopName: string;
+  pieces: number;
+};
 type Live = {
   id: string;
   title: string;
   startDate: string;
   endDate: string;
-  scopeType: string;
+  scopeType: 'shop' | 'company';
+  selectedShopIds?: string[] | null;
   isHidden: boolean;
   totalTargetPieces: number;
   totalEntriesPieces: number;
   progressPercent: number;
+  byShop?: ShopSlice[];
   top3: Top[];
 };
 type Overview = {
@@ -74,6 +80,10 @@ type PracticeRow = {
   category: string | null;
   sellerId: string | null;
   sellerName: string;
+  customerId: string | null;
+  customerName: string | null;
+  shopId: string | null;
+  shopName: string | null;
   pieces: number;
 };
 type Leaderboard = {
@@ -94,6 +104,18 @@ const CAT_LABEL: Record<string, string> = {
   DEVICE: 'Dispositivi',
   UNKNOWN: 'Altro',
 };
+
+// Palette stabile per shop chart (max 8 shop, poi cicla)
+const SHOP_COLORS = [
+  'bg-amber-500',
+  'bg-cyan-500',
+  'bg-fuchsia-500',
+  'bg-emerald-500',
+  'bg-rose-500',
+  'bg-indigo-500',
+  'bg-orange-500',
+  'bg-teal-500',
+];
 
 export default function CompetitionsHub({
   canManageCompetitions,
@@ -122,7 +144,7 @@ export default function CompetitionsHub({
         setMyPieces(myRes.data);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('[CompetitionsHub]', err);
+        console.warn('[CompetitionsHub] overview non caricabile', err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -139,7 +161,6 @@ export default function CompetitionsHub({
     }
     setExpandedId(compId);
 
-    // 1. Carica top esteso (top=20) se non già fatto
     if (!extendedRanking[compId]) {
       try {
         const res = await api.get('/competitions/monthly-overview?top=20');
@@ -153,7 +174,6 @@ export default function CompetitionsHub({
       }
     }
 
-    // 2. Carica practiceBreakdown (dettaglio promo + gestore + venditore)
     if (!leaderboards[compId]) {
       setLeaderboardLoading((s) => ({ ...s, [compId]: true }));
       try {
@@ -191,7 +211,7 @@ export default function CompetitionsHub({
       className="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-900/10 border border-amber-500/30 rounded-2xl overflow-hidden"
       data-testid="dashboard-competitions-hub"
     >
-      {/* Header personale: I miei pezzi del mese */}
+      {/* Header personale */}
       <div className="p-6 border-b border-slate-800/80 bg-amber-500/5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
@@ -269,6 +289,11 @@ export default function CompetitionsHub({
                 isExpanded && extendedRanking[c.id] ? extendedRanking[c.id] : c.top3;
               const lb = leaderboards[c.id];
               const lbLoading = leaderboardLoading[c.id];
+              const showShops =
+                c.scopeType === 'company' && Array.isArray(c.byShop) && c.byShop.length > 1;
+              const totalShopPieces = showShops
+                ? Math.max(1, c.byShop!.reduce((s, x) => s + x.pieces, 0))
+                : 1;
 
               return (
                 <div
@@ -276,7 +301,7 @@ export default function CompetitionsHub({
                   className="border border-slate-800 rounded-xl bg-slate-950/50 overflow-hidden"
                   data-testid={`hub-comp-${c.id}`}
                 >
-                  {/* Header card: titolo + totali */}
+                  {/* Header card */}
                   <Link
                     href={`/operator/competitions/${c.id}`}
                     className="block p-3 hover:bg-slate-900/60 transition"
@@ -285,6 +310,18 @@ export default function CompetitionsHub({
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-slate-200 hover:text-amber-300 truncate flex items-center gap-1.5">
                           {c.title}
+                          {c.scopeType === 'company' && (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded"
+                              title={
+                                c.selectedShopIds && c.selectedShopIds.length
+                                  ? `${c.selectedShopIds.length} negozi selezionati`
+                                  : 'Tutti i negozi della company'
+                              }
+                            >
+                              <Buildings className="w-3 h-3" /> Company
+                            </span>
+                          )}
                           {c.isHidden && canManageCompetitions && (
                             <EyeSlash className="w-3.5 h-3.5 text-slate-500" />
                           )}
@@ -363,6 +400,44 @@ export default function CompetitionsHub({
                     </div>
                   )}
 
+                  {/* Tappa 3.2 — Chart per shop (solo gare company multi-negozio) */}
+                  {showShops && (
+                    <div
+                      className="px-3 pb-3 border-t border-slate-800 pt-2.5"
+                      data-testid={`hub-shop-chart-${c.id}`}
+                    >
+                      <div className="text-[10px] uppercase tracking-widest text-cyan-400/80 mb-1.5 flex items-center gap-1">
+                        <Buildings className="w-3 h-3" /> Avanzamento per negozio
+                      </div>
+                      {/* Barra impilata */}
+                      <div className="flex h-2 rounded overflow-hidden bg-slate-800 mb-2">
+                        {c.byShop!.map((s, i) => (
+                          <div
+                            key={s.shopId}
+                            className={`${SHOP_COLORS[i % SHOP_COLORS.length]} transition-all`}
+                            style={{ width: `${(s.pieces / totalShopPieces) * 100}%` }}
+                            title={`${s.shopName}: ${s.pieces} pezzi`}
+                          />
+                        ))}
+                      </div>
+                      {/* Legenda + numeri */}
+                      <div className="grid grid-cols-2 gap-1">
+                        {c.byShop!.map((s, i) => (
+                          <div
+                            key={s.shopId}
+                            className="flex items-center gap-1.5 text-[11px] text-slate-300"
+                          >
+                            <span
+                              className={`inline-block w-2 h-2 rounded-sm ${SHOP_COLORS[i % SHOP_COLORS.length]}`}
+                            />
+                            <span className="truncate flex-1">{s.shopName}</span>
+                            <span className="font-bold tabular-nums">{s.pieces}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Bottone espandi */}
                   <button
                     onClick={() => handleExpand(c.id)}
@@ -380,7 +455,7 @@ export default function CompetitionsHub({
                     )}
                   </button>
 
-                  {/* Dropdown: dettaglio pratiche */}
+                  {/* Dropdown: dettaglio pratiche con CLIENTE */}
                   {isExpanded && (
                     <div
                       className="border-t border-slate-800 bg-slate-900/40 px-3 py-3"
@@ -399,30 +474,44 @@ export default function CompetitionsHub({
                       {!lbLoading && lb && lb.practiceBreakdown.length > 0 && (
                         <div>
                           <div className="text-[11px] uppercase tracking-widest text-slate-500 mb-2">
-                            Pratiche che hanno riempito la gara · {lb.practiceBreakdown.length}
+                            Pratiche · {lb.practiceBreakdown.length}
                           </div>
-                          <div className="space-y-1 max-h-72 overflow-auto pr-1">
+                          <div className="space-y-1.5 max-h-80 overflow-auto pr-1">
                             {lb.practiceBreakdown.map((p) => (
                               <div
                                 key={p.entryId}
-                                className="flex flex-wrap items-center gap-2 bg-slate-950/60 border border-slate-800 rounded px-2 py-1.5 text-[11px]"
+                                className="bg-slate-950/60 border border-slate-800 rounded px-2.5 py-2 text-[11px]"
                               >
-                                <span className="text-slate-300 font-semibold flex-1 min-w-[120px] truncate">
-                                  {p.offerName || '— offerta —'}
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-slate-400">
-                                  <Storefront className="w-3 h-3" />
-                                  {p.provider || 'n/d'}
-                                </span>
-                                <span className="inline-flex items-center gap-1 text-cyan-300">
-                                  <UserIcon className="w-3 h-3" />
-                                  {p.sellerName}
-                                </span>
-                                <span className="text-slate-500">
-                                  {p.practiceCreatedAt
-                                    ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
-                                    : ''}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                                    {p.offerName || '— offerta —'}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-slate-400">
+                                    <Storefront className="w-3 h-3" />
+                                    {p.provider || 'n/d'}
+                                  </span>
+                                  <span className="text-slate-500">
+                                    {p.practiceCreatedAt
+                                      ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
+                                      : ''}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                                  <span className="inline-flex items-center gap-1 text-cyan-300">
+                                    <UserIcon className="w-3 h-3" /> Venduto da:{' '}
+                                    <strong>{p.sellerName}</strong>
+                                  </span>
+                                  {p.customerName && (
+                                    <span className="inline-flex items-center gap-1 text-emerald-300">
+                                      Cliente: <strong>{p.customerName}</strong>
+                                    </span>
+                                  )}
+                                  {p.shopName && c.scopeType === 'company' && (
+                                    <span className="inline-flex items-center gap-1 text-fuchsia-300">
+                                      <Buildings className="w-3 h-3" /> {p.shopName}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>

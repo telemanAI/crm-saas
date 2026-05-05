@@ -53,6 +53,27 @@ interface OperatorRow {
   pieces: number;
   revenue: number;
   rank: number;
+  /** Backend (enrichOperatorRanking) — nome reale risolto dal DB */
+  displayName?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}
+interface PracticeBreakdownRow {
+  entryId: string;
+  targetId: string | null;
+  pieces: number;
+  practiceId: string | null;
+  practiceCreatedAt: string | null;
+  provider: string | null;
+  offerName: string | null;
+  category: string | null;
+  sellerId: string | null;
+  sellerName: string;
+  customerId: string | null;
+  customerName: string | null;
+  shopId: string | null;
+  shopName: string | null;
 }
 interface CompanyAggregate {
   siblingCompetitionIds: string[];
@@ -74,6 +95,8 @@ interface LeaderboardData {
   operatorRanking: OperatorRow[];
   totals: { pieces: number; revenue: number; entriesCount: number };
   companyAggregate: CompanyAggregate | null;
+  /** Tappa 3.2 — dettaglio per dropdown UI */
+  practiceBreakdown?: PracticeBreakdownRow[];
 }
 
 interface UserLite {
@@ -125,6 +148,8 @@ export default function CompetitionDetailPage() {
   const [board, setBoard] = useState<LeaderboardData | null>(null);
   const [users, setUsers] = useState<Record<string, UserLite>>({});
   const [loading, setLoading] = useState(true);
+  // Tappa 3.2 — riga operatore espansa nel dropdown classifica
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const [editOpen, setEditOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -529,40 +554,121 @@ export default function CompetitionDetailPage() {
             <div className="space-y-1.5">
               {board.operatorRanking.map((row) => {
                 const u = users[row.userId];
-                const name = userLabel(u, `Utente ${row.userId.slice(0, 8)}`);
+                // Tappa 3.2 — preferisci displayName fornito dal backend
+                // (enrichOperatorRanking) → niente più "Utente xxx"
+                const name = row.displayName || userLabel(u, `Utente ${row.userId.slice(0, 8)}`);
                 const isPodium = row.rank <= 3;
+                const isMe = row.userId === useAuthStore.getState().user?.id;
+                const myPracticesForRow = (board.practiceBreakdown || []).filter(
+                  (pb) => pb.sellerId === row.userId,
+                );
+                const isExpanded = expandedRow === row.userId;
                 return (
                   <div
                     key={row.userId}
-                    className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 border ${
+                    className={`rounded-lg border overflow-hidden ${
                       isPodium
                         ? 'bg-amber-500/5 border-amber-500/30'
                         : 'bg-slate-900 border-slate-700'
                     }`}
                     data-testid={`rank-row-${row.userId}`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0">
-                        {rankIcon(row.rank) || (
-                          <span className="text-xs font-bold text-slate-400">#{row.rank}</span>
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-white font-medium truncate">{name}</div>
-                        {u?.email && (
-                          <div className="text-xs text-slate-500 truncate">{u.email}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="text-white font-bold">{row.pieces}</div>
-                      <div className="text-xs text-slate-500">pezzi</div>
-                      {row.revenue > 0 && (
-                        <div className="text-xs text-slate-400">
-                          € {row.revenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedRow(isExpanded ? null : row.userId)
+                      }
+                      className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-800/40 transition"
+                      data-testid={`rank-row-toggle-${row.userId}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center flex-shrink-0">
+                          {rankIcon(row.rank) || (
+                            <span className="text-xs font-bold text-slate-400">#{row.rank}</span>
+                          )}
                         </div>
-                      )}
-                    </div>
+                        <div className="min-w-0">
+                          <div className="text-white font-medium truncate flex items-center gap-2">
+                            {name}
+                            {isMe && (
+                              <span className="text-[10px] uppercase tracking-widest text-cyan-300 font-semibold">
+                                tu
+                              </span>
+                            )}
+                          </div>
+                          {(row.email || u?.email) && (
+                            <div className="text-xs text-slate-500 truncate">
+                              {row.email || u?.email}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0 flex items-center gap-3">
+                        <div>
+                          <div className="text-white font-bold">{row.pieces}</div>
+                          <div className="text-xs text-slate-500">pezzi</div>
+                          {row.revenue > 0 && (
+                            <div className="text-xs text-slate-400">
+                              € {row.revenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-slate-500 text-xs">
+                          {isExpanded ? '▲' : '▼'}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* Tappa 3.2 — Espansione: pratiche di questo operatore con cliente */}
+                    {isExpanded && (
+                      <div
+                        className="border-t border-slate-700 bg-slate-950/40 px-3 py-2.5"
+                        data-testid={`rank-row-details-${row.userId}`}
+                      >
+                        {myPracticesForRow.length === 0 ? (
+                          <div className="text-xs text-slate-500 italic py-1">
+                            Nessuna pratica disponibile per questo operatore.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5 max-h-80 overflow-auto pr-1">
+                            <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                              {myPracticesForRow.length} pratiche
+                            </div>
+                            {myPracticesForRow.map((p) => (
+                              <div
+                                key={p.entryId}
+                                className="bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px]"
+                              >
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                                    {p.offerName || '— offerta —'}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-slate-400">
+                                    <Storefront className="w-3 h-3" />
+                                    {p.provider || 'n/d'}
+                                  </span>
+                                  <span className="text-slate-500">
+                                    {p.practiceCreatedAt
+                                      ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
+                                      : ''}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                                  {p.customerName && (
+                                    <span className="text-emerald-300">
+                                      Cliente: <strong>{p.customerName}</strong>
+                                    </span>
+                                  )}
+                                  {p.shopName && (
+                                    <span className="text-fuchsia-300">{p.shopName}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

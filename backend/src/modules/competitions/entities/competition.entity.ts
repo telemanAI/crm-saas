@@ -20,6 +20,13 @@ import { CompetitionPrize } from './competition-prize.entity';
  *
  * Tappa 3.1: aggiunto `isHidden`. Se true, la gara è visibile solo a
  * FOUNDER e SUPER_ADMIN (utile per gare interne / test / bonus segreti).
+ *
+ * Tappa 3.2 (fix-final4): aggiunto `selectedShopIds`. Permette di creare gare
+ * scope=company che includano SOLO un sottoinsieme degli shop della company
+ * (es. company con 10 shop → 2 gare separate da 5 shop l'una). Quando
+ * `scopeType=company` E `selectedShopIds` non è null/empty, la gara conta
+ * solo i pezzi di QUEI shop. Se null/empty su scope=company → tutti gli shop
+ * della company (comportamento legacy).
  */
 export type CompetitionScope = 'shop' | 'company';
 
@@ -71,6 +78,20 @@ export class Competition {
   /** Tappa 3.1: gara nascosta agli operator/admin. Solo FOUNDER+SUPER_ADMIN la vedono. */
   @Column({ name: 'is_hidden', type: 'boolean', default: false })
   isHidden: boolean;
+
+  /**
+   * Tappa 3.2: Sotto-selezione shop per gare scope=company.
+   * NULL o array vuoto = tutti gli shop della company (default legacy).
+   * Array di UUID = solo quegli shop partecipano alla gara.
+   * Ignorato per scope=shop.
+   */
+  @Column({
+    name: 'selected_shop_ids',
+    type: 'uuid',
+    array: true,
+    nullable: true,
+  })
+  selectedShopIds: string[] | null;
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdById: string | null;

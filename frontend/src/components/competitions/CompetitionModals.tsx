@@ -178,6 +178,14 @@ export function CompetitionModal({
   const [scopeType, setScopeType] = useState<CompetitionScope>('shop');
   const [isHidden, setIsHidden] = useState(false);
   const [templateKey, setTemplateKey] = useState('');
+  // Tappa 3.2 — sotto-selezione shop per gare scope=company
+  const [selectedShopIds, setSelectedShopIds] = useState<string[]>([]);
+  const [companyShops, setCompanyShops] = useState<Array<{
+    shopId: string;
+    name: string;
+    subscriptionCode?: string;
+    isActiveShop?: boolean;
+  }>>([]);
   const [targets, setTargets] = useState<CompetitionTarget[]>([]);
   const [prizes, setPrizes] = useState<CompetitionPrize[]>([]);
   const [tab, setTab] = useState<'general' | 'targets' | 'prizes'>('general');
@@ -193,6 +201,12 @@ export function CompetitionModal({
       setScopeType((initial?.scopeType as CompetitionScope) || 'shop');
       setIsHidden(initial?.isHidden ?? false);
       setTemplateKey(initial?.templateKey || '');
+      setSelectedShopIds((initial as any)?.selectedShopIds || []);
+      // Carica lista shop della company (best-effort)
+      api
+        .get('/competitions/company/shops')
+        .then((r) => setCompanyShops(r.data || []))
+        .catch(() => setCompanyShops([]));
       setTargets((initial?.targets || []).map((t) => ({
         ...t,
         targetType: t.targetType || (t.matchProviders?.length || t.matchOfferKeywords?.length ? 'specific' : 'category_generic'),
@@ -254,6 +268,9 @@ export function CompetitionModal({
         description: description.trim() || undefined,
         startDate, endDate, isActive, scopeType, isHidden,
         templateKey: templateKey.trim() || undefined,
+        // Tappa 3.2 — invia shop selezionati solo se scope=company
+        selectedShopIds:
+          scopeType === 'company' && selectedShopIds.length > 0 ? selectedShopIds : undefined,
         targets: cleanTargets,
         prizes: cleanPrizes,
       };
@@ -353,6 +370,81 @@ export function CompetitionModal({
                   </button>
                 </div>
               </div>
+
+              {/* Tappa 3.2 — Sotto-selezione shop per gare company */}
+              {scopeType === 'company' && companyShops.length > 1 && (
+                <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm text-emerald-200 font-semibold flex items-center gap-1">
+                      <Buildings className="w-4 h-4" /> Negozi che partecipano alla gara
+                    </label>
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShopIds(companyShops.map((s) => s.shopId))}
+                        className="text-[10px] uppercase tracking-widest text-emerald-300 hover:text-emerald-100"
+                        data-testid="select-all-shops"
+                      >
+                        Tutti
+                      </button>
+                      <span className="text-slate-600">·</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShopIds([])}
+                        className="text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-200"
+                        data-testid="clear-shops"
+                      >
+                        Nessuno
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-slate-400 mb-2">
+                    Lascia vuoto per includere <strong>tutti</strong> i negozi della company. Seleziona
+                    un sottoinsieme per creare gare parallele (es. 10 negozi → 2 gare da 5).
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-auto pr-1">
+                    {companyShops.map((s) => {
+                      const checked = selectedShopIds.includes(s.shopId);
+                      return (
+                        <label
+                          key={s.shopId}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded border cursor-pointer text-xs transition ${
+                            checked
+                              ? 'border-emerald-400 bg-emerald-500/10 text-emerald-100'
+                              : 'border-slate-700 bg-slate-800/40 text-slate-300 hover:border-slate-600'
+                          }`}
+                          data-testid={`shop-pick-${s.shopId}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedShopIds([...selectedShopIds, s.shopId]);
+                              } else {
+                                setSelectedShopIds(selectedShopIds.filter((x) => x !== s.shopId));
+                              }
+                            }}
+                            className="w-3.5 h-3.5"
+                          />
+                          <Storefront className="w-3.5 h-3.5 text-slate-400" />
+                          <span className="flex-1 truncate font-medium">{s.name}</span>
+                          {s.isActiveShop && (
+                            <span className="text-[9px] uppercase tracking-widest text-amber-400">
+                              attivo
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 text-[11px] text-emerald-300">
+                    {selectedShopIds.length === 0
+                      ? `→ Tutti i ${companyShops.length} negozi parteciperanno`
+                      : `→ ${selectedShopIds.length} su ${companyShops.length} negozi selezionati`}
+                  </div>
+                </div>
+              )}
 
               {/* === Tappa 3.1 — Hidden === */}
               <label className="flex items-start gap-2 cursor-pointer p-3 bg-slate-800/40 border border-slate-700 rounded">

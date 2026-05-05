@@ -156,36 +156,37 @@ export class ProductsService {
     // vogliamo capirlo subito dai log Railway senza dover arrivare al client
     // un crash anonimo.
     try {
-      // FIX: Usiamo query builder INSERT esplicita per evitare problemi di
-      // mapping TypeORM con colonne in ordine diverso dall'entity.
-      // Il DB ha la colonna tenant_id in posizione 2, ma TypeORM mappava
-      // il valore in posizione sbagliata causando 23502 not_null_violation.
-      const insertResult = await this.itemRepo
-        .createQueryBuilder()
-        .insert()
-        .into('inventory_items')
-        .values({
-          tenant_id: tenantId,
+      // FIX BULLETPROOF: Raw SQL diretto per bypassare COMPLETAMENTE
+      // il mapping TypeORM che mappava tenantId in posizione sbagliata.
+      // Il DB ha tenant_id in posizione 2 (dopo id), e senza questo fix
+      // il valore finiva in group_id o altre colonne causando 23502.
+      const insertResult = await this.dataSource.query(
+        `INSERT INTO inventory_items
+          (tenant_id, sku, name, description, category,
+           quantity, reserved_quantity, reorder_level,
+           unit_cost, selling_price, group_id, custom_fields,
+           is_for_sale, supplier_info, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+         RETURNING id`,
+        [
+          tenantId,
           sku,
-          name: dto.name.trim(),
-          description: dto.description?.trim() || null,
-          category: dto.category?.trim() || null,
-          quantity: dto.quantity ?? 0,
-          reserved_quantity: 0,
-          reorder_level: dto.reorderLevel ?? 5,
-          unit_cost: dto.unitCost ?? null,
-          selling_price: dto.sellingPrice ?? null,
-          group_id: dto.groupId || null,
-          custom_fields: dto.customFields || null,
-          is_for_sale: dto.isForSale ?? true,
-          supplier_info: null,
-          created_at: new Date(),
-          updated_at: new Date(),
-        } as any)
-        .returning('id')
-        .execute();
+          dto.name.trim(),
+          dto.description?.trim() || null,
+          dto.category?.trim() || null,
+          dto.quantity ?? 0,
+          0,
+          dto.reorderLevel ?? 5,
+          dto.unitCost ?? null,
+          dto.sellingPrice ?? null,
+          dto.groupId || null,
+          dto.customFields ? JSON.stringify(dto.customFields) : null,
+          dto.isForSale ?? true,
+          null,
+        ],
+      );
 
-      const savedId = insertResult.raw[0]?.id || insertResult.identifiers[0]?.id;
+      const savedId = insertResult?.[0]?.id;
       if (!savedId) {
         throw new Error('INSERT inventory_items non ha restituito un ID');
       }

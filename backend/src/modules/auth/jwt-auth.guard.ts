@@ -9,11 +9,17 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Token mancante');
+    // Supporta sia header Bearer che query param ?token= (necessario per SSE/EventSource)
+    let token: string | null = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (request.query?.token) {
+      token = String(request.query.token);
     }
 
-    const token = authHeader.substring(7);
+    if (!token) {
+      throw new UnauthorizedException('Token mancante');
+    }
 
     try {
       const payload = this.jwtService.verify(token);
@@ -31,6 +37,7 @@ export class JwtAuthGuard implements CanActivate {
         sub: payload.sub,
         email: payload.email,
         tenantId,
+        companyId: payload.companyId || null,
         role: payload.role,
         isSuperAdmin: payload.isSuperAdmin || false,
         isImpersonated: payload.isImpersonated || false,

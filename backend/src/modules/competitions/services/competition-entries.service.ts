@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, Brackets } from 'typeorm';
 import { Competition } from '../entities/competition.entity';
@@ -9,6 +9,9 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Offer } from '../../offers/entities/offer.entity';
 import { User } from '../../users/entities/user.entity';
 import { InventoryMovement } from '../../inventory/entities/inventory-movement.entity';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { Notification, NotificationType } from '../../notifications/entities/notification.entity';
+import { emitNotification } from '../../notifications/notifications.controller';
 
 /**
  * TAPPA 3.1 — Service Entries con due modalità complementari:
@@ -67,6 +70,8 @@ export class CompetitionEntriesService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(InventoryMovement)
     private readonly movementRepo: Repository<InventoryMovement>,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -476,6 +481,12 @@ export class CompetitionEntriesService {
       this.logger.log(
         `Practice ${practiceId} synced: +${toInsert.length} -${toRemove.length}`,
       );
+
+      // Notifica se qualche gara è stata completata
+      const affectedCompIds = [...new Set([...toInsert.map((d: any) => d.competitionId), ...toRemove.map((e: CompetitionEntry) => e.competitionId)])];
+      for (const cid of affectedCompIds) {
+        this.notifyIfCompetitionCompleted(cid).catch(() => {});
+      }
     }
   }
 
@@ -595,6 +606,12 @@ export class CompetitionEntriesService {
       this.logger.log(
         `DeviceSale ${movementId} synced: +${toInsert.length} -${toRemove.length}`,
       );
+
+      // Notifica se qualche gara è stata completata
+      const affectedCompIds = [...new Set([...toInsert.map((d) => d.competitionId), ...toRemove.map((e) => e.competitionId)])];
+      for (const cid of affectedCompIds) {
+        this.notifyIfCompetitionCompleted(cid).catch(() => {});
+      }
     }
   }
 
@@ -618,8 +635,70 @@ export class CompetitionEntriesService {
   }
 
   // =====================================================================
-  //  Phase G.2 — Monitor mensile (totali + top 3 venditori per gara attiva)
+  //  NOTIFICATION HELPERS — Notifica gara completata
   // =====================================================================
+
+  /**
+   * Controlla se una gara ha raggiunto il target. Se sì, invia notifica
+   * COMPETITION_COMPLETED a tutti i partecipanti. Evita duplicati
+   * controllando l'ultima notifica inviata.
+   */
+  async notifyIfCompetitionCompleted(competitionId: string): Promise<void> {
+    const competition = await this.competitionRepo.findOne({
+      where: { id: competitionId },
+      relations: ['targets'],
+    });
+    if (!competition || !competition.isActive) return;
+
+    // Somma targetPieces di tutti i target
+    const targetTotal = (competition.targets || []).reduce(
+      (s, t) => s + (Number(t.targetPieces) || 0),
+      0,
+    );
+    if (targetTotal <= 0) return;
+
+    // Conta entries totali
+    const entriesTotal = await this.entryRepo.count({
+      where: { competitionId },
+    });
+
+    if (entriesTotal < targetTotal) return;
+
+    // Gara completata! Notifica tutti i partecipanti.
+    const participants = await this.entryRepo
+      .createQueryBuilder('e')
+      .select('DISTINCT e.userId', 'userId')
+      .where('e.competitionId = :cid', { cid: competitionId })
+      .getRawMany<{ userId: string }>();
+
+    const userIds = participants.map((p) => p.userId).filter(Boolean);
+    if (userIds.length === 0) return;
+
+    // Usa il servizio iniettato (se disponibile)
+    if (!this.notificationsService) {
+      this.logger.log(`[notifyIfCompetitionCompleted] Competition "${competition.title}" completed! ${entriesTotal}/${targetTotal} pieces. Users: ${userIds.join(', ')} (no NotificationsService injected)`);
+      return;
+    }
+
+    for (const uid of userIds) {
+      try {
+        const notif = await this.notificationsService.create({
+          tenantId: competition.tenantId,
+          userId: uid,
+          type: NotificationType.COMPETITION_COMPLETED,
+          title: '🏆 Gara completata!',
+          message: `La gara "${competition.title}" è stata completata! ${entriesTotal} pezzi venduti su ${targetTotal} obiettivo. Grande lavoro di squadra!`,
+          linkUrl: `/operator/competitions/${competition.id}`,
+          linkLabel: 'Vedi gara',
+        });
+        emitNotification(uid, notif);
+      } catch (err) {
+        this.logger.warn(`[notifyIfCompetitionCompleted] Failed to notify user ${uid}:`, err);
+      }
+    }
+
+    this.logger.log(`[notifyIfCompetitionCompleted] Notified ${userIds.length} users for "${competition.title}"`);
+  }
 
   async monthlyOverview(
     activeShopId: string,

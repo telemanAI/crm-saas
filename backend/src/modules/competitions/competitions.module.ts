@@ -14,6 +14,7 @@ import { CompetitionEntriesService } from './services/competition-entries.servic
 import { CompetitionsAutoMonthlyService } from './services/competitions-auto-monthly.service';
 import { CompetitionsController } from './competitions.controller';
 import { MembershipsModule } from '../memberships/memberships.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
       InventoryMovement,
     ]),
     MembershipsModule,
+    forwardRef(() => NotificationsModule),
   ],
   providers: [CompetitionsService, CompetitionEntriesService, CompetitionsAutoMonthlyService],
   controllers: [CompetitionsController],

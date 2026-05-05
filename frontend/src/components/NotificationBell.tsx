@@ -20,6 +20,7 @@ export default function NotificationBell() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -28,8 +29,9 @@ export default function NotificationBell() {
     try {
       const res = await api.get<NotifItem[]>('/notifications?limit=20');
       setItems(res.data);
-    } catch {
-      // ignore
+      setError(null);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Errore caricamento');
     }
   }, []);
 
@@ -72,12 +74,15 @@ export default function NotificationBell() {
 
     const connect = () => {
       const token = localStorage.getItem('token') || '';
-      const es = new EventSource(
-        `${api.defaults.baseURL}/notifications/stream?token=${encodeURIComponent(token)}`,
-      );
+      if (!token) return;
+
+      const baseUrl = api.defaults.baseURL || '';
+      const url = `${baseUrl}/notifications/stream?token=${encodeURIComponent(token)}`;
+      const es = new EventSource(url);
 
       es.onopen = () => {
         setConnected(true);
+        setError(null);
       };
 
       es.onmessage = (ev) => {
@@ -153,11 +158,11 @@ export default function NotificationBell() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={toggle}
-        className="relative p-2 rounded-full hover:bg-slate-100 transition"
+        className="relative p-2 rounded-full hover:bg-slate-800 transition cursor-pointer"
         aria-label="Notifiche"
       >
         <svg
-          className="w-5 h-5 text-slate-600"
+          className="w-5 h-5 text-slate-400"
           fill="none"
           stroke="currentColor"
           strokeWidth={2}
@@ -175,17 +180,20 @@ export default function NotificationBell() {
           </span>
         )}
         {connected && count === 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-green-400 rounded-full" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full" />
+        )}
+        {!connected && !error && (
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-600 rounded-full" />
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-xl border border-slate-200 z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <h3 className="font-semibold text-sm text-slate-700">
+        <div className="absolute right-0 top-full mt-2 w-96 bg-slate-900 rounded-lg shadow-2xl border border-slate-700 z-[9999] overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+            <h3 className="font-semibold text-sm text-slate-200">
               Notifiche
               {count > 0 && (
-                <span className="ml-2 text-xs font-normal text-slate-400">
+                <span className="ml-2 text-xs font-normal text-slate-500">
                   ({count} non lette)
                 </span>
               )}
@@ -193,7 +201,7 @@ export default function NotificationBell() {
             {count > 0 && (
               <button
                 onClick={markAllRead}
-                className="text-xs text-blue-600 hover:text-blue-800 transition"
+                className="text-xs text-amber-400 hover:text-amber-300 transition"
               >
                 Segna tutte come lette
               </button>
@@ -202,29 +210,34 @@ export default function NotificationBell() {
 
           <div className="max-h-[28rem] overflow-y-auto">
             {loading && (
-              <div className="text-center py-4 text-xs text-slate-400">
+              <div className="text-center py-4 text-xs text-slate-500">
                 Caricamento…
               </div>
             )}
-            {!loading && items.length === 0 && (
-              <div className="text-center py-6 text-sm text-slate-400">
+            {error && (
+              <div className="text-center py-4 text-xs text-red-400">
+                {error}
+              </div>
+            )}
+            {!loading && !error && items.length === 0 && (
+              <div className="text-center py-6 text-sm text-slate-500">
                 Nessuna notifica
               </div>
             )}
-            {!loading &&
+            {!loading && !error &&
               items.map((n) => (
                 <div
                   key={n.id}
                   onClick={() => {
                     if (!n.isRead) markRead(n.id);
-                    setOpen(false);
+                    if (!n.linkUrl) setOpen(false);
                   }}
-                  className={`px-4 py-3 border-b border-slate-50 cursor-pointer transition hover:bg-slate-50 ${
-                    !n.isRead ? 'bg-blue-50/40' : ''
+                  className={`px-4 py-3 border-b border-slate-800 cursor-pointer transition hover:bg-slate-800 ${
+                    !n.isRead ? 'bg-slate-800/60' : ''
                   }`}
                 >
                   {n.linkUrl ? (
-                    <Link href={n.linkUrl} className="block">
+                    <Link href={n.linkUrl} className="block" onClick={() => setOpen(false)}>
                       <NotifRow n={n} timeAgo={timeAgo} />
                     </Link>
                   ) : (
@@ -250,17 +263,17 @@ function NotifRow({
     <div className="flex items-start gap-2.5">
       <span
         className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${
-          !n.isRead ? 'bg-blue-500' : 'bg-slate-200'
+          !n.isRead ? 'bg-amber-400' : 'bg-slate-600'
         }`}
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 truncate">
+        <p className="text-sm font-medium text-slate-200 truncate">
           {n.title}
         </p>
-        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">
           {n.message}
         </p>
-        <p className="text-[10px] text-slate-400 mt-1">
+        <p className="text-[10px] text-slate-500 mt-1">
           {timeAgo(n.createdAt)}
         </p>
       </div>
@@ -274,8 +287,8 @@ function showToast(title: string, message: string) {
   if (!container) return;
   const toast = document.createElement('div');
   toast.className =
-    'bg-white border border-slate-200 rounded-lg shadow-lg p-3 mb-2 max-w-xs animate-slide-in';
-  toast.innerHTML = `<p class="text-sm font-semibold text-slate-700">${escapeHtml(title)}</p><p class="text-xs text-slate-500 mt-0.5">${escapeHtml(message)}</p>`;
+    'bg-slate-800 border border-slate-600 rounded-lg shadow-lg p-3 mb-2 max-w-xs animate-slide-in text-slate-100';
+  toast.innerHTML = `<p class="text-sm font-semibold text-slate-200">${escapeHtml(title)}</p><p class="text-xs text-slate-400 mt-0.5">${escapeHtml(message)}</p>`;
   container.appendChild(toast);
   setTimeout(() => {
     toast.remove();

@@ -35,9 +35,12 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { InvitesModule } from './modules/invites/invites.module';
 import { HealthModule } from './modules/health/health.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { PdfReportModule } from './modules/reports/pdf/pdf-report.module';
 
 // Entities
 import { User } from './modules/users/entities/user.entity';
+import { Notification } from './modules/notifications/entities/notification.entity';
 import { Tenant } from './modules/tenants/entities/tenant.entity';
 import { Customer } from './modules/customers/entities/customer.entity';
 import { Practice } from './modules/practices/entities/practice.entity';
@@ -97,6 +100,8 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
         Invite,
         OtpCode,
         PendingRegistration,
+        // Notifiche
+        Notification,
       ],
       synchronize: process.env.TYPEORM_SYNC === 'true' || process.env.NODE_ENV === 'development',
       logging: process.env.NODE_ENV === 'development',
@@ -141,12 +146,19 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
     MembershipsModule,
     InvitesModule,
     HealthModule,
+    NotificationsModule,
+    PdfReportModule,
   ],
   providers: [
     // Rate limiter globale — 60 req/min di default
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+  ],
+})
+export class AppModule {}
+: ThrottlerGuard,
     },
   ],
 })

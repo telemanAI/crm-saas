@@ -86,6 +86,34 @@ export class InventoryController {
     return this.groupsService.findOne(req.user.tenantId, id);
   }
 
+  /**
+   * Gruppi con i loro prodotti (per target gara DEVICE).
+   * Restituisce solo prodotti isForSale=true con nome, quantità e prezzi.
+   */
+  @Get('groups-with-products')
+  @RequirePermission('canViewProducts')
+  async groupsWithProducts(@Req() req: any, @Query('q') q?: string) {
+    const tenantId = req.user.tenantId;
+    const groups = await this.groupsService.findAll(tenantId);
+    const products = await this.productsService.findAll(tenantId, false, {
+      isForSale: true,
+      ...(q ? { q } : {}),
+    });
+
+    // Raggruppa prodotti per groupId
+    const byGroup = new Map<string, typeof products>();
+    for (const p of products) {
+      const gid = p.groupId || 'ungrouped';
+      if (!byGroup.has(gid)) byGroup.set(gid, []);
+      byGroup.get(gid)!.push(p);
+    }
+
+    return groups.map((g) => ({
+      ...g,
+      products: byGroup.get(g.id) || [],
+    })).filter((g) => g.products.length > 0 || !q); // se c'è ricerca, mostra solo gruppi con match
+  }
+
   @Post('groups')
   @RequirePermission('canManageProducts')
   @HttpCode(HttpStatus.CREATED)

@@ -8,6 +8,7 @@ import { Practice } from '../practices/entities/practice.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { User } from '../users/entities/user.entity';
+import { InventoryMovement } from '../inventory/entities/inventory-movement.entity';
 import { CompetitionsService } from './services/competitions.service';
 import { CompetitionEntriesService } from './services/competition-entries.service';
 import { CompetitionsAutoMonthlyService } from './services/competitions-auto-monthly.service';
@@ -25,6 +26,7 @@ import { MembershipsModule } from '../memberships/memberships.module';
       Tenant,
       Offer,
       User, // CompetitionsService.enrichOperatorRanking() risolve i nomi dal DB
+      InventoryMovement,
     ]),
     MembershipsModule,
   ],

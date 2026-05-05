@@ -8,6 +8,7 @@ import { Practice } from '../../practices/entities/practice.entity';
 import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Offer } from '../../offers/entities/offer.entity';
 import { User } from '../../users/entities/user.entity';
+import { InventoryMovement } from '../../inventory/entities/inventory-movement.entity';
 
 /**
  * TAPPA 3.1 — Service Entries con due modalità complementari:
@@ -64,6 +65,8 @@ export class CompetitionEntriesService {
     private readonly offerRepo: Repository<Offer>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(InventoryMovement)
+    private readonly movementRepo: Repository<InventoryMovement>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -478,6 +481,140 @@ export class CompetitionEntriesService {
 
   async removeForPractice(practiceId: string): Promise<void> {
     await this.entryRepo.delete({ sourceType: 'PRACTICE', sourceId: practiceId });
+  }
+
+  // =====================================================================
+  //  DEVICE SALES — sincronizza entries quando un dispositivo viene venduto
+  // =====================================================================
+
+  /**
+   * Quando un dispositivo del catalogo viene venduto (InventoryMovement tipo SALE),
+   * crea/aggiorna le CompetitionEntry per le gare DEVICE attive che includono
+   * questo prodotto nei loro target (inventoryItemIds).
+   */
+  async syncDeviceSaleEntries(movementId: string): Promise<void> {
+    const movement = await this.movementRepo.findOne({ where: { id: movementId } });
+    if (!movement || movement.movementType !== 'SALE') {
+      this.logger.warn(`[syncDeviceSaleEntries] movement ${movementId} non è una SALE`);
+      return;
+    }
+
+    const existingEntries = await this.entryRepo.find({
+      where: { sourceType: 'DEVICE_SALE', sourceId: movementId },
+    });
+
+    const tenant = await this.tenantRepo.findOne({ where: { id: movement.tenantId } });
+    const companyId = tenant?.companyId ?? null;
+
+    // Trova gare attive che includono questo movement
+    const today = new Date(movement.createdAt).toISOString().slice(0, 10);
+    const qb = this.competitionRepo
+      .createQueryBuilder('c')
+      .leftJoinAndSelect('c.targets', 't')
+      .where('c.isActive = true')
+      .andWhere('c.startDate <= :d', { d: today })
+      .andWhere('c.endDate >= :d', { d: today })
+      .andWhere(
+        new Brackets((sub) => {
+          sub.where('(c.scopeType = :s AND c.tenantId = :tenantId)', {
+            s: 'shop',
+            tenantId: movement.tenantId,
+          });
+          if (companyId) {
+            sub.orWhere('(c.scopeType = :sc AND c.companyId = :cid)', {
+              sc: 'company',
+              cid: companyId,
+            });
+          }
+        }),
+      );
+    const activeCompetitions = await qb.getMany();
+
+    // Determina target matchanti (solo target con category=DEVICE)
+    const desired: Array<{ competitionId: string; targetId: string | null }> = [];
+    for (const comp of activeCompetitions) {
+      const targets = comp.targets || [];
+      if (targets.length === 0) {
+        desired.push({ competitionId: comp.id, targetId: null });
+        continue;
+      }
+      const matching = targets.filter((t) =>
+        this.targetMatchesDeviceSale(t, movement),
+      );
+      for (const t of matching) {
+        desired.push({ competitionId: comp.id, targetId: t.id });
+      }
+    }
+
+    // Diff con esistenti
+    const desiredKeys = new Set(
+      desired.map((d) => `${d.competitionId}|${d.targetId ?? 'null'}|${movement.soldByUserId}`),
+    );
+    const existingKeys = new Map(
+      existingEntries.map((e) => [
+        `${e.competitionId}|${e.targetId ?? 'null'}|${e.userId}`,
+        e,
+      ]),
+    );
+
+    const toRemove: CompetitionEntry[] = [];
+    for (const [k, e] of existingKeys.entries()) {
+      if (!desiredKeys.has(k)) toRemove.push(e);
+    }
+
+    const toInsert: any[] = [];
+    for (const d of desired) {
+      const k = `${d.competitionId}|${d.targetId ?? 'null'}|${movement.soldByUserId}`;
+      if (!existingKeys.has(k)) {
+        toInsert.push({
+          tenantId: movement.tenantId,
+          companyId,
+          competitionId: d.competitionId,
+          targetId: d.targetId,
+          userId: movement.soldByUserId,
+          sourceType: 'DEVICE_SALE',
+          sourceId: movement.id,
+          category: 'DEVICE',
+          provider: null,
+          offerName: null,
+          pieces: movement.quantity || 1,
+          revenue: movement.unitSalePrice
+            ? Number(movement.unitSalePrice) * (movement.quantity || 1)
+            : null,
+          shopId: movement.tenantId,
+        });
+      }
+    }
+
+    if (toRemove.length || toInsert.length) {
+      await this.dataSource.transaction(async (m) => {
+        if (toRemove.length)
+          await m.getRepository(CompetitionEntry).remove(toRemove);
+        if (toInsert.length) await m.getRepository(CompetitionEntry).save(toInsert);
+      });
+      this.logger.log(
+        `DeviceSale ${movementId} synced: +${toInsert.length} -${toRemove.length}`,
+      );
+    }
+  }
+
+  private targetMatchesDeviceSale(
+    target: CompetitionTarget,
+    movement: InventoryMovement,
+  ): boolean {
+    // Solo target con categoria DEVICE
+    if (target.category !== 'DEVICE') return false;
+
+    // Se inventoryItemIds è popolato, verifica che il prodotto venduto sia incluso
+    if (
+      Array.isArray(target.inventoryItemIds) &&
+      target.inventoryItemIds.length > 0
+    ) {
+      return target.inventoryItemIds.includes(movement.itemId);
+    }
+
+    // Se inventoryItemIds è vuoto ma categoria è DEVICE → matcha tutte le vendite DEVICE
+    return true;
   }
 
   // =====================================================================

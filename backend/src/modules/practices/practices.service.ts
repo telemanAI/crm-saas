@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice, PracticeCategory, OperationalStatus, SkyTvStatus } from './entities/practice.entity';
@@ -8,6 +8,9 @@ import { UpdateStepDto } from './dto/update-step.dto';
 import { PracticeResponseDto } from './dto/practice-response.dto';
 import { CustomersService } from '../customers/customers.service';
 import { CompetitionEntriesService } from '../competitions/services/competition-entries.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
+import { emitNotification } from '../notifications/notifications.controller';
 
 @Injectable()
 export class PracticesService {
@@ -19,6 +22,8 @@ export class PracticesService {
     private customersService: CustomersService,
     @Inject(forwardRef(() => CompetitionEntriesService))
     private competitionEntries: CompetitionEntriesService,
+    @Optional()
+    private notificationsService?: NotificationsService,
   ) {}
 
   private calculateStatoGlobale(
@@ -222,6 +227,25 @@ export class PracticesService {
     }
 
     await this.practiceRepo.save(practice);
+
+    // Notifica real-time: pratica completata dall'operatore
+    if (dto.data?.completed === true && this.notificationsService) {
+      try {
+        const notif = await this.notificationsService.create({
+          tenantId: practice.tenantId,
+          userId: practice.soldById || userId,
+          type: NotificationType.PRACTICE_COMPLETED,
+          title: 'Pratica completata',
+          message: `Hai completato la pratica "${practice.offerName || '—'}" (${practice.category || ''}).`,
+          linkUrl: `/operator/practices/${practice.id}`,
+          linkLabel: 'Vedi pratica',
+        });
+        emitNotification(practice.soldById || userId, notif);
+      } catch {
+        // ignore silently — notification failure should not break practice save
+      }
+    }
+
     await this.competitionEntries.syncPracticeEntries(practiceId).catch((err) => {
       // Phase G — non swallowiamo: logghiamo per diagnosi gare
       // eslint-disable-next-line no-console

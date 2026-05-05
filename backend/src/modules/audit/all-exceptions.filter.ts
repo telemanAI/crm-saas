@@ -56,14 +56,37 @@ export class AllExceptionsFilter implements ExceptionFilter {
         };
       case '23502': // not_null_violation
         {
-          // Estrae il nome della colonna dal detail Postgres, es:
-          // "null value in column "reserved_quantity" violates not-null constraint"
-          const colMatch = String(detail).match(/column "([^"]+)"/);
+          // Tenta di estrarre il nome colonna da diversi pattern Postgres:
+          // 1. "null value in column "reserved_quantity" violates not-null constraint"
+          // 2. "null value in column 'sku' violates not-null constraint"
+          // 3. Failsafe: cerca qualsiasi parola prima di "violates"
+          const d = String(detail);
+          let colMatch = d.match(/column "([^"]+)"/)
+            || d.match(/column '([^']+)'/)
+            || d.match(/column\s+([a-z_]+)\s+violates/i)
+            || d.match(/null value in column\s+([a-zA-Z_]+)/i);
+
+          // Se ancora null, prova a estrarre dal message
+          if (!colMatch) {
+            const msg = String(exception?.message || exception?.driverError?.message || '');
+            colMatch = msg.match(/column "([^"]+)"/)
+              || msg.match(/column '([^']+)'/)
+              || msg.match(/null value in column\s+([a-zA-Z_]+)/i);
+          }
+
           const columnName = colMatch ? colMatch[1] : 'campo richiesto';
           const fieldLabel = this.fieldLabelForDb(columnName);
+
+          // Se non riusciamo a identificare la colonna, suggeriamo controlli generici
+          if (colMatch) {
+            return {
+              status: HttpStatus.BAD_REQUEST,
+              message: `Campo obbligatorio mancante: ${fieldLabel} (${columnName}). Verifica che tutti i dati siano compilati e ritenta.`,
+            };
+          }
           return {
             status: HttpStatus.BAD_REQUEST,
-            message: `Campo obbligatorio mancante: ${fieldLabel} (${columnName}). Verifica che tutti i dati siano compilati e ritenta.`,
+            message: 'Un campo obbligatorio è vuoto o mancante. Controlla che tutti i campi del modulo siano compilati (SKU, nome, quantità, ecc.) e ritenta. Se il problema persiste, contatta il supporto.',
           };
         }
       case '23503': // foreign_key_violation
@@ -103,7 +126,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
   /** Traduce nomi colonne DB in label user-friendly per il messaggio d'errore. */
   private fieldLabelForDb(columnName: string): string {
     const map: Record<string, string> = {
-      tenant_id: 'Negozio',
+      tenant_id: 'Negozio (tenantId)',
       tenantId: 'Negozio',
       sku: 'Codice SKU',
       name: 'Nome',

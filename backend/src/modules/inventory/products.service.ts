@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, ILike } from 'typeorm';
 import { InventoryItem } from './entities/inventory-item.entity';
@@ -12,6 +12,7 @@ import { StockMovementDto } from './dto/stock-movement.dto';
 // Phase H — fallback tenantId blindato
 import { User } from '../users/entities/user.entity';
 import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
+import { CompetitionEntriesService } from '../competitions/services/competition-entries.service';
 
 export type StockStatus = 'OK' | 'LOW' | 'OUT';
 
@@ -54,6 +55,8 @@ export class ProductsService {
     @InjectRepository(UserShopMembership)
     private readonly membershipRepo: Repository<UserShopMembership>,
     private readonly dataSource: DataSource,
+    @Optional()
+    private readonly competitionEntries?: CompetitionEntriesService,
   ) {}
 
   /**
@@ -153,29 +156,46 @@ export class ProductsService {
     // vogliamo capirlo subito dai log Railway senza dover arrivare al client
     // un crash anonimo.
     try {
-      const item = this.itemRepo.create({
-        tenantId,
-        sku,
-        name: dto.name.trim(),
-        description: dto.description?.trim() || null,
-        category: dto.category?.trim() || null,
-        groupId: dto.groupId || null,
-        customFields: dto.customFields || null,
-        isForSale: dto.isForSale ?? true,
-        quantity: dto.quantity ?? 0,
-        reservedQuantity: 0, // ← FIX: il DB richiede questo campo (NOT NULL senza DEFAULT)
-        reorderLevel: dto.reorderLevel ?? 5,
-        unitCost: dto.unitCost ?? null,
-        sellingPrice: dto.sellingPrice ?? null,
-      });
-      const saved = await this.itemRepo.save(item);
+      // FIX: Usiamo query builder INSERT esplicita per evitare problemi di
+      // mapping TypeORM con colonne in ordine diverso dall'entity.
+      // Il DB ha la colonna tenant_id in posizione 2, ma TypeORM mappava
+      // il valore in posizione sbagliata causando 23502 not_null_violation.
+      const insertResult = await this.itemRepo
+        .createQueryBuilder()
+        .insert()
+        .into('inventory_items')
+        .values({
+          tenant_id: tenantId,
+          sku,
+          name: dto.name.trim(),
+          description: dto.description?.trim() || null,
+          category: dto.category?.trim() || null,
+          quantity: dto.quantity ?? 0,
+          reserved_quantity: 0,
+          reorder_level: dto.reorderLevel ?? 5,
+          unit_cost: dto.unitCost ?? null,
+          selling_price: dto.sellingPrice ?? null,
+          group_id: dto.groupId || null,
+          custom_fields: dto.customFields || null,
+          is_for_sale: dto.isForSale ?? true,
+          supplier_info: null,
+          created_at: new Date(),
+          updated_at: new Date(),
+        } as any)
+        .returning('id')
+        .execute();
+
+      const savedId = insertResult.raw[0]?.id || insertResult.identifiers[0]?.id;
+      if (!savedId) {
+        throw new Error('INSERT inventory_items non ha restituito un ID');
+      }
 
       // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale
       if ((dto.quantity ?? 0) > 0) {
         await this.movementRepo.save(
           this.movementRepo.create({
             tenantId,
-            itemId: saved.id,
+            itemId: savedId,
             movementType: 'PURCHASE',
             quantity: dto.quantity!,
             unitCost: dto.unitCost ?? null,
@@ -186,8 +206,29 @@ export class ProductsService {
         );
       }
 
-      return this.findOne(tenantId, saved.id, true);
+      return this.findOne(tenantId, savedId, true);
     } catch (err: any) {
+      // Logga il dettaglio COMPLETO dell'errore Postgres per identificare
+      // il campo esatto che causa il 23502 (not_null_violation).
+      // eslint-disable-next-line no-console
+      console.error('[ProductsService.create] FAILED — FULL ERROR', {
+        tenantId,
+        performedBy,
+        sku,
+        // Tutti i campi dell'errore TypeORM/Postgres
+        errorCode: err?.code,
+        errorDriverCode: err?.driverError?.code,
+        errorDetail: err?.detail,
+        errorDriverDetail: err?.driverError?.detail,
+        errorMessage: err?.message,
+        errorDriverMessage: err?.driverError?.message,
+        errorColumn: err?.column,
+        errorRoutine: err?.routine,
+        errorSchema: err?.schema,
+        errorTable: err?.table,
+        // Il dto completo per confronto
+        dtoSent: { ...dto, sku },
+      });
       // Logga il dettaglio dell'errore (sarà catturato anche dal filter,
       // ma qui aggiungiamo contesto specifico al modulo inventory).
       // eslint-disable-next-line no-console
@@ -367,6 +408,16 @@ export class ProductsService {
       );
 
       const product = await this.findOne(tenantId, item.id, true);
+
+      // Sync con gare DEVICE: quando un dispositivo viene venduto,
+      // aggiorna le CompetitionEntry per le gare che includono questo prodotto.
+      if (this.competitionEntries && movement) {
+        this.competitionEntries.syncDeviceSaleEntries(movement.id).catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error(`[ProductsService.sell] syncDeviceSaleEntries failed:`, err);
+        });
+      }
+
       return { movement, product };
     });
   }

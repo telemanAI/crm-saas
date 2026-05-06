@@ -152,53 +152,60 @@ export class ProductsService {
 
     const sku = dto.sku?.trim() || (await this.generateSku(tenantId, dto.name));
 
-    // FIX DEFINITIVO: dopo la migrazione `01_cleanup_inventory_duplicate_columns.sql`
-    // il DB ha SOLO la colonna canonica `tenant_id` (snake_case) come da entity.
-    // Possiamo tornare a TypeORM pulito senza raw SQL.
-    // La transazione garantisce che item + movement vengano scritti atomicamente:
-    // se il movement fallisce, anche l'item viene rollbackato (nessun prodotto
-    // orfano in DB con stock iniziale mancante).
+    // fix-final5 — log diagnostico esplicito: se qualcosa va storto nel save,
+    // vogliamo capirlo subito dai log Railway senza dover arrivare al client
+    // un crash anonimo.
     try {
-      const savedId = await this.dataSource.transaction(async (manager) => {
-        const itemRepo = manager.getRepository(InventoryItem);
-        const movRepo = manager.getRepository(InventoryMovement);
-
-        const newItem = itemRepo.create({
+      // FIX DEFINITIVO-3: raw SQL con nomi colonne ESATTI del DB.
+      // Il DB ha colonne miste camelCase/snake_case.
+      // Le colonne camelCase VANNO tra virgolette doppie in Postgres.
+      const insertResult = await this.dataSource.query(
+        `INSERT INTO inventory_items (
+          "tenantId", sku, name, description, category,
+          quantity, reserved_quantity, reorder_level,
+          unit_cost, selling_price, "supplierInfo",
+          created_at, updated_at,
+          group_id, custom_fields, is_for_sale
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), $12, $13, $14)
+        RETURNING id`,
+        [
           tenantId,
           sku,
-          name: dto.name.trim(),
-          description: dto.description?.trim() || undefined,
-          category: dto.category?.trim() || undefined,
-          groupId: dto.groupId || null,
-          customFields: dto.customFields || null,
-          isForSale: dto.isForSale === false ? false : true,
-          quantity: Number(dto.quantity ?? 0),
-          reservedQuantity: 0,
-          reorderLevel: Number(dto.reorderLevel ?? 5),
-          unitCost: dto.unitCost != null ? Number(dto.unitCost) : null,
-          sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
-          supplierInfo: null,
-        });
-        const savedItem = await itemRepo.save(newItem);
+          dto.name.trim(),
+          dto.description?.trim() || null,
+          dto.category?.trim() || null,
+          Number(dto.quantity ?? 0),
+          0,
+          Number(dto.reorderLevel ?? 5),
+          dto.unitCost != null ? Number(dto.unitCost) : null,
+          dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
+          null,
+          dto.groupId || null,
+          dto.customFields ? JSON.stringify(dto.customFields) : null,
+          dto.isForSale === false ? false : true,
+        ],
+      );
 
-        // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale
-        if ((dto.quantity ?? 0) > 0) {
-          await movRepo.save(
-            movRepo.create({
-              tenantId,
-              itemId: savedItem.id,
-              movementType: 'PURCHASE',
-              quantity: dto.quantity!,
-              unitCost: dto.unitCost ?? null,
-              referenceType: 'INITIAL_STOCK',
-              performedBy,
-              notes: 'Stock iniziale alla creazione del prodotto',
-            }),
-          );
-        }
+      const savedId = insertResult?.[0]?.id;
+      if (!savedId) {
+        throw new Error('INSERT inventory_items non ha restituito un ID');
+      }
 
-        return savedItem.id;
-      });
+      // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale
+      if ((dto.quantity ?? 0) > 0) {
+        await this.movementRepo.save(
+          this.movementRepo.create({
+            tenantId,
+            itemId: savedId,
+            movementType: 'PURCHASE',
+            quantity: dto.quantity!,
+            unitCost: dto.unitCost ?? null,
+            referenceType: 'INITIAL_STOCK',
+            performedBy,
+            notes: 'Stock iniziale alla creazione del prodotto',
+          }),
+        );
+      }
 
       return this.findOne(tenantId, savedId, true);
     } catch (err: any) {

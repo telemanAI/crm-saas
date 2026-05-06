@@ -375,6 +375,7 @@ export default function NewMobilePractice() {
       const res = await api.post('/practices', {
         category: 'MOBILE',
         type: gestore,
+        offerId: selectedOffer?.id || undefined,
         offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
@@ -398,6 +399,7 @@ export default function NewMobilePractice() {
         await api.put(`/practices/${practiceId}/step`, {
           stepNumber,
           data: {
+            offerId: selectedOffer?.id || undefined,
             offerName: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
             offerCode: data.offerName === 'ALTRO' ? data.offertaAltro : data.offerName,
             gestoreNuovaLinea: data.gestoreNuovaLinea,

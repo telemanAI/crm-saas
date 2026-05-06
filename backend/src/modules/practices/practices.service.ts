@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Practice, PracticeCategory, OperationalStatus, SkyTvStatus } from './entities/practice.entity';
 import { User } from '../users/entities/user.entity';
+import { Offer } from '../offers/entities/offer.entity';
 import { CreatePracticeDto } from './dto/create-practice.dto';
 import { UpdateStepDto } from './dto/update-step.dto';
 import { PracticeResponseDto } from './dto/practice-response.dto';
@@ -19,12 +20,39 @@ export class PracticesService {
     private practiceRepo: Repository<Practice>,
     @InjectRepository(User)
     private userRepo: Repository<User>,
+    @InjectRepository(Offer)
+    private offerRepo: Repository<Offer>,
     private customersService: CustomersService,
     @Inject(forwardRef(() => CompetitionEntriesService))
     private competitionEntries: CompetitionEntriesService,
     @Optional()
     private notificationsService?: NotificationsService,
   ) {}
+
+  /**
+   * Risolve l'offerId per una pratica:
+   *  1. Se il DTO passa esplicitamente offerId → usa quello
+   *  2. Altrimenti tenta lookup per nome esatto (le offerte sono globali, no tenant)
+   * Ritorna null se nessun match (la pratica viene creata senza offerId
+   * collegato — match gare farà fallback su practice.type).
+   */
+  private async resolveOfferId(
+    _tenantId: string,
+    dto: { offerId?: string; offerName?: string; offerCode?: string; type?: string },
+  ): Promise<string | null> {
+    if (dto.offerId) return dto.offerId;
+    const name = (dto.offerName || dto.offerCode || '').trim();
+    if (!name || name.toUpperCase() === 'ALTRO') return null;
+
+    // Lookup globale per nome esatto (case insensitive)
+    const byName = await this.offerRepo
+      .createQueryBuilder('o')
+      .where('UPPER(o.name) = UPPER(:n)', { n: name })
+      .getOne();
+    if (byName) return byName.id;
+
+    return null;
+  }
 
   private calculateStatoGlobale(
     convergenza: { attiva: boolean; tipo?: 'daChiudere' | 'chiusa' | null; numero?: string } | null,
@@ -66,12 +94,17 @@ export class PracticesService {
 
     const statoGlobale = this.calculateStatoGlobale(dto.convergenza || null);
 
+    // FIX PROBLEMA 3 — risolvi offerId (esplicito o lookup automatico per nome).
+    // Senza questo, le promo "specifiche per offerta" non conteggiavano mai.
+    const resolvedOfferId = await this.resolveOfferId(tenantId, dto);
+
     const baseFields = {
       tenantId,
       category,
       customerId: customer?.id || null,
       createdBy: userId,
       type: dto.type || null,
+      offerId: resolvedOfferId,
       offerCode: dto.offerCode,
       offerName: dto.offerName,
       offerCanone: dto.offerCanone,
@@ -196,6 +229,28 @@ export class PracticesService {
       await this.applyEnergyStep(practice, dto, userId);
     } else {
       await this.applyFixedLineStep(practice, dto, userId, tenantId);
+    }
+
+    // FIX PROBLEMA 3 — dopo aver applicato lo step, se i campi offerta sono
+    // stati toccati nello step, ri-risolvi offerId. Senza questo, le promo
+    // "specifiche per offerta" non conteggiavano mai.
+    const stepData = (dto.data || {}) as any;
+    const offerTouched =
+      stepData.offerId !== undefined ||
+      stepData.offerName !== undefined ||
+      stepData.offerCode !== undefined;
+    if (offerTouched) {
+      if (stepData.offerId && typeof stepData.offerId === 'string') {
+        // ID esplicito dal wizard — fonte più affidabile
+        practice.offerId = stepData.offerId;
+      } else if (practice.offerName || practice.offerCode) {
+        // Lookup automatico per nome (utile per fixed_line con catalogo hardcoded)
+        practice.offerId = await this.resolveOfferId(tenantId, {
+          offerName: practice.offerName,
+          offerCode: practice.offerCode,
+          type: practice.type,
+        });
+      }
     }
 
     if (dto.data?.completed === true) {

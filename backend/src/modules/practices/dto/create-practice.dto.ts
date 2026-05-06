@@ -126,6 +126,18 @@ export class CreatePracticeDto {
   @IsString()
   type?: string;
 
+  /**
+   * UUID dell'offerta del catalogo backend (opzionale).
+   * Se passato, viene salvato su practice.offerId e usato per il match
+   * delle gare con `target.targetType='specific'` e `target.offerIds[]`.
+   *
+   * Se NON passato ma `offerName` è valorizzato, il backend tenta una
+   * lookup automatica per nome+tenant come fallback.
+   */
+  @IsOptional()
+  @IsUUID()
+  offerId?: string;
+
   @IsOptional()
   @IsString()
   offerCode?: string;

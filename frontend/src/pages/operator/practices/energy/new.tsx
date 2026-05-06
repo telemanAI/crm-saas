@@ -397,6 +397,7 @@ export default function NewEnergyPractice() {
       const res = await api.post('/practices', {
         category: 'ENERGY',
         type: gestore,
+        offerId: selectedOffer?.id || undefined,
         offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         customerData: data.fiscalCode?.length === 16 && data.firstName && data.lastName
@@ -418,6 +419,7 @@ export default function NewEnergyPractice() {
 
     const stepPayloads: Record<number, any> = {
       1: {
+        offerId: selectedOffer?.id || undefined,
         offerName: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         offerCode: data.tipoOfferta === 'ALTRO' ? data.tipoOffertaAltro : data.tipoOfferta,
         tipoOfferta: data.tipoOfferta,

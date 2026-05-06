@@ -179,8 +179,8 @@ export class ProductsService {
         supplierInfo: null,
       } as any);
 
-      const savedResult = await this.itemRepo.save(item);
-      const savedId = Array.isArray(savedResult) ? savedResult[0]?.id : savedResult.id;
+      const savedResult = await this.itemRepo.save(item) as any;
+      const savedId = savedResult?.id || (Array.isArray(savedResult) && savedResult[0]?.id) || null;
 
       if (!savedId) {
         throw new Error('SAVE inventory_items non ha restituito un ID');

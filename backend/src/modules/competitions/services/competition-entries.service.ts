@@ -123,15 +123,57 @@ export class CompetitionEntriesService {
       perTarget.push({ targetId: null, label: 'Senza target', pieces: entries.length });
     } else {
       for (const target of comp.targets) {
-        const practices = await this.findPracticesForTarget(comp, target, shopIds);
-        const entries = practices.map((p) => this.makeEntry(p, comp, target));
-        if (entries.length) await this.entryRepo.save(entries);
-        inserted += entries.length;
-        perTarget.push({
-          targetId: target.id,
-          label: target.label,
-          pieces: entries.length,
-        });
+        if (target.category === 'DEVICE' || (Array.isArray(target.inventoryItemIds) && target.inventoryItemIds.length > 0)) {
+          // FIX Problema 7 — recompute retroattivo per target DEVICE.
+          // Prima il recompute ignorava le vendite di dispositivi: il bottone
+          // "Ricalcola" non popolava nulla per le gare device. Ora scansiona
+          // inventory_movements SALE nel periodo della gara e nei tenant scope.
+          const sales = await this.movementRepo
+            .createQueryBuilder('m')
+            .where('m.tenantId IN (:...shopIds)', { shopIds })
+            .andWhere(`m.movementType = 'SALE'`)
+            .andWhere('m.soldByUserId IS NOT NULL')
+            .andWhere('m.createdAt >= :s', { s: comp.startDate })
+            .andWhere('m.createdAt <= :e', { e: this.endOfDay(comp.endDate) })
+            .getMany();
+
+          const matching = sales.filter((m) => this.targetMatchesDeviceSale(target, m));
+          const tenantsByShop = new Map<string, string | null>();
+          for (const m of matching) {
+            if (!tenantsByShop.has(m.tenantId)) {
+              const t = await this.tenantRepo.findOne({ where: { id: m.tenantId } });
+              tenantsByShop.set(m.tenantId, t?.companyId ?? null);
+            }
+          }
+          const entries = matching.map((m) => ({
+            tenantId: m.tenantId,
+            companyId: tenantsByShop.get(m.tenantId) ?? null,
+            competitionId: comp.id,
+            targetId: target.id,
+            userId: m.soldByUserId!,
+            sourceType: 'DEVICE_SALE' as EntrySourceType,
+            sourceId: m.id,
+            category: 'DEVICE' as EntryCategory,
+            provider: null,
+            offerName: null,
+            pieces: m.quantity || 1,
+            revenue: m.unitSalePrice ? Number(m.unitSalePrice) * (m.quantity || 1) : null,
+            shopId: m.tenantId,
+          }));
+          if (entries.length) await this.entryRepo.save(entries);
+          inserted += entries.length;
+          perTarget.push({ targetId: target.id, label: target.label, pieces: entries.length });
+        } else {
+          const practices = await this.findPracticesForTarget(comp, target, shopIds);
+          const entries = practices.map((p) => this.makeEntry(p, comp, target));
+          if (entries.length) await this.entryRepo.save(entries);
+          inserted += entries.length;
+          perTarget.push({
+            targetId: target.id,
+            label: target.label,
+            pieces: entries.length,
+          });
+        }
       }
     }
 
@@ -634,19 +676,14 @@ export class CompetitionEntriesService {
     target: CompetitionTarget,
     movement: InventoryMovement,
   ): boolean {
-    // Solo target con categoria DEVICE
-    if (target.category !== 'DEVICE') return false;
-
-    // Se inventoryItemIds è popolato, verifica che il prodotto venduto sia incluso
-    if (
-      Array.isArray(target.inventoryItemIds) &&
-      target.inventoryItemIds.length > 0
-    ) {
+    // FIX Problema 5 — matcha PRIMA per inventoryItemIds (l'utente seleziona
+    // i prodotti specifici nel target). Indipendente da category.
+    if (Array.isArray(target.inventoryItemIds) && target.inventoryItemIds.length > 0) {
       return target.inventoryItemIds.includes(movement.itemId);
     }
-
-    // Se inventoryItemIds è vuoto ma categoria è DEVICE → matcha tutte le vendite DEVICE
-    return true;
+    // Fallback: target generico DEVICE → matcha tutte le vendite di dispositivi
+    if (target.category === 'DEVICE') return true;
+    return false;
   }
 
   // =====================================================================

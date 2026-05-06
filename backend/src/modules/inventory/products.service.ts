@@ -117,7 +117,9 @@ export class ProductsService {
     const qb = this.itemRepo
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.group', 'group')
-      .where('item.tenantId = :tenantId', { tenantId });
+      .where('item.tenantId = :tenantId', { tenantId })
+      // FIX Problema 1 — escludi i prodotti soft-deleted
+      .andWhere('item.archivedAt IS NULL');
 
     if (filters.groupId) qb.andWhere('item.groupId = :groupId', { groupId: filters.groupId });
     if (filters.isForSale !== undefined) qb.andWhere('item.isForSale = :isForSale', { isForSale: filters.isForSale });
@@ -287,8 +289,13 @@ export class ProductsService {
   async remove(tenantId: string, id: string): Promise<{ message: string }> {
     const item = await this.itemRepo.findOne({ where: { id, tenantId } });
     if (!item) throw new NotFoundException('Prodotto non trovato');
-    // Soft delete: in realtà rimuoviamo dal catalogo (movements restano per storico)
-    await this.itemRepo.remove(item);
+    // FIX Problema 1 — Soft delete con archivedAt.
+    // Hard DELETE falliva per FK con `inventory_movements` (no cascade).
+    // Settiamo archivedAt: il prodotto sparisce dal catalogo ma lo storico
+    // vendite e le entries delle gare restano consultabili.
+    item.archivedAt = new Date();
+    item.updatedAt = new Date();
+    await this.itemRepo.save(item);
     return { message: 'Prodotto eliminato' };
   }
 

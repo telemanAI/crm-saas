@@ -68,6 +68,16 @@ export class InventoryItem {
   @Column({ type: 'jsonb', nullable: true })
   supplierInfo: any;
 
+  /**
+   * FIX Problema 1 — soft delete.
+   * Quando l'utente elimina un dispositivo, NON facciamo hard DELETE perché
+   * `inventory_movements` ha FK senza cascade → DELETE fallisce silenziosamente.
+   * Invece settiamo `archivedAt` e filtriamo nei listing. Lo storico vendite
+   * resta intatto e le gare continuano a vedere le vendite passate.
+   */
+  @Column({ name: 'archived_at', type: 'timestamp', nullable: true })
+  archivedAt: Date | null;
+
   @OneToMany(() => InventoryMovement, (movement) => movement.item)
   movements: InventoryMovement[];
 

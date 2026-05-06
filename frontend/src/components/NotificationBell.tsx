@@ -50,10 +50,8 @@ export default function NotificationBell() {
   const fetchList = useCallback(async () => {
     try {
       const res = await api.get<NotifItem[] | { data?: NotifItem[]; items?: NotifItem[] }>(
-        '/notifications?limit=20',
+        '/notifications?limit=50',
       );
-      // Normalizza: il backend ritorna array diretto, ma proteggiamoci da
-      // un eventuale wrapper { data: [...] } o { items: [...] }
       const raw = res.data as any;
       const list: NotifItem[] = Array.isArray(raw)
         ? raw
@@ -66,6 +64,11 @@ export default function NotificationBell() {
       console.log(`[NotificationBell] fetched ${list.length} items`, list);
       setItems(list);
       setError(null);
+      // FIX Problema 8 — riallinea SEMPRE il counter al contenuto reale.
+      // Prima il counter SSE poteva essere desincronizzato (counter > 0 con
+      // lista vuota). Ora dopo ogni fetchList il counter è coerente.
+      const cnt = list.filter((n) => !n.isRead).length;
+      setCount(cnt);
     } catch (err: any) {
       // eslint-disable-next-line no-console
       console.error('[NotificationBell] fetch error:', err);
@@ -222,6 +225,7 @@ export default function NotificationBell() {
         onMouseDown={(e) => e.stopPropagation()}
         className="relative p-2 rounded-full hover:bg-slate-800 transition cursor-pointer z-10"
         aria-label="Notifiche"
+        title={connected ? 'Notifiche (live)' : 'Notifiche'}
         style={{ touchAction: 'manipulation' }}
       >
         <svg
@@ -242,12 +246,9 @@ export default function NotificationBell() {
             {count > 99 ? '99+' : count}
           </span>
         )}
-        {connected && count === 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full pointer-events-none" />
-        )}
-        {!connected && !error && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-slate-600 rounded-full pointer-events-none" />
-        )}
+        {/* FIX Problema 8 — rimossi i 2 dot connected/disconnected che si
+            sovrapponevano al badge rosso creando l'effetto bollino nero.
+            Lo stato connessione live è ora indicato nel `title` del bottone. */}
       </button>
 
       {open && (

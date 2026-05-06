@@ -118,8 +118,20 @@ export class ProductGroupsService {
   async remove(tenantId: string, id: string): Promise<{ message: string }> {
     const group = await this.groupRepo.findOne({ where: { id, tenantId } });
     if (!group) throw new NotFoundException('Gruppo non trovato');
-    // I prodotti collegati hanno groupId come SET NULL → restano in catalogo "senza gruppo".
-    await this.groupRepo.remove(group);
+    // FIX Problema 2 — fail-safe per il delete del gruppo.
+    // Anche se l'entity ha onDelete: 'SET NULL' nella relation, la constraint
+    // potrebbe NON essere applicata sul DB di produzione (creato prima).
+    // Per essere sicuri: settiamo a NULL il groupId di tutti i prodotti collegati
+    // PRIMA del delete del gruppo. Così evitiamo FK violation e permettiamo
+    // all'utente di ricreare il gruppo immediatamente dopo.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query(
+        `UPDATE inventory_items SET group_id = NULL WHERE group_id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
+      // I custom_fields hanno cascade dall'entity ProductGroup
+      await manager.getRepository(ProductGroup).remove(group);
+    });
     return { message: 'Gruppo eliminato' };
   }
 

@@ -50,11 +50,17 @@ export class InventorySalesService {
     }
 
     if (filters.from && filters.to) {
-      qb.andWhere('m.createdAt BETWEEN :from AND :to', { from: filters.from, to: filters.to });
+      // FIX Problema 3 — il filtro `to` veniva interpretato come 00:00:00 del giorno
+      // → escludeva le vendite di oggi. Estendiamo a 23:59:59.999.
+      const toEnd = new Date(filters.to);
+      toEnd.setHours(23, 59, 59, 999);
+      qb.andWhere('m.createdAt BETWEEN :from AND :to', { from: filters.from, to: toEnd });
     } else if (filters.from) {
       qb.andWhere('m.createdAt >= :from', { from: filters.from });
     } else if (filters.to) {
-      qb.andWhere('m.createdAt <= :to', { to: filters.to });
+      const toEnd = new Date(filters.to);
+      toEnd.setHours(23, 59, 59, 999);
+      qb.andWhere('m.createdAt <= :to', { to: toEnd });
     }
     if (filters.soldByUserId) qb.andWhere('m.soldByUserId = :sb', { sb: filters.soldByUserId });
     if (filters.customerId) qb.andWhere('m.customerId = :ci', { ci: filters.customerId });
@@ -71,9 +77,20 @@ export class InventorySalesService {
       itemId: m.itemId,
       itemName: m.item?.name,
       itemSku: m.item?.sku,
+      // FIX Problema 3.1 — espongo i dati del catalogo nella card vendita
+      itemCategory: m.item?.category ?? null,
+      itemCustomFields: m.item?.customFields ?? null,
+      itemUnitCost: m.item?.unitCost != null ? Number(m.item.unitCost) : null,
+      itemSellingPrice: m.item?.sellingPrice != null ? Number(m.item.sellingPrice) : null,
       quantity: m.quantity,
       unitSalePrice: m.unitSalePrice ? Number(m.unitSalePrice) : null,
       total: m.unitSalePrice ? Number(m.unitSalePrice) * m.quantity : null,
+      // FIX Problema 4 — margine calcolato per riga (ricavi - costi)
+      unitCost: m.unitCost != null ? Number(m.unitCost) : null,
+      margin:
+        m.unitSalePrice != null && m.unitCost != null
+          ? Math.round((Number(m.unitSalePrice) - Number(m.unitCost)) * m.quantity * 100) / 100
+          : null,
       customerId: m.customerId,
       customerName: m.customer
         ? `${m.customer.firstName ?? ''} ${m.customer.lastName ?? ''}`.trim() || null
@@ -106,7 +123,10 @@ export class InventorySalesService {
 
     if (restrictToUserId) qb.andWhere('m.soldByUserId = :sbid', { sbid: restrictToUserId });
     if (filters.from && filters.to) {
-      qb.andWhere('m.createdAt BETWEEN :from AND :to', { from: filters.from, to: filters.to });
+      // FIX Problema 4 — stessa correzione del listing per coerenza dei totali nelle card
+      const toEnd = new Date(filters.to);
+      toEnd.setHours(23, 59, 59, 999);
+      qb.andWhere('m.createdAt BETWEEN :from AND :to', { from: filters.from, to: toEnd });
     }
     if (filters.soldByUserId) qb.andWhere('m.soldByUserId = :sb', { sb: filters.soldByUserId });
 

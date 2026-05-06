@@ -1089,7 +1089,25 @@ export class CompetitionEntriesService {
         break;
       case 'specific':
         if (Array.isArray(target.offerIds) && target.offerIds.length > 0) {
-          if (!practice.offerId || !target.offerIds.includes(practice.offerId)) {
+          // FIX: se practice.offerId è null (wizard non lo salva),
+          // prova a matchare per practice.type / offerType
+          if (!practice.offerId) {
+            const practiceType = (
+              practice.type ||
+              practice.offerType ||
+              ''
+            ).toString().toUpperCase();
+            if (!practiceType) return false;
+            // matchProviders contiene nomi provider/offerte come stringhe
+            if (target.matchProviders?.length) {
+              const wantUpper = target.matchProviders.map((s) => s.toUpperCase());
+              if (!wantUpper.some((w) => practiceType.includes(w) || w.includes(practiceType))) {
+                return false;
+              }
+            } else {
+              return false; // niente da matchare
+            }
+          } else if (!target.offerIds.includes(practice.offerId)) {
             return false;
           }
         } else {

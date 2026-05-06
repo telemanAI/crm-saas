@@ -142,7 +142,10 @@ export default function NewEnergyPractice() {
   const [allOffers, setAllOffers] = useState<any[]>([]);
   const [offerteBackend, setOfferteBackend] = useState<any[] | null>(null);
 
-  const offerteList: any = offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY;
+  const offerteList: any = useMemo(
+    () => (offerteBackend && offerteBackend.length > 0 ? offerteBackend : TIPI_OFFERTA_ENERGY),
+    [offerteBackend],
+  );
 
   const getFilteredOffers = useCallback((provider?: string, energyTypeFilter?: 'LUCE' | 'GAS') => {
     if (!provider) return offerteList;

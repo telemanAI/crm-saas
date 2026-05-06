@@ -434,29 +434,6 @@ export class CompetitionEntriesService {
     const desired: Array<{ competitionId: string; targetId: string | null }> = [];
     for (const comp of activeCompetitions) {
       const targets = comp.targets || [];
-
-      // LOG DIAGNOSTICO: per ogni target della gara, logga perché matcha o no
-      if (targets.length > 0) {
-        const diagnostics = targets.map((t) => {
-          const matched = this.targetMatchesPractice(t, practice, offer);
-          return {
-            targetLabel: t.label,
-            targetCategory: t.category,
-            targetProvider: t.provider,
-            targetType: t.targetType,
-            practiceCategory: practice.category,
-            practiceOfferType: practice.offerType,
-            practiceType: practice.type,
-            offerProvider: offer?.provider,
-            matched,
-          };
-        });
-        this.logger.log(
-          `[syncPracticeEntries] Practice ${practiceId} vs competition "${comp.title}" diagnostics:`,
-          JSON.stringify(diagnostics),
-        );
-      }
-
       if (targets.length === 0) {
         desired.push({ competitionId: comp.id, targetId: null });
         continue;
@@ -583,29 +560,6 @@ export class CompetitionEntriesService {
     const desired: Array<{ competitionId: string; targetId: string | null }> = [];
     for (const comp of activeCompetitions) {
       const targets = comp.targets || [];
-
-      // LOG DIAGNOSTICO: per ogni target della gara, logga perché matcha o no
-      if (targets.length > 0) {
-        const diagnostics = targets.map((t) => {
-          const matched = this.targetMatchesPractice(t, practice, offer);
-          return {
-            targetLabel: t.label,
-            targetCategory: t.category,
-            targetProvider: t.provider,
-            targetType: t.targetType,
-            practiceCategory: practice.category,
-            practiceOfferType: practice.offerType,
-            practiceType: practice.type,
-            offerProvider: offer?.provider,
-            matched,
-          };
-        });
-        this.logger.log(
-          `[syncPracticeEntries] Practice ${practiceId} vs competition "${comp.title}" diagnostics:`,
-          JSON.stringify(diagnostics),
-        );
-      }
-
       if (targets.length === 0) {
         desired.push({ competitionId: comp.id, targetId: null });
         continue;

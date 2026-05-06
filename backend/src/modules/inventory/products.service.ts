@@ -160,23 +160,28 @@ export class ProductsService {
       // Non usiamo raw SQL perché il mapping colonne DB/entity è incoerente.
       // Passiamo ESPLICITAMENTE sia tenantId che tenant (relazione) per
       // aggirare il conflitto @Column({name:'tenant_id'}) + @ManyToOne.
+      // Il DB ha le colonne in questo ordine esatto (dal \schema):
+      // tenantId, sku, name, description, category, quantity,
+      // reserved_quantity, reorder_level, unit_cost, selling_price,
+      // supplierInfo, created_at, updated_at, tenant_id, group_id,
+      // custom_fields, is_for_sale
+      // Passiamo TUTTI i campi per evitare che TypeORM mappi valori
+      // in colonne sbagliate.
       const item = this.itemRepo.create({
         tenantId,
-        tenant: { id: tenantId } as any,
         sku,
         name: dto.name.trim(),
         description: dto.description?.trim() || null,
         category: dto.category?.trim() || null,
-        groupId: dto.groupId || null,
-        group: dto.groupId ? ({ id: dto.groupId } as any) : null,
-        customFields: dto.customFields || null,
-        isForSale: dto.isForSale === false ? false : true,
         quantity: Number(dto.quantity ?? 0),
         reservedQuantity: 0,
         reorderLevel: Number(dto.reorderLevel ?? 5),
         unitCost: dto.unitCost != null ? Number(dto.unitCost) : null,
         sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
         supplierInfo: null,
+        groupId: dto.groupId || null,
+        customFields: dto.customFields || null,
+        isForSale: dto.isForSale === false ? false : true,
       } as any);
 
       const savedResult = await this.itemRepo.save(item) as any;

@@ -14,6 +14,28 @@ interface NotifItem {
 
 const SSE_RETRY_MS = 5000;
 
+/** Estrae il token JWT dal localStorage.
+ * Supporta sia il formato vecchio (key='token') che quello
+ * Zustand persist (key='auth-storage-master'). */
+function getTokenFromStorage(): string | null {
+  // 1. Formato vecchio
+  const t1 = localStorage.getItem('token');
+  if (t1) return t1;
+
+  // 2. Formato Zustand persist
+  const t2 = localStorage.getItem('auth-storage-master');
+  if (t2) {
+    try {
+      const parsed = JSON.parse(t2);
+      return parsed?.state?.token || null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotifItem[]>([]);
@@ -73,10 +95,10 @@ export default function NotificationBell() {
     let retryTimer: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      const token = localStorage.getItem('token') || '';
+      const token = getTokenFromStorage() || '';
       if (!token) {
         // eslint-disable-next-line no-console
-        console.warn('[NotificationBell] No token found');
+        console.warn('[NotificationBell] No token found in storage');
         return;
       }
 

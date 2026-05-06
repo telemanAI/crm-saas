@@ -788,6 +788,11 @@ function SellModal({
 }) {
   const [quantity, setQuantity] = useState(1);
   const [unitSalePrice, setUnitSalePrice] = useState<string>('');
+  // Venditore obbligatorio — chi ha materialmente venduto al cliente.
+  // Aggancia la vendita alle gare con il venditore CORRETTO (potrebbe essere
+  // diverso da chi clicca il bottone, es. admin che registra a posteriori).
+  const [operators, setOperators] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+  const [soldByUserId, setSoldByUserId] = useState<string>('');
   const [linkCustomer, setLinkCustomer] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState<any[]>([]);
@@ -800,10 +805,26 @@ function SellModal({
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [saving, setSaving] = useState(false);
 
+  // Carica lista venditori (operators del negozio attivo) all'apertura del modal
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const res = await api.get('/users/operators');
+        const list = Array.isArray(res.data) ? res.data : [];
+        setOperators(list);
+      } catch (err) {
+        console.error('[SellModal] errore caricamento operatori:', err);
+        setOperators([]);
+      }
+    })();
+  }, [open]);
+
   useEffect(() => {
     if (open && product) {
       setQuantity(1);
       setUnitSalePrice(product.sellingPrice != null ? String(product.sellingPrice) : '');
+      setSoldByUserId('');
       setLinkCustomer(false);
       setCustomerSearch('');
       setCustomers([]);
@@ -852,6 +873,10 @@ function SellModal({
 
   const submit = async () => {
     if (!product) return;
+    if (!soldByUserId) {
+      alert('Seleziona il venditore — è obbligatorio per agganciare la vendita alle gare');
+      return;
+    }
     if (quantity > product.quantity) {
       alert(`Quantità superiore allo stock disponibile (${product.quantity})`);
       return;
@@ -861,6 +886,7 @@ function SellModal({
       const payload: any = {
         itemId: product.id,
         quantity,
+        soldByUserId,
       };
       if (unitSalePrice) payload.unitSalePrice = Number(unitSalePrice);
       if (selectedCustomer) payload.customerId = selectedCustomer.id;
@@ -936,6 +962,33 @@ function SellModal({
 
         <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2 mb-4 text-emerald-200 text-sm">
           Totale vendita: <strong>€{total.toFixed(2)}</strong>
+        </div>
+
+        {/* Venditore — OBBLIGATORIO. Aggancia la vendita alle gare con il venditore corretto */}
+        <div className="mb-4">
+          <label className="text-sm text-slate-300 mb-1 flex items-center gap-1">
+            <span>Venditore</span>
+            <span className="text-rose-400">*</span>
+          </label>
+          <select
+            value={soldByUserId}
+            onChange={(e) => setSoldByUserId(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
+            required
+            data-testid="sell-sold-by"
+          >
+            <option value="">— Seleziona chi ha venduto —</option>
+            {operators.map((op) => (
+              <option key={op.id} value={op.id}>
+                {`${op.firstName ?? ''} ${op.lastName ?? ''}`.trim() || op.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+          {!soldByUserId && (
+            <p className="text-xs text-amber-400 mt-1">
+              Obbligatorio: senza venditore la vendita NON conta nelle gare.
+            </p>
+          )}
         </div>
 
         {/* Step cliente opzionale */}
@@ -1101,7 +1154,7 @@ function SellModal({
           </button>
           <button
             onClick={submit}
-            disabled={saving || quantity > product.quantity}
+            disabled={saving || quantity > product.quantity || !soldByUserId}
             className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-medium disabled:opacity-50"
             data-testid="sell-confirm-btn"
           >

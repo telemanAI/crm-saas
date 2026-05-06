@@ -390,7 +390,11 @@ export class ProductsService {
           unitCost: item.unitCost ?? null,
           unitSalePrice,
           performedBy,
-          soldByUserId: performedBy,
+          // FIX: il venditore è quello scelto esplicitamente nel modal,
+          // NON sempre chi clicca il bottone (può essere un admin che
+          // registra a posteriori). Senza questo, le gare conteggiavano
+          // i pezzi sull'utente sbagliato.
+          soldByUserId: dto.soldByUserId,
           customerId: dto.customerId || null,
           practiceId: dto.practiceId || null,
           referenceType: dto.practiceId ? 'PRACTICE' : dto.customerId ? 'CUSTOMER' : null,

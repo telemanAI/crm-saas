@@ -49,11 +49,27 @@ export default function NotificationBell() {
   // Fetch lista notifiche
   const fetchList = useCallback(async () => {
     try {
-      const res = await api.get<NotifItem[]>('/notifications?limit=20');
-      setItems(res.data);
+      const res = await api.get<NotifItem[] | { data?: NotifItem[]; items?: NotifItem[] }>(
+        '/notifications?limit=20',
+      );
+      // Normalizza: il backend ritorna array diretto, ma proteggiamoci da
+      // un eventuale wrapper { data: [...] } o { items: [...] }
+      const raw = res.data as any;
+      const list: NotifItem[] = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw?.items)
+        ? raw.items
+        : [];
+      // eslint-disable-next-line no-console
+      console.log(`[NotificationBell] fetched ${list.length} items`, list);
+      setItems(list);
       setError(null);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Errore caricamento');
+      // eslint-disable-next-line no-console
+      console.error('[NotificationBell] fetch error:', err);
+      setError(err?.response?.data?.message || err?.message || 'Errore caricamento');
     }
   }, []);
 

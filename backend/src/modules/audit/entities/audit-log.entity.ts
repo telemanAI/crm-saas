@@ -7,7 +7,7 @@ export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'tenant_id', nullable: true })
   tenantId: string;
 
   @ManyToOne(() => Tenant)

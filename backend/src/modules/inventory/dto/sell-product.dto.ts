@@ -1,4 +1,4 @@
-import { IsUUID, IsInt, IsNumber, Min, IsOptional, IsString } from 'class-validator';
+import { IsUUID, IsInt, IsNumber, Min, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 
 export class SellProductDto {
   @IsUUID()
@@ -7,6 +7,16 @@ export class SellProductDto {
   @IsInt()
   @Min(1)
   quantity: number;
+
+  /**
+   * Venditore — obbligatorio. Chi ha materialmente venduto il dispositivo
+   * al cliente. Questo è il campo che viene agganciato alle gare.
+   * Se diverso da chi sta cliccando "salva" (es. admin che registra a posteriori),
+   * permette di tracciare correttamente i pezzi venduti per ciascun operatore.
+   */
+  @IsUUID()
+  @IsNotEmpty()
+  soldByUserId: string;
 
   /** Prezzo di vendita applicato a questa transazione (override su sellingPrice del prodotto). */
   @IsOptional()

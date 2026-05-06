@@ -156,39 +156,39 @@ export class ProductsService {
     // vogliamo capirlo subito dai log Railway senza dover arrivare al client
     // un crash anonimo.
     try {
-      // FIX DEFINITIVO: TypeORM create + save con tutti i campi espliciti.
-      // Non usiamo raw SQL perché il mapping colonne DB/entity è incoerente.
-      // Passiamo ESPLICITAMENTE sia tenantId che tenant (relazione) per
-      // aggirare il conflitto @Column({name:'tenant_id'}) + @ManyToOne.
-      // Il DB ha le colonne in questo ordine esatto (dal \schema):
-      // tenantId, sku, name, description, category, quantity,
-      // reserved_quantity, reorder_level, unit_cost, selling_price,
-      // supplierInfo, created_at, updated_at, tenant_id, group_id,
-      // custom_fields, is_for_sale
-      // Passiamo TUTTI i campi per evitare che TypeORM mappi valori
-      // in colonne sbagliate.
-      const item = this.itemRepo.create({
-        tenantId,
-        sku,
-        name: dto.name.trim(),
-        description: dto.description?.trim() || null,
-        category: dto.category?.trim() || null,
-        quantity: Number(dto.quantity ?? 0),
-        reservedQuantity: 0,
-        reorderLevel: Number(dto.reorderLevel ?? 5),
-        unitCost: dto.unitCost != null ? Number(dto.unitCost) : null,
-        sellingPrice: dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
-        supplierInfo: null,
-        groupId: dto.groupId || null,
-        customFields: dto.customFields || null,
-        isForSale: dto.isForSale === false ? false : true,
-      } as any);
+      // FIX DEFINITIVO-3: raw SQL con nomi colonne ESATTI del DB.
+      // Il DB ha colonne miste camelCase/snake_case.
+      // Le colonne camelCase VANNO tra virgolette doppie in Postgres.
+      const insertResult = await this.dataSource.query(
+        `INSERT INTO inventory_items (
+          "tenantId", sku, name, description, category,
+          quantity, reserved_quantity, reorder_level,
+          unit_cost, selling_price, "supplierInfo",
+          created_at, updated_at,
+          group_id, custom_fields, is_for_sale
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), $12, $13, $14)
+        RETURNING id`,
+        [
+          tenantId,
+          sku,
+          dto.name.trim(),
+          dto.description?.trim() || null,
+          dto.category?.trim() || null,
+          Number(dto.quantity ?? 0),
+          0,
+          Number(dto.reorderLevel ?? 5),
+          dto.unitCost != null ? Number(dto.unitCost) : null,
+          dto.sellingPrice != null ? Number(dto.sellingPrice) : null,
+          null,
+          dto.groupId || null,
+          dto.customFields ? JSON.stringify(dto.customFields) : null,
+          dto.isForSale === false ? false : true,
+        ],
+      );
 
-      const savedResult = await this.itemRepo.save(item) as any;
-      const savedId = savedResult?.id || (Array.isArray(savedResult) && savedResult[0]?.id) || null;
-
+      const savedId = insertResult?.[0]?.id;
       if (!savedId) {
-        throw new Error('SAVE inventory_items non ha restituito un ID');
+        throw new Error('INSERT inventory_items non ha restituito un ID');
       }
 
       // Se entry con quantity > 0, registriamo un movimento PURCHASE iniziale

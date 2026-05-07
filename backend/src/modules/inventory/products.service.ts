@@ -55,8 +55,11 @@ export class ProductsService {
     @InjectRepository(UserShopMembership)
     private readonly membershipRepo: Repository<UserShopMembership>,
     private readonly dataSource: DataSource,
-    @Optional()
-    private readonly competitionEntries?: CompetitionEntriesService,
+    // FIX Bug 2 — forwardRef necessario per circular dep con CompetitionsModule.
+    // @Optional() rimosso: ora il sync alla vendita è OBBLIGATORIO (era undefined
+    // prima perché il module non importava CompetitionsModule).
+    @Inject(forwardRef(() => CompetitionEntriesService))
+    private readonly competitionEntries: CompetitionEntriesService,
   ) {}
 
   /**
@@ -429,19 +432,32 @@ export class ProductsService {
         }),
       );
 
+      // FIX Bug 1 — log diagnostico per tracciare le vendite create.
+      // Se in produzione vedi questo log ma la vendita non appare nello storico,
+      // confronta tenantId/soldByUserId/performedBy con quelli del listing.
+      // eslint-disable-next-line no-console
+      console.log(
+        `[ProductsService.sell] CREATED movement ${movement.id} ` +
+          `tenantId=${tenantId} itemId=${item.id} soldByUserId=${dto.soldByUserId} ` +
+          `performedBy=${performedBy} qty=${dto.quantity} createdAt=${movement.createdAt}`,
+      );
+
       return { movementId: movement.id, itemId: item.id, movement };
     });
 
     // === FUORI dalla transaction (dopo commit) ===
 
-    // 1. Sync con gare DEVICE — ora il movement è committato e visibile
-    if (this.competitionEntries) {
-      try {
-        await this.competitionEntries.syncDeviceSaleEntries(result.movementId);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error(`[ProductsService.sell] syncDeviceSaleEntries failed:`, err);
-      }
+    // 1. Sync con gare DEVICE — ora il movement è committato e visibile.
+    //    Importante: AWAIT (non fire-and-forget) così se fallisce vediamo il
+    //    log immediatamente nei log di Railway. Il try/catch protegge la
+    //    response: anche se il sync fallisce, la vendita è valida.
+    try {
+      await this.competitionEntries.syncDeviceSaleEntries(result.movementId);
+      // eslint-disable-next-line no-console
+      console.log(`[ProductsService.sell] syncDeviceSaleEntries OK movementId=${result.movementId}`);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[ProductsService.sell] syncDeviceSaleEntries FAILED:`, err);
     }
 
     // 2. Carica la view aggiornata del prodotto (post-decrement stock)

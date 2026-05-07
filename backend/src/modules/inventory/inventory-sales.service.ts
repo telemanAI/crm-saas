@@ -36,6 +36,14 @@ export class InventorySalesService {
     filters: SaleListFilters,
     restrictToUserId?: string | null,
   ) {
+    // FIX Bug 1 — log diagnostico per debugging "vendita nuova non appare".
+    // Confronta questi valori con quelli loggati in [ProductsService.sell] CREATED.
+    // eslint-disable-next-line no-console
+    console.log(
+      `[InventorySales.listSales] tenantId=${tenantId} ` +
+        `restrictToUserId=${restrictToUserId} from=${filters.from?.toISOString?.() ?? filters.from} ` +
+        `to=${filters.to?.toISOString?.() ?? filters.to}`,
+    );
     const qb = this.movementRepo
       .createQueryBuilder('m')
       .leftJoinAndSelect('m.item', 'item')
@@ -75,6 +83,14 @@ export class InventorySalesService {
     qb.orderBy('m.createdAt', 'DESC');
 
     const movements = await qb.getMany();
+
+    // FIX Bug 1 — log diagnostico: se ritorniamo 0 ma in DB ci sono vendite,
+    // confronta il SQL effettivo con quello atteso. Mostriamo anche il SQL.
+    // eslint-disable-next-line no-console
+    console.log(
+      `[InventorySales.listSales] returning ${movements.length} movements ` +
+        `(SQL: ${qb.getQuery()})`,
+    );
 
     return movements.map((m) => ({
       id: m.id,

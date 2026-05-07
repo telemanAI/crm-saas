@@ -11,6 +11,8 @@ import { CompetitionTarget } from '../competitions/entities/competition-target.e
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { UserShopMembership } from '../memberships/entities/user-shop-membership.entity';
 import { User } from '../users/entities/user.entity';
+// FIX Bug 3 — necessario per applicare JwtAuthGuard alle route REST.
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { User } from '../users/entities/user.entity';
       UserShopMembership,
       User,
     ]),
+    AuthModule,
   ],
   providers: [NotificationsService, NotificationsCronService],
   controllers: [NotificationsController],

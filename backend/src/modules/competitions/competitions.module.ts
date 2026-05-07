@@ -9,6 +9,8 @@ import { Tenant } from '../tenants/entities/tenant.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { User } from '../users/entities/user.entity';
 import { InventoryMovement } from '../inventory/entities/inventory-movement.entity';
+import { InventoryItem } from '../inventory/entities/inventory-item.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { CompetitionsService } from './services/competitions.service';
 import { CompetitionEntriesService } from './services/competition-entries.service';
 import { CompetitionsAutoMonthlyService } from './services/competitions-auto-monthly.service';
@@ -28,6 +30,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Offer,
       User, // CompetitionsService.enrichOperatorRanking() risolve i nomi dal DB
       InventoryMovement,
+      InventoryItem,
+      Customer,
     ]),
     MembershipsModule,
     forwardRef(() => NotificationsModule),

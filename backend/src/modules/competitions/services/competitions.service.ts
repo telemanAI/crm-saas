@@ -14,6 +14,9 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 import { User } from '../../users/entities/user.entity';
 import { Practice } from '../../practices/entities/practice.entity';
 import { Offer } from '../../offers/entities/offer.entity';
+import { InventoryMovement } from '../../inventory/entities/inventory-movement.entity';
+import { InventoryItem } from '../../inventory/entities/inventory-item.entity';
+import { Customer } from '../../customers/entities/customer.entity';
 import { CompetitionEntriesService } from './competition-entries.service';
 import {
   CreateCompetitionDto,
@@ -42,6 +45,12 @@ export class CompetitionsService {
     private readonly practiceRepo: Repository<Practice>,
     @InjectRepository(Offer)
     private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(InventoryMovement)
+    private readonly movementRepo: Repository<InventoryMovement>,
+    @InjectRepository(InventoryItem)
+    private readonly inventoryItemRepo: Repository<InventoryItem>,
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
     private readonly dataSource: DataSource,
     private readonly entriesService: CompetitionEntriesService,
   ) {}
@@ -426,7 +435,11 @@ export class CompetitionsService {
       companyAggregate,
       // Lista dettagliata pratiche-pezzo (per dropdown UI):
       // ogni entry = una pratica con offerta, gestore, venditore, data
-      practiceBreakdown: await this.buildPracticeBreakdown(entries),
+      // Include sia entries da pratiche normali che da vendite di dispositivi.
+      practiceBreakdown: [
+        ...(await this.buildPracticeBreakdown(entries)),
+        ...(await this.buildDeviceSaleBreakdown(entries)),
+      ],
     };
   }
 
@@ -552,6 +565,136 @@ export class CompetitionsService {
           shopName: p?.tenantId ? shopMap.get(p.tenantId) ?? null : null,
         };
       });
+  }
+
+  /**
+   * FIX Bug 2 (vendita dispositivi nelle gare):
+   * Per ogni entry sourceType=DEVICE_SALE costruisce la riga con:
+   *  - venditore (soldByUserId → User)
+   *  - cliente (movement.customerId → Customer) cliccabile dal frontend
+   *  - pratica linkata (movement.practiceId → Practice) cliccabile dal frontend
+   *  - prodotto venduto (movement.itemId → InventoryItem)
+   * Output stesso schema di buildPracticeBreakdown così il frontend può
+   * unirli senza differenziarli e mostrare comunque cliente/pratica cliccabili.
+   */
+  private async buildDeviceSaleBreakdown(entries: CompetitionEntry[]): Promise<Array<any>> {
+    const movementIds = entries
+      .filter((e) => e.sourceType === 'DEVICE_SALE' && e.sourceId)
+      .map((e) => e.sourceId as string);
+    if (movementIds.length === 0) return [];
+
+    const movements = await this.movementRepo.find({
+      where: { id: In(movementIds) },
+    });
+
+    // Risolvi venditori
+    const sellerIds = Array.from(
+      new Set(movements.map((m) => m.soldByUserId).filter(Boolean) as string[]),
+    );
+    const sellers = sellerIds.length
+      ? await this.userRepo.find({
+          where: { id: In(sellerIds) },
+          select: ['id', 'firstName', 'lastName', 'email'],
+        })
+      : [];
+    const sellerMap = new Map(sellers.map((u) => [u.id, u]));
+
+    // Risolvi clienti (per nome cliccabile)
+    const customerIds = Array.from(
+      new Set(movements.map((m) => m.customerId).filter(Boolean) as string[]),
+    );
+    const customers = customerIds.length
+      ? await this.customerRepo.find({
+          where: { id: In(customerIds) },
+          select: ['id', 'firstName', 'lastName'],
+        })
+      : [];
+    const customerMap = new Map(customers.map((c) => [c.id, c]));
+
+    // Risolvi pratiche linkate (per codice/nome cliccabile)
+    const practiceIds = Array.from(
+      new Set(movements.map((m) => m.practiceId).filter(Boolean) as string[]),
+    );
+    const linkedPractices = practiceIds.length
+      ? await this.practiceRepo.find({
+          where: { id: In(practiceIds) },
+          select: ['id', 'category', 'type', 'offerName', 'offerCode'],
+        })
+      : [];
+    const practiceMap = new Map(linkedPractices.map((p) => [p.id, p]));
+
+    // Risolvi prodotti
+    const itemIds = Array.from(
+      new Set(movements.map((m) => m.itemId).filter(Boolean) as string[]),
+    );
+    const items = itemIds.length
+      ? await this.inventoryItemRepo.find({
+          where: { id: In(itemIds) },
+          select: ['id', 'name', 'sku', 'category'],
+        })
+      : [];
+    const itemMap = new Map(items.map((i) => [i.id, i]));
+
+    // Risolvi shop
+    const shopIds = Array.from(
+      new Set(movements.map((m) => m.tenantId).filter(Boolean) as string[]),
+    );
+    const shops = shopIds.length
+      ? await this.tenantRepo.find({
+          where: { id: In(shopIds) },
+          select: ['id', 'name'],
+        })
+      : [];
+    const shopMap = new Map(shops.map((t) => [t.id, t.name]));
+
+    return entries
+      .filter((e) => e.sourceType === 'DEVICE_SALE' && e.sourceId)
+      .map((e) => {
+        const m = movements.find((x) => x.id === e.sourceId);
+        if (!m) return null;
+        const seller = m.soldByUserId ? sellerMap.get(m.soldByUserId) : null;
+        const customer = m.customerId ? customerMap.get(m.customerId) : null;
+        const linkedPractice = m.practiceId ? practiceMap.get(m.practiceId) : null;
+        const item = m.itemId ? itemMap.get(m.itemId) : null;
+        return {
+          entryId: e.id,
+          targetId: e.targetId,
+          pieces: e.pieces,
+          revenue: Number(e.revenue || 0),
+          // Source flag così il frontend distingue le righe device da quelle pratica
+          sourceType: 'DEVICE_SALE',
+          // Per la card di dettaglio (seguendo lo stesso schema delle pratiche):
+          practiceId: null, // non è una pratica vera
+          practiceCreatedAt: m.createdAt,
+          provider: null,
+          offerName: item?.name ?? null,
+          category: 'DEVICE',
+          status: null,
+          operationalStatus: null,
+          sellerId: m.soldByUserId ?? null,
+          sellerName: seller
+            ? `${seller.firstName ?? ''} ${seller.lastName ?? ''}`.trim() || seller.email
+            : 'Sconosciuto',
+          // Cliente cliccabile dal frontend → /operator/customers/:id
+          customerId: customer?.id ?? null,
+          customerName: customer
+            ? `${customer.firstName ?? ''} ${customer.lastName ?? ''}`.trim() || null
+            : null,
+          // Pratica linkata cliccabile dal frontend → /operator/practices/:id
+          linkedPracticeId: linkedPractice?.id ?? null,
+          linkedPracticeLabel: linkedPractice
+            ? `${linkedPractice.type ?? ''} ${linkedPractice.offerName ?? linkedPractice.offerCode ?? ''}`.trim()
+            : null,
+          // Dettagli del prodotto venduto
+          productId: item?.id ?? null,
+          productName: item?.name ?? null,
+          productSku: item?.sku ?? null,
+          quantity: m.quantity,
+          shopId: m.tenantId ?? null,
+          shopName: shopMap.get(m.tenantId) ?? null,
+        };
+      })
+      .filter(Boolean);
   }
 
   // ===================== HELPERS =====================

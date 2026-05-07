@@ -74,6 +74,14 @@ interface PracticeBreakdownRow {
   customerName: string | null;
   shopId: string | null;
   shopName: string | null;
+  // FIX bug device sale — campi extra presenti SOLO sulle entries DEVICE_SALE
+  sourceType?: 'DEVICE_SALE' | string;
+  linkedPracticeId?: string | null;
+  linkedPracticeLabel?: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  productSku?: string | null;
+  quantity?: number | null;
 }
 interface CompanyAggregate {
   siblingCompetitionIds: string[];
@@ -486,44 +494,93 @@ export default function CompetitionDetailPage() {
                             <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
                               {targetPractices.length} pratiche · click per aprire
                             </div>
-                            {targetPractices.map((p) => (
-                              <Link
-                                key={p.entryId}
-                                href={p.practiceId ? `/operator/practices/${p.practiceId}` : '#'}
-                                className="block bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
-                                data-testid={`target-practice-${p.entryId}`}
-                              >
-                                <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
-                                    {p.offerName || '— offerta —'}
-                                  </span>
-                                  <span className="inline-flex items-center gap-1 text-slate-400">
-                                    {p.provider || 'n/d'}
-                                  </span>
-                                  <span className="text-slate-500">
-                                    {p.practiceCreatedAt
-                                      ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
-                                      : ''}
-                                  </span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-3 text-slate-400">
-                                  <span className="text-cyan-300">
-                                    Venduto da: <strong>{p.sellerName}</strong>
-                                  </span>
-                                  {p.customerName && (
-                                    <span className="text-emerald-300">
-                                      Cliente: <strong>{p.customerName}</strong>
+                            {targetPractices.map((p) => {
+                              // FIX bug device sale — render diverso per DEVICE_SALE.
+                              // Le entries di vendita dispositivi non hanno una "pratica"
+                              // ma un movimento. Mostriamo prodotto/quantità + link a
+                              // cliente e pratica eventualmente collegati al movimento.
+                              const isDeviceSale = p.sourceType === 'DEVICE_SALE';
+                              const mainHref = isDeviceSale
+                                ? '#'
+                                : p.practiceId
+                                ? `/operator/practices/${p.practiceId}`
+                                : '#';
+                              const RowWrapper: any = isDeviceSale ? 'div' : Link;
+                              const rowProps = isDeviceSale ? {} : { href: mainHref };
+                              return (
+                                <RowWrapper
+                                  key={p.entryId}
+                                  {...rowProps}
+                                  className={`block bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition ${
+                                    isDeviceSale ? '' : 'cursor-pointer'
+                                  }`}
+                                  data-testid={`target-practice-${p.entryId}`}
+                                >
+                                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                                    {isDeviceSale && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wide bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">
+                                        📦 Dispositivo
+                                      </span>
+                                    )}
+                                    <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                                      {isDeviceSale
+                                        ? `${p.productName ?? '— prodotto —'}${p.productSku ? ` (${p.productSku})` : ''}`
+                                        : p.offerName || '— offerta —'}
                                     </span>
-                                  )}
-                                  {p.shopName && (
-                                    <span className="text-fuchsia-300">{p.shopName}</span>
-                                  )}
-                                  <span className="text-amber-400 ml-auto opacity-70">
-                                    Apri →
-                                  </span>
-                                </div>
-                              </Link>
-                            ))}
+                                    {isDeviceSale && p.quantity ? (
+                                      <span className="text-amber-400 font-semibold">
+                                        ×{p.quantity}
+                                      </span>
+                                    ) : null}
+                                    <span className="inline-flex items-center gap-1 text-slate-400">
+                                      {!isDeviceSale && (p.provider || 'n/d')}
+                                    </span>
+                                    <span className="text-slate-500">
+                                      {p.practiceCreatedAt
+                                        ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
+                                        : ''}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                                    <span className="text-cyan-300">
+                                      Venduto da: <strong>{p.sellerName}</strong>
+                                    </span>
+                                    {p.customerName && (
+                                      isDeviceSale && p.customerId ? (
+                                        <Link
+                                          href={`/operator/customers/${p.customerId}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="text-emerald-300 hover:text-emerald-200 hover:underline"
+                                        >
+                                          Cliente: <strong>{p.customerName}</strong>
+                                        </Link>
+                                      ) : (
+                                        <span className="text-emerald-300">
+                                          Cliente: <strong>{p.customerName}</strong>
+                                        </span>
+                                      )
+                                    )}
+                                    {isDeviceSale && p.linkedPracticeId && p.linkedPracticeLabel && (
+                                      <Link
+                                        href={`/operator/practices/${p.linkedPracticeId}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-violet-300 hover:text-violet-200 hover:underline"
+                                      >
+                                        Pratica: <strong>{p.linkedPracticeLabel}</strong>
+                                      </Link>
+                                    )}
+                                    {p.shopName && (
+                                      <span className="text-fuchsia-300">{p.shopName}</span>
+                                    )}
+                                    {!isDeviceSale && (
+                                      <span className="text-amber-400 ml-auto opacity-70">
+                                        Apri →
+                                      </span>
+                                    )}
+                                  </div>
+                                </RowWrapper>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

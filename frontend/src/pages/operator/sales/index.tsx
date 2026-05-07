@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
 import { useAuthStore } from '@/stores/authStore';
@@ -68,17 +69,23 @@ function formatDate(iso: string): string {
   return d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+// FIX Bug 1 (timezone): toISOString().slice(0,10) converte in UTC e in
+// fusi UTC+ può tornare la DATA DI IERI. Usiamo formattazione LOCALE.
+function formatLocalDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function todayStart(): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
+  return formatLocalDate(new Date());
 }
 
 function thirtyDaysAgo(): string {
   const d = new Date();
   d.setDate(d.getDate() - 30);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
+  return formatLocalDate(d);
 }
 
 export default function SalesHistoryPage() {
@@ -299,16 +306,40 @@ export default function SalesHistoryPage() {
                               </span>
                             )}
                             {sale.customerName && (
-                              <span className="flex items-center gap-1 text-emerald-300">
-                                <UserIcon className="w-3 h-3" weight="fill" />
-                                Cliente: {sale.customerName}
-                              </span>
+                              sale.customerId ? (
+                                <Link
+                                  href={`/operator/customers/${sale.customerId}`}
+                                  className="flex items-center gap-1 text-emerald-300 hover:text-emerald-200 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`sale-customer-${sale.id}`}
+                                >
+                                  <UserIcon className="w-3 h-3" weight="fill" />
+                                  Cliente: {sale.customerName}
+                                </Link>
+                              ) : (
+                                <span className="flex items-center gap-1 text-emerald-300">
+                                  <UserIcon className="w-3 h-3" weight="fill" />
+                                  Cliente: {sale.customerName}
+                                </span>
+                              )
                             )}
                             {sale.practiceCode && (
-                              <span className="flex items-center gap-1 text-violet-300">
-                                <ClipboardText className="w-3 h-3" weight="fill" />
-                                Pratica: {sale.practiceCode}
-                              </span>
+                              sale.practiceId ? (
+                                <Link
+                                  href={`/operator/practices/${sale.practiceId}`}
+                                  className="flex items-center gap-1 text-violet-300 hover:text-violet-200 hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                  data-testid={`sale-practice-${sale.id}`}
+                                >
+                                  <ClipboardText className="w-3 h-3" weight="fill" />
+                                  Pratica: {sale.practiceCode}
+                                </Link>
+                              ) : (
+                                <span className="flex items-center gap-1 text-violet-300">
+                                  <ClipboardText className="w-3 h-3" weight="fill" />
+                                  Pratica: {sale.practiceCode}
+                                </span>
+                              )
                             )}
                             {sale.paymentMethod && (
                               <span

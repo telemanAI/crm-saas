@@ -48,11 +48,19 @@ export class NotificationsService {
     if (opts?.limit) {
       qb.limit(opts.limit);
     }
-    return qb.getMany();
+    const result = await qb.getMany();
+    // FIX Bug 3 — log diagnostico per capire la discrepanza count vs list.
+    // Se result.length=0 ma countUnread=6 → c'è un bug di mapping userId.
+    // eslint-disable-next-line no-console
+    console.log(`[Notifications.findByUser] userId="${userId}" → ${result.length} items`);
+    return result;
   }
 
   async countUnread(userId: string): Promise<number> {
-    return this.repo.count({ where: { userId, isRead: false } });
+    const cnt = await this.repo.count({ where: { userId, isRead: false } });
+    // eslint-disable-next-line no-console
+    console.log(`[Notifications.countUnread] userId="${userId}" → ${cnt} unread`);
+    return cnt;
   }
 
   async markAsRead(id: string, userId: string): Promise<{ affected: boolean }> {

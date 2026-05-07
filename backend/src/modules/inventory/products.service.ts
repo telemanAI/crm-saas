@@ -118,8 +118,10 @@ export class ProductsService {
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.group', 'group')
       .where('item.tenantId = :tenantId', { tenantId })
-      // FIX Problema 1 — escludi i prodotti soft-deleted
-      .andWhere('item.archivedAt IS NULL');
+      // FIX Problema 1 — escludi prodotti "archiviati" (eliminati ma con storico).
+      // Gli archiviati hanno category='__ARCHIVED__' e isForSale=false.
+      // Vedi remove() sotto: hard-delete impossibile per FK con movements.
+      .andWhere(`(item.category IS NULL OR item.category != '__ARCHIVED__')`);
 
     if (filters.groupId) qb.andWhere('item.groupId = :groupId', { groupId: filters.groupId });
     if (filters.isForSale !== undefined) qb.andWhere('item.isForSale = :isForSale', { isForSale: filters.isForSale });
@@ -289,14 +291,25 @@ export class ProductsService {
   async remove(tenantId: string, id: string): Promise<{ message: string }> {
     const item = await this.itemRepo.findOne({ where: { id, tenantId } });
     if (!item) throw new NotFoundException('Prodotto non trovato');
-    // FIX Problema 1 — Soft delete con archivedAt.
-    // Hard DELETE falliva per FK con `inventory_movements` (no cascade).
-    // Settiamo archivedAt: il prodotto sparisce dal catalogo ma lo storico
-    // vendite e le entries delle gare restano consultabili.
-    item.archivedAt = new Date();
+
+    // FIX Problema 1 — strategia smart per evitare FK violation.
+    // 1. Se il prodotto NON ha movimenti → hard delete (lo cancella davvero)
+    // 2. Se HA movimenti (vendite/acquisti già registrati) → archivia:
+    //    - category = '__ARCHIVED__'  (sentinel per filtraggio)
+    //    - isForSale = false
+    //    - quantity = 0
+    //    Lo storico vendite e le gare passate restano consultabili.
+    const movementCount = await this.movementRepo.count({ where: { itemId: id } });
+    if (movementCount === 0) {
+      await this.itemRepo.remove(item);
+      return { message: 'Prodotto eliminato' };
+    }
+    item.category = '__ARCHIVED__';
+    item.isForSale = false;
+    item.quantity = 0;
     item.updatedAt = new Date();
     await this.itemRepo.save(item);
-    return { message: 'Prodotto eliminato' };
+    return { message: 'Prodotto archiviato (aveva vendite registrate, lo storico è stato preservato)' };
   }
 
   // ============ STOCK MOVEMENTS ============
@@ -367,7 +380,14 @@ export class ProductsService {
   ): Promise<{ movement: InventoryMovement; product: ProductView }> {
     // Phase H — fallback BLINDATO
     tenantId = await this.resolveTenantId(tenantId, performedBy);
-    return this.dataSource.transaction(async (manager) => {
+
+    // FIX Bug 2 — eseguiamo la transazione e otteniamo il risultato.
+    // POI (FUORI dalla transaction, dopo il commit) chiamiamo
+    // syncDeviceSaleEntries così trova il movement davvero salvato.
+    // Prima il sync era dentro la transaction → cercava il movement nel DB
+    // ma non era ancora committato → fallimento silenzioso → la gara
+    // si aggiornava solo manualmente con "modifica e salva" (recompute).
+    const result = await this.dataSource.transaction(async (manager) => {
       const itemRepo = manager.getRepository(InventoryItem);
       const movRepo = manager.getRepository(InventoryMovement);
 
@@ -397,34 +417,37 @@ export class ProductsService {
           unitCost: item.unitCost ?? null,
           unitSalePrice,
           performedBy,
-          // FIX: il venditore è quello scelto esplicitamente nel modal,
-          // NON sempre chi clicca il bottone (può essere un admin che
-          // registra a posteriori). Senza questo, le gare conteggiavano
-          // i pezzi sull'utente sbagliato.
+          // Il venditore è quello scelto esplicitamente nel modal (può
+          // differire da chi clicca: es. admin che registra a posteriori).
           soldByUserId: dto.soldByUserId,
           customerId: dto.customerId || null,
           practiceId: dto.practiceId || null,
           referenceType: dto.practiceId ? 'PRACTICE' : dto.customerId ? 'CUSTOMER' : null,
           referenceId: dto.practiceId || dto.customerId || null,
           notes: dto.notes || null,
-          // Phase D minimal — metodo di pagamento
           paymentMethod: dto.paymentMethod || null,
         }),
       );
 
-      const product = await this.findOne(tenantId, item.id, true);
-
-      // Sync con gare DEVICE: quando un dispositivo viene venduto,
-      // aggiorna le CompetitionEntry per le gare che includono questo prodotto.
-      if (this.competitionEntries && movement) {
-        this.competitionEntries.syncDeviceSaleEntries(movement.id).catch((err) => {
-          // eslint-disable-next-line no-console
-          console.error(`[ProductsService.sell] syncDeviceSaleEntries failed:`, err);
-        });
-      }
-
-      return { movement, product };
+      return { movementId: movement.id, itemId: item.id, movement };
     });
+
+    // === FUORI dalla transaction (dopo commit) ===
+
+    // 1. Sync con gare DEVICE — ora il movement è committato e visibile
+    if (this.competitionEntries) {
+      try {
+        await this.competitionEntries.syncDeviceSaleEntries(result.movementId);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(`[ProductsService.sell] syncDeviceSaleEntries failed:`, err);
+      }
+    }
+
+    // 2. Carica la view aggiornata del prodotto (post-decrement stock)
+    const product = await this.findOne(tenantId, result.itemId, true);
+
+    return { movement: result.movement, product };
   }
 
   // ============ HELPERS ============

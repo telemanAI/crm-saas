@@ -46,7 +46,12 @@ export class InventorySalesService {
       .andWhere(`m.movementType = 'SALE'`);
 
     if (restrictToUserId) {
-      qb.andWhere('m.soldByUserId = :sbid', { sbid: restrictToUserId });
+      // FIX Bug 1 — un utente senza canViewAllDeviceSales deve vedere:
+      // - le vendite IN CUI è stato il venditore (soldByUserId)
+      // - le vendite CHE HA REGISTRATO (performedBy)
+      // Prima filtravamo solo su soldByUserId → se admin registrava vendita
+      // per altro venditore, l'admin perdeva traccia della propria operazione.
+      qb.andWhere('(m.soldByUserId = :sbid OR m.performedBy = :sbid)', { sbid: restrictToUserId });
     }
 
     if (filters.from && filters.to) {
@@ -121,7 +126,7 @@ export class InventorySalesService {
       .where('m.tenantId = :tenantId', { tenantId })
       .andWhere(`m.movementType = 'SALE'`);
 
-    if (restrictToUserId) qb.andWhere('m.soldByUserId = :sbid', { sbid: restrictToUserId });
+    if (restrictToUserId) qb.andWhere('(m.soldByUserId = :sbid OR m.performedBy = :sbid)', { sbid: restrictToUserId });
     if (filters.from && filters.to) {
       // FIX Problema 4 — stessa correzione del listing per coerenza dei totali nelle card
       const toEnd = new Date(filters.to);

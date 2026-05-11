@@ -211,6 +211,45 @@ export class CompetitionsController {
   }
 
   /**
+   * FIX BUG GARE — Ricompute massivo di tutte le gare attive visibili al
+   * tenant chiamante. Indispensabile dopo aver creato/modificato promo o
+   * aver lanciato `/practices/repair-offer-links`.
+   */
+  @Post('recompute-all-active')
+  @RequirePermission('canManageCompetitions')
+  @HttpCode(HttpStatus.OK)
+  async recomputeAllActive(@Req() req: any) {
+    const tenant = await this.tenantRepo.findOne({ where: { id: req.user.tenantId } });
+    const isFounder = req.user.role === 'SUPER_ADMIN' || req.user.role === 'FOUNDER';
+    const list = await this.competitionsService.findAll(req.user.tenantId, false, {
+      companyId: tenant?.companyId ?? null,
+      isFounder,
+    });
+    const results: Array<{ id: string; title: string; deleted: number; inserted: number }> = [];
+    for (const c of list) {
+      try {
+        const r = await this.entriesService.recomputeCompetition(c.id);
+        results.push({ id: c.id, title: c.title, deleted: r.deleted, inserted: r.inserted });
+      } catch (err: any) {
+        results.push({
+          id: c.id,
+          title: c.title,
+          deleted: 0,
+          inserted: 0,
+          ...(err?.message ? { error: err.message } : {}),
+        } as any);
+      }
+    }
+    const totalInserted = results.reduce((s, r) => s + (r.inserted || 0), 0);
+    return {
+      message: `Ricalcolate ${results.length} gare attive`,
+      totalCompetitions: results.length,
+      totalInserted,
+      details: results,
+    };
+  }
+
+  /**
    * Phase G — Endpoint diagnostico (Phase G.3: utilizzato dalla pagina SUPER_ADMIN).
    * Spiega esattamente perché una gara non avanza: lista pratiche del periodo,
    * motivo di esclusione di ognuna, match per target, conteggio entries.

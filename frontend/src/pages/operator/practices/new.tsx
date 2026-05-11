@@ -651,6 +651,7 @@ export default function NewPractice() {
       if (stepNumber === 1 && !practiceId) {
         const response = await api.post('/practices', {
           type: data.type,
+          offerId: (data as any).offerId || undefined,
           offerCode: data.offerCode,
           offerName: data.offerName,
           offerCanone: data.offerCanone,
@@ -719,6 +720,7 @@ export default function NewPractice() {
       case 'offer':
         return {
           type: data.type,
+          offerId: (data as any).offerId || undefined,
           offerCode: data.offerCode,
           offerName: data.offerName,
           offerCanone: data.offerCanone,
@@ -1151,6 +1153,7 @@ export default function NewPractice() {
                                       
                                       if (selectedOffer) {
                                         setData({ 
+                                          offerId: (selectedOffer as any).id || undefined,
                                           offerCode: selectedOffer.name,
                                           offerName: selectedOffer.name,
                                           offerCanone: selectedOffer.canone,

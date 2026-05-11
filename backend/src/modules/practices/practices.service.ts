@@ -774,4 +774,47 @@ export class PracticesService {
     });
     return new PracticeResponseDto(await this.findById(tenantId, practiceId));
   }
+
+  /**
+   * FIX BUG GARE — Ripara lo storico:
+   *  1) Per ogni pratica con offerId=NULL ma offerName valorizzato, prova a
+   *     risolvere offerId per nome (case-insensitive). Aggiorna se trova match.
+   *  2) Ritorna il numero di pratiche aggiornate. Il caller decide se
+   *     ricalcolare le gare separatamente.
+   *
+   * NOTA: scope è opzionale (tenantId). Se omesso → scansiona tutto.
+   */
+  async repairOfferLinks(tenantId?: string): Promise<{
+    scanned: number;
+    updated: number;
+    sample: Array<{ id: string; offerName: string; resolvedOfferId: string }>;
+  }> {
+    const qb = this.practiceRepo
+      .createQueryBuilder('p')
+      .where('p.offerId IS NULL')
+      .andWhere('p.offerName IS NOT NULL')
+      .andWhere("TRIM(p.offerName) <> ''")
+      .andWhere("UPPER(p.offerName) <> 'ALTRO'");
+    if (tenantId) qb.andWhere('p.tenantId = :tid', { tid: tenantId });
+    const practices = await qb.getMany();
+
+    let updated = 0;
+    const sample: Array<{ id: string; offerName: string; resolvedOfferId: string }> = [];
+    for (const p of practices) {
+      const resolved = await this.resolveOfferId('' as any, {
+        offerName: p.offerName,
+        offerCode: p.offerCode,
+        type: p.type,
+      });
+      if (resolved) {
+        p.offerId = resolved;
+        await this.practiceRepo.save(p);
+        updated++;
+        if (sample.length < 10) {
+          sample.push({ id: p.id, offerName: p.offerName, resolvedOfferId: resolved });
+        }
+      }
+    }
+    return { scanned: practices.length, updated, sample };
+  }
 }

@@ -293,7 +293,30 @@ export class CompetitionEntriesService {
 
         case 'specific':
           if (Array.isArray(target.offerIds) && target.offerIds.length > 0) {
-            qb.andWhere('p.offerId IN (:...ids)', { ids: target.offerIds });
+            // FIX BUG GARE — Match robusto per target 'specific':
+            //   p.offerId IN (...)
+            //   OR (p.offerId IS NULL AND UPPER(p.offerName) IN (nomi delle offerte target))
+            // Questo recupera le pratiche storiche dove resolveOfferId per nome
+            // ha fallito (es. wizard rete fissa che non passa offerId) e dove il
+            // matching strict-by-uuid avrebbe perso il pezzo.
+            const targetOffers = await this.offerRepo.find({
+              where: { id: In(target.offerIds) },
+              select: ['id', 'name'],
+            });
+            const targetNamesUpper = targetOffers
+              .map((o) => (o.name || '').toUpperCase().trim())
+              .filter(Boolean);
+            qb.andWhere(
+              new Brackets((sub) => {
+                sub.where('p.offerId IN (:...ids)', { ids: target.offerIds });
+                if (targetNamesUpper.length > 0) {
+                  sub.orWhere(
+                    '(p.offerId IS NULL AND UPPER(TRIM(p.offerName)) IN (:...tnames))',
+                    { tnames: targetNamesUpper },
+                  );
+                }
+              }),
+            );
           } else if (
             target.matchProviders?.length ||
             target.matchOfferKeywords?.length
@@ -473,6 +496,31 @@ export class CompetitionEntriesService {
     const activeCompetitions = await qb.getMany();
 
     // Determina target matchanti
+    // FIX BUG GARE — pre-carica i nomi delle offerte target così possiamo
+    // matchare anche le pratiche con offerId=NULL ma offerName combacante.
+    const allTargetOfferIds = new Set<string>();
+    for (const comp of activeCompetitions) {
+      for (const t of comp.targets || []) {
+        if (
+          t.targetType === 'specific' &&
+          Array.isArray(t.offerIds) &&
+          t.offerIds.length > 0
+        ) {
+          for (const id of t.offerIds) allTargetOfferIds.add(id);
+        }
+      }
+    }
+    const targetOfferNameById = new Map<string, string>();
+    if (allTargetOfferIds.size > 0) {
+      const offers = await this.offerRepo.find({
+        where: { id: In(Array.from(allTargetOfferIds)) },
+        select: ['id', 'name'],
+      });
+      for (const o of offers) {
+        targetOfferNameById.set(o.id, (o.name || '').toUpperCase().trim());
+      }
+    }
+
     const desired: Array<{ competitionId: string; targetId: string | null }> = [];
     for (const comp of activeCompetitions) {
       const targets = comp.targets || [];
@@ -480,9 +528,15 @@ export class CompetitionEntriesService {
         desired.push({ competitionId: comp.id, targetId: null });
         continue;
       }
-      const matching = targets.filter((t) =>
-        this.targetMatchesPractice(t, practice, offer),
-      );
+      const matching = targets.filter((t) => {
+        const namesForTarget =
+          t.targetType === 'specific' && Array.isArray(t.offerIds)
+            ? (t.offerIds
+                .map((id) => targetOfferNameById.get(id))
+                .filter(Boolean) as string[])
+            : [];
+        return this.targetMatchesPractice(t, practice, offer, namesForTarget);
+      });
       for (const t of matching) {
         desired.push({ competitionId: comp.id, targetId: t.id });
       }
@@ -1097,6 +1151,7 @@ export class CompetitionEntriesService {
     target: CompetitionTarget,
     practice: Practice,
     offer: Offer | null,
+    targetOfferNamesUpper: string[] = [],
   ): boolean {
     // Categoria
     if (
@@ -1126,25 +1181,44 @@ export class CompetitionEntriesService {
         break;
       case 'specific':
         if (Array.isArray(target.offerIds) && target.offerIds.length > 0) {
-          // FIX: se practice.offerId è null (wizard non lo salva),
-          // prova a matchare per practice.type / offerType
-          if (!practice.offerId) {
+          // FIX BUG GARE — match robusto:
+          //  1) offerId esatto → match
+          //  2) altrimenti offerName combacante (case-insensitive, trimmed)
+          //  3) altrimenti, fallback storico per pratiche senza offerName per
+          //     keyword/provider (matchProviders)
+          const practiceOfferNameUpper = (practice.offerName || '')
+            .toString()
+            .toUpperCase()
+            .trim();
+
+          if (practice.offerId && target.offerIds.includes(practice.offerId)) {
+            // match per id ✓
+          } else if (
+            practiceOfferNameUpper &&
+            targetOfferNamesUpper.includes(practiceOfferNameUpper)
+          ) {
+            // match per nome ✓ (recupero pratiche con offerId NULL ma nome combacante)
+          } else if (!practice.offerId) {
+            // Ultimo fallback: matchProviders su practice.type/offerType (legacy)
             const practiceType = (
               practice.type ||
               practice.offerType ||
               ''
             ).toString().toUpperCase();
             if (!practiceType) return false;
-            // matchProviders contiene nomi provider/offerte come stringhe
             if (target.matchProviders?.length) {
               const wantUpper = target.matchProviders.map((s) => s.toUpperCase());
-              if (!wantUpper.some((w) => practiceType.includes(w) || w.includes(practiceType))) {
+              if (
+                !wantUpper.some(
+                  (w) => practiceType.includes(w) || w.includes(practiceType),
+                )
+              ) {
                 return false;
               }
             } else {
-              return false; // niente da matchare
+              return false; // niente per matchare
             }
-          } else if (!target.offerIds.includes(practice.offerId)) {
+          } else {
             return false;
           }
         } else {

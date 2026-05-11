@@ -123,6 +123,28 @@ export class PracticesController {
     return this.practicesService.forceComplete(req.user.tenantId, id);
   }
 
+  /**
+   * FIX BUG GARE — Riparazione storico.
+   *
+   * Scansiona le pratiche con offerId=NULL ma offerName valorizzato e tenta
+   * di risolvere l'offerId per nome. Indispensabile dopo aver aggiunto nuove
+   * promo o quando il wizard non passava offerId.
+   *
+   * Body opzionale: { allTenants: true } → scansiona tutti gli shop.
+   * Default: solo lo shop attivo del chiamante.
+   *
+   * Solo FOUNDER/ADMIN/SUPER_ADMIN.
+   */
+  @Post('repair-offer-links')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'FOUNDER')
+  async repairOfferLinks(
+    @Request() req,
+    @Body() body?: { allTenants?: boolean },
+  ) {
+    const scope = body?.allTenants ? undefined : req.user.tenantId;
+    return this.practicesService.repairOfferLinks(scope);
+  }
+
   @Delete(':id')
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   @RequirePermission('canDeletePractices')

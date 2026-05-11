@@ -25,12 +25,16 @@ import {
   Tag,
   Receipt,
   Trophy,
+  List,
+  X,
 } from 'phosphor-react';
 import NotificationBell from '../NotificationBell';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore } from '@/stores/themeStore';
 import api from '@/lib/axios';
 import ShopSwitcher from '@/components/ShopSwitcher';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import MobileQuickNav from '@/components/mobile/MobileQuickNav';
 
 interface OperatorLayoutProps {
   children: ReactNode;
@@ -41,6 +45,17 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
   const router = useRouter();
   const { user, shops, activeShopId, isImpersonating, clearAuth, exitImpersonate, originalUser } = useAuthStore();
   const { isDark } = useThemeStore();
+  const isMobile = useIsMobile();
+
+  // Drawer mobile: aperto/chiuso. Su desktop è sempre "aperto" (sidebar fissa).
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  // Chiude il drawer ad ogni cambio rotta su mobile
+  useEffect(() => {
+    const handleRoute = () => setMobileNavOpen(false);
+    router.events.on('routeChangeComplete', handleRoute);
+    return () => router.events.off('routeChangeComplete', handleRoute);
+  }, [router]);
 
   const [showWashReport, setShowWashReport] = useState(false);
 
@@ -166,9 +181,9 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
       )}
 
       <aside
-        className={`fixed left-0 top-0 h-full w-64 border-r z-40 flex flex-col transition-colors duration-300 ${
+        className={`fixed left-0 top-0 h-full w-64 border-r z-40 flex flex-col transition-[transform,background-color] duration-300 ${
           isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'
-        }`}
+        } md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
         <div
           className={`p-6 border-b flex-shrink-0 ${
@@ -471,25 +486,48 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         </div>
       </aside>
 
-      <main className="ml-64">
+      {/* Backdrop drawer mobile */}
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+          data-testid="mobile-drawer-backdrop"
+        />
+      )}
+
+      <main className="md:ml-64">
         <header
-          className={`h-16 backdrop-blur-sm border-b flex items-center justify-between px-6 sticky top-0 z-30 transition-colors duration-300 ${
+          className={`h-16 backdrop-blur-sm border-b flex items-center justify-between px-4 md:px-6 sticky top-0 z-30 transition-colors duration-300 ${
             isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white/80 border-gray-200'
           }`}
         >
-          <div className="flex items-center gap-4">
-            <h2 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen((v) => !v)}
+              className={`md:hidden p-2 rounded-lg ${
+                isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'
+              }`}
+              aria-label="Apri menu"
+              data-testid="mobile-menu-toggle"
+            >
+              {mobileNavOpen ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
+            </button>
+            <h2 className={`text-base md:text-lg font-semibold truncate ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
               {title}
             </h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             {shops.length > 0 ? <ShopSwitcher /> : null}
             <NotificationBell />
           </div>
         </header>
 
-        <div className="p-6">{children}</div>
+        <div className="p-3 md:p-6">{children}</div>
       </main>
+
+      {/* Quick navigator mobile (joystick + radial menu) — visibile SOLO su mobile */}
+      {isMobile && <MobileQuickNav />}
     </div>
   );
 }

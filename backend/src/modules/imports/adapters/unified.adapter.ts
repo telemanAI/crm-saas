@@ -686,6 +686,10 @@ export class UnifiedAdapter {
     if (data.energy_gestoreProvenienza) out.gestoreProvenienza = String(data.energy_gestoreProvenienza);
     if (data.energy_gestoreNuovoContratto) out.gestoreNuovoContratto = String(data.energy_gestoreNuovoContratto);
     if (data.energy_tipoOfferta) out.tipoOfferta = String(data.energy_tipoOfferta).toUpperCase();
+    // Campo libero "Offerta" (può essere numero come "0,4" o parola come "fissa"/"variabile")
+    if (data.energy_offerta !== undefined && data.energy_offerta !== null && String(data.energy_offerta).trim() !== '') {
+      out.offerta = String(data.energy_offerta).trim();
+    }
     if (data.energy_ibanCdc) out.ibanCdc = String(data.energy_ibanCdc).toUpperCase().replace(/\s/g, '');
     if (data.energy_noteMetodoPagamento) out.noteMetodoPagamento = String(data.energy_noteMetodoPagamento);
     if (data.energy_noteGeneriche) out.noteGeneriche = String(data.energy_noteGeneriche);
@@ -777,7 +781,7 @@ export class UnifiedAdapter {
       'energy_tipoAttivazione', 'energy_codiceFiscaleVecchioContratto',
       'energy_numeroContatore', 'energy_potenzaContatore',
       'energy_gestoreProvenienza', 'energy_gestoreNuovoContratto',
-      'energy_tipoOfferta', 'energy_ibanCdc',
+      'energy_tipoOfferta', 'energy_offerta', 'energy_ibanCdc',
       'energy_noteMetodoPagamento', 'energy_noteGeneriche', 'energy_accordiCliente',
     ];
     return fields.includes(target);
@@ -856,6 +860,7 @@ export class UnifiedAdapter {
       { name: 'energy_gestoreProvenienza', label: '[Energy] Gestore di provenienza', type: 'string', required: false, category: 'practice' as const },
       { name: 'energy_gestoreNuovoContratto', label: '[Energy] Gestore nuovo contratto', type: 'string', required: false, category: 'practice' as const },
       { name: 'energy_tipoOfferta', label: '[Energy] Tipo offerta (VARIABILE / FISSA / ALTRO)', type: 'enum', required: false, category: 'practice' as const },
+      { name: 'energy_offerta', label: '[Energy] Offerta (valore libero, es. "0,4" o "fissa"/"variabile")', type: 'string', required: false, category: 'practice' as const, helpText: 'Diverso da Nome Offerta: qui va il valore tariffario o il tipo (numero o parola)' },
       { name: 'energy_ibanCdc', label: '[Energy] IBAN / Carta di credito', type: 'string', required: false, category: 'practice' as const },
       { name: 'energy_noteMetodoPagamento', label: '[Energy] Note metodo pagamento', type: 'text', required: false, category: 'practice' as const },
       { name: 'energy_noteGeneriche', label: '[Energy] Note generiche', type: 'text', required: false, category: 'practice' as const },

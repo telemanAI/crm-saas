@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import PracticeWizardMobile from './new-mobile';
 import { 
   Check, 
   CaretDown, 
@@ -282,6 +284,14 @@ const offersCatalog = {
 };
 
 export default function NewPractice() {
+  // Conditional render mobile/desktop. PC: rendera NewPracticeDesktop INVARIATO.
+  // Mobile: si va su PracticeWizardMobile (file separato, stesso store/API).
+  const isMobile = useIsMobile();
+  if (isMobile) return <PracticeWizardMobile />;
+  return <NewPracticeDesktop />;
+}
+
+function NewPracticeDesktop() {
   const router = useRouter();
   const { token } = useAuthStore();
   const { data, setData, currentStep, setStep, reset, practiceId, setPracticeId } = usePracticeWizardStore();

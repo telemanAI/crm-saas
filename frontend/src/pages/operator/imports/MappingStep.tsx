@@ -35,6 +35,7 @@ const SearchableSelect = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -61,11 +62,20 @@ const SearchableSelect = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset search quando si apre/chiude
+  // Reset search quando si apre/chiude.
+  // FIX dropdown nascosto a fine pagina: misuro lo spazio sotto e, se è poco,
+  // apro la lista VERSO L'ALTO. La lista ha max-h-60 (240px) + 1rem margine.
   useEffect(() => {
     if (isOpen) {
       setSearchTerm('');
       setTimeout(() => inputRef.current?.focus(), 0);
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const need = 260; // 240 lista + 16 margine + ~4 padding
+        setOpenUpward(spaceBelow < need && spaceAbove > spaceBelow);
+      }
     }
   }, [isOpen]);
 
@@ -128,9 +138,13 @@ const SearchableSelect = ({
         </div>
       </div>
 
-      {/* Dropdown con lista filtrata */}
+      {/* Dropdown con lista filtrata — flip-up automatico se a fine pagina */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div
+          className={`absolute z-50 w-full bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto ${
+            openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
+          }`}
+        >
           {/* Opzione per deselezionare */}
           <div
             onClick={() => handleSelect('')}

@@ -279,6 +279,8 @@ export class Practice {
     gestoreNuovoContrattoAltro?: string;
     tipoOfferta?: 'VARIABILE' | 'FISSA' | 'ALTRO';
     tipoOffertaAltro?: string;
+    /** Campo libero "offerta" (es. valore tariffario "0,4" o tipo "fissa"/"variabile"). Distinto da offerName (nome commerciale) e tipoOfferta (enum). */
+    offerta?: string;
     ibanCdc?: string;
     noteMetodoPagamento?: string;
     noteGeneriche?: string;

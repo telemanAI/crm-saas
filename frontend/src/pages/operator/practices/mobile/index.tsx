@@ -204,56 +204,58 @@ export default function MobilePracticesList() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04 }}
                 onClick={() => router.push(`/operator/practices/mobile/${p.id}`)}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
                 data-testid="mobile-practice-card"
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-indigo-500/10 border border-indigo-500/30">
-                    <DeviceMobile className="w-6 h-6 text-indigo-400" weight="duotone" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-white truncate max-w-[260px] group-hover:text-indigo-400 transition-colors">
-                      {p.offerName || 'Offerta non selezionata'}
-                    </h3>
-                    <div className="text-sm text-slate-400 mt-1">
-                      <p className="truncate">
-                        {p.customerSnapshot?.firstName || p.customer?.firstName} {' '}
-                        {p.customerSnapshot?.lastName || p.customer?.lastName}
-                      </p>
-                      {(p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode) && (
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">
-                          CF: {p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-xl flex items-center justify-center bg-indigo-500/10 border border-indigo-500/30">
+                      <DeviceMobile className="w-5 h-5 md:w-6 md:h-6 text-indigo-400" weight="duotone" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-white truncate text-sm md:text-base group-hover:text-indigo-400 transition-colors">
+                        {p.offerName || 'Offerta non selezionata'}
+                      </h3>
+                      <div className="text-xs md:text-sm text-slate-400 mt-1">
+                        <p className="truncate">
+                          {p.customerSnapshot?.firstName || p.customer?.firstName} {' '}
+                          {p.customerSnapshot?.lastName || p.customer?.lastName}
                         </p>
-                      )}
-                      {p.mobileData?.numeroDaPortare && p.mobileData.numeroDaPortare !== '0' && (
-                        <p className="text-xs text-slate-500 mt-0.5">N° da portare: {p.mobileData.numeroDaPortare}</p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${opBadge.class}`}>
-                        {opBadge.label}
-                      </span>
+                        {(p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode) && (
+                          <p className="text-[10px] md:text-xs text-slate-500 font-mono mt-0.5 truncate">
+                            CF: {p.customerSnapshot?.fiscalCode || p.customer?.fiscalCode}
+                          </p>
+                        )}
+                        {p.mobileData?.numeroDaPortare && p.mobileData.numeroDaPortare !== '0' && (
+                          <p className="text-[10px] md:text-xs text-slate-500 mt-0.5 truncate">N° da portare: {p.mobileData.numeroDaPortare}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] md:text-xs font-medium border ${opBadge.class}`}>
+                          {opBadge.label}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center gap-4">
+                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50">
                     {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && canCreatePractices ? (
                       <Link href={`/operator/practices/mobile/new?edit=${p.id}`}>
                         <button
                           onClick={(e) => e.stopPropagation()}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                          className="px-3 md:px-4 py-1.5 md:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
                         >
                           Continua
                         </button>
                       </Link>
                     ) : null}
-                    <div className="text-right min-w-[80px]">
-                      <div className="flex items-center justify-end gap-2 text-sm text-slate-400 mb-1">
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-1.5 md:gap-2 text-xs md:text-sm text-slate-400 mb-0.5 md:mb-1">
                         {getStatusIcon(p.status)}
                         <span>{getStatusLabel(p.status)}</span>
                       </div>
-                      <div className="text-xs text-slate-500">Step {p.currentStep || 1}/6</div>
+                      <div className="text-[10px] md:text-xs text-slate-500">Step {p.currentStep || 1}/6</div>
                     </div>
-                    <div className="text-right text-sm text-slate-500 min-w-[80px]">
+                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap">
                       {new Date(p.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>

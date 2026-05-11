@@ -375,19 +375,19 @@ export default function PracticesList() {
                   </div>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-3 md:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50">
+                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 flex-wrap sm:flex-nowrap">
                     {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
                       <Link href={`/operator/practices/new?edit=${practice.id}`}>
                         <button 
                           onClick={(e) => e.stopPropagation()}
-                          className="px-3 md:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors"
+                          className="px-3 md:px-4 py-1.5 md:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
                         >
                           Continua
                         </button>
                       </Link>
                     )}
                     <div className="text-right">
-                      <div className="flex items-center justify-end gap-2 text-xs md:text-sm text-slate-400 mb-1">
+                      <div className="flex items-center justify-end gap-1.5 md:gap-2 text-xs md:text-sm text-slate-400 mb-0.5 md:mb-1">
                         {getStatusIcon(practice.status)}
                         <span>{getStatusLabel(practice.status)}</span>
                       </div>
@@ -395,7 +395,7 @@ export default function PracticesList() {
                         Step {practice.currentStep}/8
                       </div>
                     </div>
-                    <div className="text-right text-xs md:text-sm text-slate-500">
+                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap">
                       {new Date(practice.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>

@@ -219,7 +219,7 @@ export default function CompetitionsHub({
 
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 animate-pulse h-56" />
+      <div className="bg-white border border-gray-200 dark:bg-slate-900 dark:border-slate-800 rounded-2xl p-6 animate-pulse h-56" />
     );
   }
 
@@ -237,28 +237,28 @@ export default function CompetitionsHub({
 
   return (
     <div
-      className="bg-gradient-to-br from-slate-900 via-slate-900 to-amber-900/10 border border-amber-500/30 rounded-2xl overflow-hidden"
+      className="bg-white border border-amber-300 dark:bg-gradient-to-br dark:from-slate-900 dark:via-slate-900 dark:to-amber-900/10 dark:border-amber-500/30 rounded-2xl overflow-hidden shadow-sm dark:shadow-none"
       data-testid="dashboard-competitions-hub"
     >
       {/* Header personale */}
-      <div className="p-6 border-b border-slate-800/80 bg-amber-500/5">
+      <div className="p-6 border-b border-amber-200/70 dark:border-slate-800/80 bg-amber-50 dark:bg-amber-500/5">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
-            <div className="text-[11px] uppercase tracking-widest text-amber-400/80 mb-1">
+            <div className="text-[11px] uppercase tracking-widest text-amber-700 dark:text-amber-400/80 mb-1">
               {monthLabel}
             </div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-amber-400" weight="fill" />
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-amber-500 dark:text-amber-400" weight="fill" />
               I miei pezzi
             </h2>
             <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-4xl font-black text-amber-400">{myTotal}</span>
-              <span className="text-sm text-slate-400">pezzi del mese</span>
+              <span className="text-4xl font-black text-amber-600 dark:text-amber-400">{myTotal}</span>
+              <span className="text-sm text-gray-500 dark:text-slate-400">pezzi del mese</span>
             </div>
           </div>
           <Link
             href="/operator/reports/pieces"
-            className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 self-start mt-1"
+            className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 inline-flex items-center gap-1 self-start mt-1"
             data-testid="hub-link-report"
           >
             Report completo <ArrowRight className="w-3 h-3" />
@@ -272,9 +272,9 @@ export default function CompetitionsHub({
               .map(([cat, n]) => (
                 <span
                   key={cat}
-                  className="bg-slate-800/60 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-300"
+                  className="bg-white dark:bg-slate-800/60 border border-gray-200 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-gray-700 dark:text-slate-300"
                 >
-                  {CAT_LABEL[cat] || cat}: <strong className="text-amber-300">{n}</strong>
+                  {CAT_LABEL[cat] || cat}: <strong className="text-amber-600 dark:text-amber-300">{n}</strong>
                 </span>
               ))}
           </div>
@@ -283,7 +283,7 @@ export default function CompetitionsHub({
         {/* Le mie pratiche del mese — espandibile */}
         <button
           onClick={handleToggleMyPractices}
-          className="mt-3 w-full text-xs text-slate-400 hover:text-amber-300 py-1.5 border-t border-slate-800 flex items-center justify-center gap-1 transition"
+          className="mt-3 w-full text-xs text-gray-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300 py-1.5 border-t border-amber-200/70 dark:border-slate-800 flex items-center justify-center gap-1 transition"
         >
           {myPracticesExpanded ? (
             <>
@@ -297,50 +297,50 @@ export default function CompetitionsHub({
         </button>
 
         {myPracticesExpanded && (
-          <div className="border-t border-slate-800 bg-slate-950/40 px-3 py-2.5">
+          <div className="border-t border-amber-200/70 dark:border-slate-800 bg-amber-50/60 dark:bg-slate-950/40 px-3 py-2.5">
             {myPracticesLoading && (
-              <div className="text-xs text-slate-500 italic text-center py-2">
+              <div className="text-xs text-gray-500 dark:text-slate-500 italic text-center py-2">
                 Caricamento pratiche…
               </div>
             )}
             {!myPracticesLoading && myPractices.length === 0 && (
-              <div className="text-xs text-slate-500 italic text-center py-2">
+              <div className="text-xs text-gray-500 dark:text-slate-500 italic text-center py-2">
                 Nessuna pratica completata questo mese.
               </div>
             )}
             {!myPracticesLoading && myPractices.length > 0 && (
               <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
-                <div className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">
+                <div className="text-[10px] uppercase tracking-widest text-gray-500 dark:text-slate-500 mb-1">
                   {myPractices.length} pratiche · click per aprire
                 </div>
                 {myPractices.map((p) => (
                   <Link
                     key={p.id}
                     href={`/operator/practices/${p.id}`}
-                    className="block bg-slate-900/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
+                    className="block bg-white dark:bg-slate-900/60 border border-gray-200 dark:border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-400 dark:hover:border-amber-500/50 hover:bg-amber-50 dark:hover:bg-slate-900 transition cursor-pointer"
                   >
                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                      <span className="text-gray-900 dark:text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
                         {p.offerName || '— offerta —'}
                       </span>
-                      <span className="inline-flex items-center gap-1 text-slate-400">
+                      <span className="inline-flex items-center gap-1 text-gray-500 dark:text-slate-400">
                         <Storefront className="w-3 h-3" />
                         {p.provider || 'n/d'}
                       </span>
-                      <span className="text-slate-500">
+                      <span className="text-gray-400 dark:text-slate-500">
                         {p.createdAt
                           ? new Date(p.createdAt).toLocaleDateString('it-IT')
                           : ''}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-slate-400">
-                      <span className="text-cyan-300">
+                    <div className="flex flex-wrap items-center gap-3 text-gray-500 dark:text-slate-400">
+                      <span className="text-cyan-700 dark:text-cyan-300">
                         Venduto da: <strong>{p.sellerName}</strong>
                       </span>
                       {p.shopName && (
-                        <span className="text-fuchsia-300">{p.shopName}</span>
+                        <span className="text-fuchsia-700 dark:text-fuchsia-300">{p.shopName}</span>
                       )}
-                      <span className="text-amber-400 ml-auto opacity-70">Apri →</span>
+                      <span className="text-amber-600 dark:text-amber-400 ml-auto opacity-70">Apri →</span>
                     </div>
                   </Link>
                 ))}
@@ -353,13 +353,13 @@ export default function CompetitionsHub({
       {/* Lista gare */}
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm uppercase tracking-widest text-slate-500 flex items-center gap-2">
+          <h3 className="text-sm uppercase tracking-widest text-gray-500 dark:text-slate-500 flex items-center gap-2">
             <ChartBar className="w-3.5 h-3.5" />
             Gare in corso · live
           </h3>
           <Link
             href="/operator/competitions"
-            className="text-xs text-slate-400 hover:text-amber-300"
+            className="text-xs text-gray-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300"
             data-testid="hub-link-all-competitions"
           >
             Vedi tutte →
@@ -367,12 +367,12 @@ export default function CompetitionsHub({
         </div>
 
         {comps.length === 0 ? (
-          <div className="text-center py-8 text-slate-500 text-sm">
+          <div className="text-center py-8 text-gray-500 dark:text-slate-500 text-sm">
             <p className="mb-1">Nessuna gara attiva al momento.</p>
             {canManageCompetitions && (
               <Link
                 href="/operator/competitions"
-                className="text-amber-400 hover:text-amber-300"
+                className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
                 data-testid="hub-cta-create-competition"
               >
                 Crea la prima gara
@@ -396,21 +396,21 @@ export default function CompetitionsHub({
               return (
                 <div
                   key={c.id}
-                  className="border border-slate-800 rounded-xl bg-slate-950/50 overflow-hidden"
+                  className="border border-gray-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950/50 overflow-hidden"
                   data-testid={`hub-comp-${c.id}`}
                 >
                   {/* Header card */}
                   <Link
                     href={`/operator/competitions/${c.id}`}
-                    className="block p-3 hover:bg-slate-900/60 transition"
+                    className="block p-3 hover:bg-amber-50/60 dark:hover:bg-slate-900/60 transition"
                   >
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-200 hover:text-amber-300 truncate flex items-center gap-1.5">
+                        <h4 className="font-bold text-gray-900 dark:text-slate-200 hover:text-amber-600 dark:hover:text-amber-300 truncate flex items-center gap-1.5">
                           {c.title}
                           {c.scopeType === 'company' && (
                             <span
-                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-1.5 py-0.5 rounded"
+                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-cyan-100 text-cyan-700 border border-cyan-300 dark:bg-cyan-500/15 dark:text-cyan-300 dark:border-cyan-500/30 px-1.5 py-0.5 rounded"
                               title={
                                 c.selectedShopIds && c.selectedShopIds.length
                                   ? `${c.selectedShopIds.length} negozi selezionati`
@@ -421,18 +421,18 @@ export default function CompetitionsHub({
                             </span>
                           )}
                           {c.isHidden && canManageCompetitions && (
-                            <EyeSlash className="w-3.5 h-3.5 text-slate-500" />
+                            <EyeSlash className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
                           )}
                         </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-gray-500 dark:text-slate-500 mt-0.5">
                           {String(c.startDate).slice(0, 10)} → {String(c.endDate).slice(0, 10)}
                         </p>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <div className="text-xl font-black text-amber-400">
+                        <div className="text-xl font-black text-amber-600 dark:text-amber-400">
                           {c.totalEntriesPieces}
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-[10px] text-gray-500 dark:text-slate-500">
                           / {c.totalTargetPieces || '—'} pezzi
                         </div>
                       </div>
@@ -440,13 +440,13 @@ export default function CompetitionsHub({
 
                     {c.totalTargetPieces > 0 && (
                       <div>
-                        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-gray-200 dark:bg-slate-800 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-amber-500 to-orange-400 transition-all"
                             style={{ width: `${c.progressPercent}%` }}
                           />
                         </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5 text-right">
+                        <div className="text-[10px] text-gray-500 dark:text-slate-500 mt-0.5 text-right">
                           {c.progressPercent}%
                         </div>
                       </div>
@@ -462,12 +462,12 @@ export default function CompetitionsHub({
                         const outG = u.outOfCompetitionPieces ?? 0;
                         const colors =
                           i === 0
-                            ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+                            ? 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-500/15 dark:border-amber-500/40 dark:text-amber-200'
                             : i === 1
-                            ? 'bg-slate-700/40 border-slate-600 text-slate-200'
+                            ? 'bg-gray-100 border-gray-300 text-gray-800 dark:bg-slate-700/40 dark:border-slate-600 dark:text-slate-200'
                             : i === 2
-                            ? 'bg-orange-900/30 border-orange-700/50 text-orange-200'
-                            : 'bg-slate-800/40 border-slate-700 text-slate-300';
+                            ? 'bg-orange-100 border-orange-300 text-orange-800 dark:bg-orange-900/30 dark:border-orange-700/50 dark:text-orange-200'
+                            : 'bg-gray-50 border-gray-200 text-gray-700 dark:bg-slate-800/40 dark:border-slate-700 dark:text-slate-300';
                         const meRing = isMe ? 'ring-1 ring-cyan-400/50' : '';
                         return (
                           <div
@@ -483,13 +483,13 @@ export default function CompetitionsHub({
                             <span className="flex-1 truncate font-semibold">
                               {u.name}
                               {isMe && (
-                                <span className="text-cyan-300 ml-1 font-semibold">(tu)</span>
+                                <span className="text-cyan-700 dark:text-cyan-300 ml-1 font-semibold">(tu)</span>
                               )}
                             </span>
-                            <span className="font-bold text-amber-300" title="Pezzi in gara">
+                            <span className="font-bold text-amber-700 dark:text-amber-300" title="Pezzi in gara">
                               {inG} <span className="font-normal opacity-70">in gara</span>
                             </span>
-                            <span className="text-slate-400" title="Pezzi fuori gara nel periodo">
+                            <span className="text-gray-500 dark:text-slate-400" title="Pezzi fuori gara nel periodo">
                               · {outG} <span className="opacity-70">fuori</span>
                             </span>
                           </div>
@@ -501,14 +501,14 @@ export default function CompetitionsHub({
                   {/* Tappa 3.2 — Chart per shop (solo gare company multi-negozio) */}
                   {showShops && (
                     <div
-                      className="px-3 pb-3 border-t border-slate-800 pt-2.5"
+                      className="px-3 pb-3 border-t border-gray-200 dark:border-slate-800 pt-2.5"
                       data-testid={`hub-shop-chart-${c.id}`}
                     >
-                      <div className="text-[10px] uppercase tracking-widest text-cyan-400/80 mb-1.5 flex items-center gap-1">
+                      <div className="text-[10px] uppercase tracking-widest text-cyan-700 dark:text-cyan-400/80 mb-1.5 flex items-center gap-1">
                         <Buildings className="w-3 h-3" /> Avanzamento per negozio
                       </div>
                       {/* Barra impilata */}
-                      <div className="flex h-2 rounded overflow-hidden bg-slate-800 mb-2">
+                      <div className="flex h-2 rounded overflow-hidden bg-gray-200 dark:bg-slate-800 mb-2">
                         {c.byShop!.map((s, i) => (
                           <div
                             key={s.shopId}
@@ -523,7 +523,7 @@ export default function CompetitionsHub({
                         {c.byShop!.map((s, i) => (
                           <div
                             key={s.shopId}
-                            className="flex items-center gap-1.5 text-[11px] text-slate-300"
+                            className="flex items-center gap-1.5 text-[11px] text-gray-700 dark:text-slate-300"
                           >
                             <span
                               className={`inline-block w-2 h-2 rounded-sm ${SHOP_COLORS[i % SHOP_COLORS.length]}`}
@@ -539,7 +539,7 @@ export default function CompetitionsHub({
                   {/* Bottone espandi */}
                   <button
                     onClick={() => handleExpand(c.id)}
-                    className="w-full text-xs text-slate-400 hover:text-amber-300 py-1.5 border-t border-slate-800 flex items-center justify-center gap-1 transition"
+                    className="w-full text-xs text-gray-500 hover:text-amber-600 dark:text-slate-400 dark:hover:text-amber-300 py-1.5 border-t border-gray-200 dark:border-slate-800 flex items-center justify-center gap-1 transition"
                     data-testid={`hub-comp-expand-${c.id}`}
                   >
                     {isExpanded ? (
@@ -556,22 +556,22 @@ export default function CompetitionsHub({
                   {/* Dropdown: dettaglio pratiche con CLIENTE */}
                   {isExpanded && (
                     <div
-                      className="border-t border-slate-800 bg-slate-900/40 px-3 py-3"
+                      className="border-t border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/40 px-3 py-3"
                       data-testid={`hub-comp-details-${c.id}`}
                     >
                       {lbLoading && (
-                        <div className="text-xs text-slate-500 italic text-center py-2">
+                        <div className="text-xs text-gray-500 dark:text-slate-500 italic text-center py-2">
                           Caricamento dettaglio…
                         </div>
                       )}
                       {!lbLoading && lb && lb.practiceBreakdown.length === 0 && (
-                        <div className="text-xs text-slate-500 italic text-center py-2">
+                        <div className="text-xs text-gray-500 dark:text-slate-500 italic text-center py-2">
                           Nessuna pratica registrata per questa gara.
                         </div>
                       )}
                       {!lbLoading && lb && lb.practiceBreakdown.length > 0 && (
                         <div>
-                          <div className="text-[11px] uppercase tracking-widest text-slate-500 mb-2">
+                          <div className="text-[11px] uppercase tracking-widest text-gray-500 dark:text-slate-500 mb-2">
                             Pratiche · {lb.practiceBreakdown.length}
                           </div>
                           <div className="space-y-1.5 max-h-80 overflow-auto pr-1">
@@ -579,39 +579,39 @@ export default function CompetitionsHub({
                               <Link
                                 key={p.entryId}
                                 href={p.practiceId ? `/operator/practices/${p.practiceId}` : '#'}
-                                className="block bg-slate-950/60 border border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-500/50 hover:bg-slate-900 transition cursor-pointer"
+                                className="block bg-white dark:bg-slate-950/60 border border-gray-200 dark:border-slate-800 rounded px-2.5 py-2 text-[11px] hover:border-amber-400 dark:hover:border-amber-500/50 hover:bg-amber-50 dark:hover:bg-slate-900 transition cursor-pointer"
                                 data-testid={`hub-practice-${p.entryId}`}
                               >
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <span className="text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
+                                  <span className="text-gray-900 dark:text-slate-200 font-semibold flex-1 min-w-[140px] truncate">
                                     {p.offerName || '— offerta —'}
                                   </span>
-                                  <span className="inline-flex items-center gap-1 text-slate-400">
+                                  <span className="inline-flex items-center gap-1 text-gray-500 dark:text-slate-400">
                                     <Storefront className="w-3 h-3" />
                                     {p.provider || 'n/d'}
                                   </span>
-                                  <span className="text-slate-500">
+                                  <span className="text-gray-400 dark:text-slate-500">
                                     {p.practiceCreatedAt
                                       ? new Date(p.practiceCreatedAt).toLocaleDateString('it-IT')
                                       : ''}
                                   </span>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-3 text-slate-400">
-                                  <span className="inline-flex items-center gap-1 text-cyan-300">
+                                <div className="flex flex-wrap items-center gap-3 text-gray-500 dark:text-slate-400">
+                                  <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300">
                                     <UserIcon className="w-3 h-3" /> Venduto da:{' '}
                                     <strong>{p.sellerName}</strong>
                                   </span>
                                   {p.customerName && (
-                                    <span className="inline-flex items-center gap-1 text-emerald-300">
+                                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
                                       Cliente: <strong>{p.customerName}</strong>
                                     </span>
                                   )}
                                   {p.shopName && c.scopeType === 'company' && (
-                                    <span className="inline-flex items-center gap-1 text-fuchsia-300">
+                                    <span className="inline-flex items-center gap-1 text-fuchsia-700 dark:text-fuchsia-300">
                                       <Buildings className="w-3 h-3" /> {p.shopName}
                                     </span>
                                   )}
-                                  <span className="text-amber-400 ml-auto opacity-70">Apri →</span>
+                                  <span className="text-amber-600 dark:text-amber-400 ml-auto opacity-70">Apri →</span>
                                 </div>
                               </Link>
                             ))}

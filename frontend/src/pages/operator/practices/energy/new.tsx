@@ -507,13 +507,13 @@ export default function NewEnergyPractice() {
 
   return (
     <OperatorLayout title={practiceId ? 'Modifica Pratica Luce/Gas' : 'Nuova Pratica Luce/Gas'}>
-      <div className="p-0 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Lightning className="w-7 h-7 text-amber-400" weight="duotone" />
+      <div className="p-0 max-w-4xl mx-auto pb-12">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
+            <Lightning className="w-6 h-6 md:w-7 md:h-7 text-amber-400" weight="duotone" />
             {practiceId ? 'Modifica Pratica Luce/Gas' : 'Nuova Pratica Luce/Gas'}
           </h1>
-          <p className="text-slate-400">Compila i {TOTAL_STEPS} passaggi</p>
+          <p className="text-slate-400 text-xs md:text-base">Compila i {TOTAL_STEPS} passaggi</p>
         </div>
 
         <div className="mb-8">

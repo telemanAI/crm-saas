@@ -174,15 +174,15 @@ export default function OperatorDashboard() {
         <CompetitionsHub canManageCompetitions={canManageCompetitions} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
         <StatCard title="Clienti" value={stats.customers} icon={Users} color="indigo" trend="+0" loading={loading} />
         <StatCard title="Pratiche" value={stats.practices} icon={ShoppingCart} color="violet" trend="+0" loading={loading} />
         <StatCard title="In Attesa" value={stats.pending} icon={Clock} color="amber" trend="+0" loading={loading} />
         <StatCard title="Provvigioni" value={stats.commissions} icon={ChartLine} color="emerald" trend="Coming Soon" loading={loading} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-6 mb-6 md:mb-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-3 md:p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <TrendUp className="w-5 h-5 text-indigo-400" />
@@ -206,12 +206,12 @@ export default function OperatorDashboard() {
           </div>
         </motion.div>
 
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-3 md:p-6">
+          <div className="flex items-center gap-2 mb-4 md:mb-6">
             <ChartLine className="w-5 h-5 text-violet-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Stato Pratiche</h3>
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-slate-100">Stato Pratiche</h3>
           </div>
-          <div className="h-64 flex items-center justify-center">
+          <div className="h-56 md:h-64 flex items-center justify-center">
             {statusData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -227,7 +227,7 @@ export default function OperatorDashboard() {
               <p className="text-gray-500 dark:text-slate-400">Nessun dato disponibile</p>
             )}
           </div>
-          <div className="flex justify-center gap-4 mt-4">
+          <div className="flex flex-wrap justify-center gap-2 md:gap-4 mt-4">
             {statusData.map((item, idx) => (
               <div key={item.status} className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: STATUS_COLORS[item.status] || CHART_COLORS[idx % CHART_COLORS.length] }} />
@@ -247,11 +247,11 @@ export default function OperatorDashboard() {
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-6">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-3 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-slate-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">Pratiche Recenti</h3>
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-slate-100">Pratiche Recenti</h3>
           </div>
           <Link href="/operator/practices" className="text-sm text-indigo-400 hover:text-indigo-300">Vedi tutte</Link>
         </div>
@@ -289,15 +289,15 @@ function StatCard({ title, value, icon: Icon, color, trend, loading }: { title: 
   };
   const trendPositive = !trend.startsWith('-') && trend !== 'Coming Soon';
   return (
-    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.02 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-6">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${colorClasses[color]}`}>
-          <Icon className="w-6 h-6" weight="fill" />
+    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.02 }} className="bg-white dark:bg-slate-900/50 backdrop-blur-sm border border-gray-200 dark:border-slate-800 rounded-2xl p-3 md:p-6">
+      <div className="flex items-start justify-between mb-3 md:mb-4">
+        <div className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center border ${colorClasses[color]}`}>
+          <Icon className="w-5 h-5 md:w-6 md:h-6" weight="fill" />
         </div>
-        <span className={`text-sm font-medium ${trend === 'Coming Soon' ? 'text-slate-400' : trendPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{trend}</span>
+        <span className={`text-xs md:text-sm font-medium ${trend === 'Coming Soon' ? 'text-slate-400' : trendPositive ? 'text-emerald-400' : 'text-rose-400'}`}>{trend}</span>
       </div>
-      <h3 className="text-2xl font-bold text-gray-900 dark:text-slate-100 mb-1">{loading ? '-' : value}</h3>
-      <p className="text-sm text-gray-500 dark:text-slate-500">{title}</p>
+      <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-slate-100 mb-1">{loading ? '-' : value}</h3>
+      <p className="text-xs md:text-sm text-gray-500 dark:text-slate-500">{title}</p>
     </motion.div>
   );
 }

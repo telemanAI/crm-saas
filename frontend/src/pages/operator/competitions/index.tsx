@@ -150,14 +150,14 @@ export default function CompetitionsListPage() {
 
   return (
     <OperatorLayout>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-24 md:pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Trophy className="w-6 h-6 text-amber-400" weight="duotone" />
+            <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+              <Trophy className="w-5 h-5 md:w-6 md:h-6 text-amber-400" weight="duotone" />
               Gare e premi
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-slate-400 text-xs md:text-sm mt-1">
               Sistema "pezzi" multi-target. Le pratiche e le vendite vengono assegnate
               automaticamente alle gare in corso.
             </p>
@@ -166,19 +166,19 @@ export default function CompetitionsListPage() {
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={handleRunMonthly}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-sm font-medium"
+                className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-xs md:text-sm font-medium"
                 data-testid="run-monthly-btn"
                 title="Genera gara mensile automatica"
               >
                 <Calendar className="w-4 h-4 inline mr-1" weight="bold" />
-                Genera gara mensile
+                <span className="hidden sm:inline">Genera </span>gara mensile
               </button>
               <button
                 onClick={() => {
                   setEditing(null);
                   setModalOpen(true);
                 }}
-                className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-medium"
+                className="flex-1 sm:flex-none px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs md:text-sm font-medium"
                 data-testid="new-comp-btn"
               >
                 <Plus className="w-4 h-4 inline mr-1" weight="bold" />

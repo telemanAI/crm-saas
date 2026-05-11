@@ -267,7 +267,7 @@ export default function CompetitionDetailPage() {
 
   return (
     <OperatorLayout>
-      <div className="max-w-6xl mx-auto" data-testid="comp-detail-page">
+      <div className="max-w-6xl mx-auto pb-24 md:pb-0" data-testid="comp-detail-page">
         {/* ====== Header ====== */}
         <div className="mb-5">
           <Link
@@ -280,11 +280,11 @@ export default function CompetitionDetailPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-                <Trophy className="w-6 h-6 text-amber-400" weight="duotone" />
-                {comp.title}
+              <h1 className="text-xl md:text-2xl font-bold text-white flex items-start gap-2 flex-wrap">
+                <Trophy className="w-5 h-5 md:w-6 md:h-6 text-amber-400 flex-shrink-0 mt-1" weight="duotone" />
+                <span className="break-words flex-1 min-w-0">{comp.title}</span>
                 <span
-                  className={`text-xs font-medium px-2 py-0.5 rounded inline-flex items-center gap-1 ${status.color}`}
+                  className={`text-xs font-medium px-2 py-0.5 rounded inline-flex items-center gap-1 ${status.color} flex-shrink-0`}
                 >
                   <StatusIcon className="w-3 h-3" weight="fill" />
                   {status.label}
@@ -293,7 +293,7 @@ export default function CompetitionDetailPage() {
               {comp.description && (
                 <p className="text-slate-400 text-sm mt-1">{comp.description}</p>
               )}
-              <div className="text-xs text-slate-500 mt-2 flex flex-wrap items-center gap-3">
+              <div className="text-xs text-slate-500 mt-2 flex flex-wrap items-center gap-2 md:gap-3">
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
                   {formatDate(comp.startDate)} → {formatDate(comp.endDate)}
@@ -312,11 +312,11 @@ export default function CompetitionDetailPage() {
             </div>
 
             {canManage && (
-              <div className="flex gap-2 flex-shrink-0">
+              <div className="flex gap-2 flex-wrap flex-shrink-0">
                 <button
                   onClick={handleRecompute}
                   disabled={recomputing}
-                  className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-amber-300 text-sm font-medium inline-flex items-center gap-1 disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-amber-300 text-xs md:text-sm font-medium inline-flex items-center justify-center gap-1 disabled:opacity-50"
                   data-testid="detail-recompute-btn"
                   title="Ricalcola entries scansionando le pratiche del periodo"
                 >
@@ -326,15 +326,15 @@ export default function CompetitionDetailPage() {
                 {otherShopsCount > 0 && (
                   <button
                     onClick={() => setCopyOpen(true)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-blue-300 text-sm font-medium inline-flex items-center gap-1"
+                    className="flex-1 sm:flex-none px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-blue-300 text-xs md:text-sm font-medium inline-flex items-center justify-center gap-1"
                     data-testid="detail-copy-btn"
                   >
-                    <Copy className="w-4 h-4" /> Copia gara
+                    <Copy className="w-4 h-4" /> <span className="hidden sm:inline">Copia gara</span><span className="sm:hidden">Copia</span>
                   </button>
                 )}
                 <button
                   onClick={() => setEditOpen(true)}
-                  className="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-sm font-medium inline-flex items-center gap-1"
+                  className="flex-1 sm:flex-none px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded text-white text-xs md:text-sm font-medium inline-flex items-center justify-center gap-1"
                   data-testid="detail-edit-btn"
                 >
                   <PencilSimple className="w-4 h-4" /> Modifica

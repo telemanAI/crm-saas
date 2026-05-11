@@ -189,10 +189,10 @@ export default function PracticesList() {
 
   return (
     <OperatorLayout title="Pratiche">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Pratiche</h1>
-          <p className="text-slate-400">Gestisci le pratiche TIM e SKY</p>
+      <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2">Pratiche</h1>
+          <p className="text-slate-400 text-xs md:text-sm">Gestisci le pratiche TIM e SKY</p>
         </div>
         {canCreatePractices && (
           <Link href="/operator/practices/new">
@@ -200,33 +200,33 @@ export default function PracticesList() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               data-testid="practices-new-btn"
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-3 md:px-6 py-2.5 md:py-3 rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-indigo-600/25 text-sm md:text-base whitespace-nowrap"
             >
-              <Plus className="w-5 h-5" />
-              Nuova Pratica
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Nuova </span>Pratica
             </motion.button>
           </Link>
         )}
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[260px] max-w-md">
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 md:p-4 mb-4 md:mb-6 grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-stretch lg:items-center gap-3 lg:gap-4">
+        <div className="relative col-span-full lg:flex-1 lg:min-w-[260px] lg:max-w-md">
           <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input
             type="text"
             placeholder="Cerca pratica..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-11 md:pl-12 pr-4 py-2.5 md:py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-sm md:text-base"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
+          <Funnel className="w-4 h-4 md:w-5 md:h-5 text-slate-500 shrink-0" />
           <select
             value={filter}
             onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="flex-1 lg:flex-none bg-slate-950 border border-slate-700 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs md:text-sm"
           >
             <option value="ALL">Tutte</option>
             <option value="TIM_FIBRA">TIM</option>
@@ -240,11 +240,11 @@ export default function PracticesList() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
+          <Funnel className="w-4 h-4 md:w-5 md:h-5 text-slate-500 shrink-0" />
           <select
             value={operationalStatusFilter}
             onChange={(e) => setOperationalStatusFilter(e.target.value as OpStatusFilter)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="flex-1 lg:flex-none bg-slate-950 border border-slate-700 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs md:text-sm"
           >
             <option value="ALL">Tutti gli stati</option>
             <option value="PENDING">In Attesa</option>
@@ -257,11 +257,11 @@ export default function PracticesList() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
+          <Funnel className="w-4 h-4 md:w-5 md:h-5 text-slate-500 shrink-0" />
           <select
             value={skyTvStatusFilter}
             onChange={(e) => setSkyTvStatusFilter(e.target.value as SkyTvFilter)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="flex-1 lg:flex-none bg-slate-950 border border-slate-700 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs md:text-sm"
           >
             <option value="ALL">Tutti gli stati Sky TV</option>
             {SKY_TV_STATUSES.map(s => (
@@ -271,11 +271,11 @@ export default function PracticesList() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
+          <Funnel className="w-4 h-4 md:w-5 md:h-5 text-slate-500 shrink-0" />
           <select
             value={statoGlobaleFilter}
             onChange={(e) => setStatoGlobaleFilter(e.target.value as any)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="flex-1 lg:flex-none bg-slate-950 border border-slate-700 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs md:text-sm"
           >
             <option value="ALL">Tutti gli stati globali</option>
             <option value="completo">Complete</option>
@@ -307,10 +307,11 @@ export default function PracticesList() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => router.push(`/operator/practices/${practice.id}`)}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
               >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
                     <span className={`font-bold text-sm ${
                       practice.type === 'TIM_FIBRA' ? 'text-blue-400' : 
                       practice.type === 'VODAFONE' ? 'text-rose-400' :
@@ -331,9 +332,9 @@ export default function PracticesList() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-bold text-white">{getTypeLabel(practice.type)}</span>
-                      <h3 className="font-semibold text-white truncate max-w-[260px]">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <span className="font-bold text-white text-sm md:text-base">{getTypeLabel(practice.type)}</span>
+                      <h3 className="font-semibold text-white truncate text-sm md:text-base max-w-[160px] sm:max-w-[260px]">
                         {practice.offerName}
                       </h3>
                     </div>
@@ -344,23 +345,23 @@ export default function PracticesList() {
                         {practice.customerSnapshot?.lastName || practice.customer?.lastName}
                       </p>
                       {(practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode) && (
-                        <p className="text-xs text-slate-500 font-mono mt-0.5">
+                        <p className="text-xs text-slate-500 font-mono mt-0.5 truncate">
                           CF: {practice.customerSnapshot?.fiscalCode || practice.customer?.fiscalCode}
                         </p>
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 mt-2 flex-wrap">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${opBadge.class}`}>
+                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] md:text-xs font-medium border ${opBadge.class}`}>
                         {opBadge.label}
                       </span>
                       {skyBadge && (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${skyBadge.class}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] md:text-xs font-medium border ${skyBadge.class}`}>
                           {skyBadge.label}
                         </span>
                       )}
                       {practice.convergenza?.attiva && (
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-medium border ${
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] md:text-xs font-medium border ${
                           practice.statoGlobale === 'completo' 
                             ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
                             : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -371,28 +372,29 @@ export default function PracticesList() {
                       )}
                     </div>
                   </div>
+                  </div>
 
-                  <div className="shrink-0 flex items-center gap-4">
+                  <div className="shrink-0 flex items-center gap-3 md:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50">
                     {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
                       <Link href={`/operator/practices/new?edit=${practice.id}`}>
                         <button 
                           onClick={(e) => e.stopPropagation()}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+                          className="px-3 md:px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors"
                         >
                           Continua
                         </button>
                       </Link>
                     )}
-                    <div className="text-right min-w-[80px]">
-                      <div className="flex items-center justify-end gap-2 text-sm text-slate-400 mb-1">
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-2 text-xs md:text-sm text-slate-400 mb-1">
                         {getStatusIcon(practice.status)}
                         <span>{getStatusLabel(practice.status)}</span>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="text-[10px] md:text-xs text-slate-500">
                         Step {practice.currentStep}/8
                       </div>
                     </div>
-                    <div className="text-right text-sm text-slate-500 min-w-[80px]">
+                    <div className="text-right text-xs md:text-sm text-slate-500">
                       {new Date(practice.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>

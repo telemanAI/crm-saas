@@ -37,11 +37,11 @@ export function PracticeStepCard({
         type="button"
         onClick={onToggle}
         disabled={!canAccess}
-        className="w-full p-6 flex items-center justify-between text-left"
+        className="w-full p-4 md:p-6 flex items-center justify-between text-left"
       >
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
           <div
-            className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+            className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
               isCompleted
                 ? 'bg-emerald-600/20 text-emerald-400'
                 : isExpanded
@@ -49,21 +49,21 @@ export function PracticeStepCard({
                 : 'bg-slate-800 text-slate-400'
             }`}
           >
-            {isCompleted ? <Check className="w-6 h-6" /> : <Icon className="w-6 h-6" />}
+            {isCompleted ? <Check className="w-5 h-5 md:w-6 md:h-6" /> : <Icon className="w-5 h-5 md:w-6 md:h-6" />}
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-500">
+              <span className="text-xs md:text-sm text-slate-500">
                 Step {id}/{total}
               </span>
-              {isCompleted && <CheckCircle className="w-4 h-4 text-emerald-400" />}
+              {isCompleted && <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />}
             </div>
-            <h3 className={`font-semibold ${isExpanded ? 'text-white' : 'text-slate-300'}`}>
+            <h3 className={`font-semibold text-sm md:text-base truncate ${isExpanded ? 'text-white' : 'text-slate-300'}`}>
               {title}
             </h3>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {isExpanded ? (
             <CaretUp className="w-5 h-5 text-slate-400" />
           ) : (
@@ -80,7 +80,7 @@ export function PracticeStepCard({
             exit={{ height: 0, opacity: 0 }}
             className="border-t border-slate-800"
           >
-            <div className="p-6">{children}</div>
+            <div className="p-4 md:p-6">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -526,13 +526,13 @@ export default function NewMobilePractice() {
 
   return (
     <OperatorLayout title={practiceId ? 'Modifica Pratica Mobile' : 'Nuova Pratica Mobile'}>
-      <div className="p-0 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <DeviceMobile className="w-7 h-7 text-indigo-400" weight="duotone" />
+      <div className="p-0 max-w-4xl mx-auto pb-12">
+        <div className="mb-6 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
+            <DeviceMobile className="w-6 h-6 md:w-7 md:h-7 text-indigo-400" weight="duotone" />
             {practiceId ? 'Modifica Pratica Mobile' : 'Nuova Pratica Mobile'}
           </h1>
-          <p className="text-slate-400">Compila i {totalSteps} passaggi</p>
+          <p className="text-slate-400 text-xs md:text-base">Compila i {totalSteps} passaggi</p>
         </div>
 
         <div className="mb-8">

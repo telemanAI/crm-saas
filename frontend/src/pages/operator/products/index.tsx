@@ -264,7 +264,7 @@ function ProductRow({
     >
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-white truncate">{product.name}</span>
+          <span className="font-medium text-white truncate text-sm md:text-base">{product.name}</span>
           <StatusBadge />
         </div>
         <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2 flex-wrap">
@@ -277,6 +277,19 @@ function ProductRow({
                   {k}: {String(v)}
                 </span>
               ))}
+        </div>
+        {/* Mobile-only: qty + price compatto sotto al nome */}
+        <div className="flex md:hidden items-center gap-3 mt-1.5 text-xs">
+          <span className="text-slate-300">
+            <Package className="w-3 h-3 inline mr-0.5" />
+            {product.quantity}
+          </span>
+          {product.sellingPrice !== null && (
+            <span className="text-emerald-300 font-semibold">€{product.sellingPrice.toFixed(2)}</span>
+          )}
+          {canSeeCost && product.unitCost !== null && (
+            <span className="text-slate-500">costo €{product.unitCost.toFixed(2)}</span>
+          )}
         </div>
       </div>
 
@@ -410,13 +423,13 @@ function GroupFormModal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" data-testid="group-modal">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">
+    <div className="fixed inset-0 bg-black/60 flex items-stretch md:items-center justify-center z-50 md:p-4" data-testid="group-modal">
+      <div className="bg-slate-900 border border-slate-700 md:rounded-xl w-full max-w-2xl max-h-screen md:max-h-[90vh] overflow-y-auto p-4 md:p-5">
+        <div className="flex items-center justify-between mb-4 sticky top-0 bg-slate-900 -mx-4 md:-mx-5 px-4 md:px-5 py-2 z-10">
+          <h2 className="text-base md:text-lg font-bold text-white">
             {isEdit ? 'Modifica gruppo' : 'Nuovo gruppo prodotti'}
           </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-2 -mr-2 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -429,7 +442,7 @@ function GroupFormModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Es. Telefoni, Accessori, SIM"
-              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white"
+              className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-3 text-white text-base"
               data-testid="group-name-input"
             />
           </div>
@@ -597,11 +610,11 @@ function ProductFormModal({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" data-testid="product-modal">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white">{isEdit ? 'Modifica prodotto' : 'Nuovo prodotto'}</h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+    <div className="fixed inset-0 bg-black/60 flex items-stretch md:items-center justify-center z-50 md:p-4" data-testid="product-modal">
+      <div className="bg-slate-900 border border-slate-700 md:rounded-xl w-full max-w-3xl max-h-screen md:max-h-[90vh] overflow-y-auto p-4 md:p-5">
+        <div className="flex items-center justify-between mb-4 sticky top-0 bg-slate-900 -mx-4 md:-mx-5 px-4 md:px-5 py-2 z-10">
+          <h2 className="text-base md:text-lg font-bold text-white">{isEdit ? 'Modifica prodotto' : 'Nuovo prodotto'}</h2>
+          <button onClick={onClose} className="p-2 -mr-2 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -909,14 +922,14 @@ function SellModal({
   const total = (Number(unitSalePrice) || 0) * quantity;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" data-testid="sell-modal">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
+    <div className="fixed inset-0 bg-black/60 flex items-stretch md:items-center justify-center z-50 md:p-4" data-testid="sell-modal">
+      <div className="bg-slate-900 border border-slate-700 md:rounded-xl w-full max-w-2xl max-h-screen md:max-h-[90vh] overflow-y-auto p-4 md:p-5">
+        <div className="flex items-center justify-between mb-4 sticky top-0 bg-slate-900 -mx-4 md:-mx-5 px-4 md:px-5 py-2 z-10">
+          <h2 className="text-base md:text-lg font-bold text-white flex items-center gap-2">
             <Storefront className="w-5 h-5 text-emerald-400" weight="fill" />
             Vendita rapida
           </h2>
-          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white">
+          <button onClick={onClose} className="p-2 -mr-2 text-slate-400 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1284,28 +1297,28 @@ export default function ProductsCatalogPage() {
 
   return (
     <OperatorLayout>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-24 md:pb-0">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Tag className="w-6 h-6 text-emerald-400" weight="duotone" />
+            <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+              <Tag className="w-5 h-5 md:w-6 md:h-6 text-emerald-400" weight="duotone" />
               Catalogo prodotti
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-slate-400 text-xs md:text-sm mt-1">
               Organizza i tuoi dispositivi in gruppi liberi (Telefoni, Accessori…) con campi custom.
             </p>
           </div>
           {canManageProducts && (
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 sm:flex gap-2">
               <button
                 onClick={() => {
                   setEditingGroup(null);
                   setGroupModalOpen(true);
                 }}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-sm font-medium"
+                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-white text-xs md:text-sm font-medium"
                 data-testid="new-group-btn"
               >
-                <Plus className="w-4 h-4 inline mr-1" weight="bold" /> Nuovo gruppo
+                <Plus className="w-4 h-4 inline mr-1" weight="bold" /> <span className="hidden sm:inline">Nuovo </span>gruppo
               </button>
               <button
                 onClick={() => {
@@ -1313,10 +1326,10 @@ export default function ProductsCatalogPage() {
                   setDefaultGroupForProduct(null);
                   setProductModalOpen(true);
                 }}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-sm font-medium"
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 rounded text-white text-xs md:text-sm font-medium"
                 data-testid="new-product-btn"
               >
-                <Plus className="w-4 h-4 inline mr-1" weight="bold" /> Nuovo prodotto
+                <Plus className="w-4 h-4 inline mr-1" weight="bold" /> <span className="hidden sm:inline">Nuovo </span>prodotto
               </button>
             </div>
           )}

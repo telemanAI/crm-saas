@@ -415,24 +415,24 @@ export default function PracticeDetail() {
 
   return (
     <OperatorLayout title={`Pratica ${practice.offerCode || practice.id.slice(0,8)}`}>
-      <div className={`flex items-center justify-between mb-8 p-6 bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByStatus(operationalStatus)} rounded-2xl`}>
-        <div className="flex items-center gap-4">
+      <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 md:mb-8 p-3 md:p-6 bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByStatus(operationalStatus)} rounded-2xl gap-3`}>
+        <div className="flex items-start gap-2 md:gap-4 min-w-0 flex-1">
           <Link href="/operator/practices">
-            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
-              <ArrowLeft className="w-6 h-6" />
+            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all flex-shrink-0">
+              <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(practice.status)}`}>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 md:gap-3 mb-2 flex-wrap">
+              <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium border ${getStatusColor(practice.status)}`}>
                 {getStatusLabel(practice.status)}
               </span>
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getOperationalStatusColor(operationalStatus)}`}>
+              <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium ${getOperationalStatusColor(operationalStatus)}`}>
                 {getOperationalStatusLabel(operationalStatus)}
               </span>
               
               {practice.statoGlobale && (
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium ${
                   practice.statoGlobale === 'completo' 
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                     : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
@@ -441,18 +441,18 @@ export default function PracticeDetail() {
                 </span>
               )}
               
-              <span className="text-slate-500 text-sm">Step {practice.currentStep}/8</span>
+              <span className="text-slate-500 text-[10px] md:text-sm">Step {practice.currentStep}/8</span>
             </div>
-            <h1 className="text-3xl font-bold text-white">{practice.offerName}</h1>
+            <h1 className="text-lg md:text-3xl font-bold text-white break-words">{practice.offerName}</h1>
             
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <span className="text-xs text-slate-400 mr-2">Cambia Stato:</span>
+            <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap">
+              <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Cambia Stato:</span>
               {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED','KO_CREDITO','KO_COPERTURA'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => handleOperationalStatusChange(s)}
                   disabled={statusLoading || operationalStatus === s}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
                     operationalStatus === s
                       ? getOperationalStatusColor(s)
                       : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
@@ -561,7 +561,7 @@ export default function PracticeDetail() {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap">
           {practice?.status !== 'completed' && (
             <button 
               onClick={async () => {
@@ -576,18 +576,18 @@ export default function PracticeDetail() {
                   alert('Errore');
                 }
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-600/30 rounded-xl transition-all"
+              className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 border border-amber-600/30 rounded-xl transition-all text-xs md:text-sm"
             >
-              <CheckCircle className="w-4 h-4" />
-              Forza Completamento
+              <CheckCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Forza </span>Completa
             </button>
           )}
           
           {canEditPractices && (
             <Link href={`/operator/practices/new?edit=${id}`}>
-              <button data-testid="practice-edit-btn" className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
-                <Pencil className="w-4 h-4" />
-                Modifica Pratica
+              <button data-testid="practice-edit-btn" className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all text-xs md:text-sm">
+                <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
+                Modifica
               </button>
             </Link>
           )}
@@ -597,17 +597,17 @@ export default function PracticeDetail() {
               onClick={handleDelete}
               disabled={deleteLoading}
               data-testid="practice-delete-btn"
-              className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
+              className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50 text-xs md:text-sm"
             >
-              <Trash className="w-4 h-4" />
-              {deleteLoading ? 'Eliminazione...' : 'Elimina'}
+              <Trash className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              {deleteLoading ? '...' : 'Elimina'}
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 pb-24 md:pb-0">
+        <div className="lg:col-span-2 space-y-3 md:space-y-6">
           
           {practice.additionalPackages?.selectedIds?.some(pkgId => pkgId !== 'none') && (
             <motion.div 
@@ -685,7 +685,7 @@ export default function PracticeDetail() {
                 </div>
 
                 {practice.washConfig.type === 'suspect' && practice.washConfig.suspectData && (
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3 bg-slate-900/50 rounded-xl">
                       <span className="text-slate-500 text-xs block mb-1">Codice Cliente/CF</span>
                       <span className="text-white font-mono text-sm">
@@ -864,7 +864,7 @@ export default function PracticeDetail() {
               <h2 className="text-xl font-semibold text-white">Dettagli Linea</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <label className="text-sm text-slate-500 block mb-1">Tipo Attivazione</label>
                 <span className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
@@ -902,7 +902,7 @@ export default function PracticeDetail() {
                   <Clock className="w-4 h-4" />
                   Dati Linea Precedente (Migrazione)
                 </h3>
-                <div className="grid grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
                   {safeString(practice.oldLineData.oldPhoneNumber) && (
                     <div>
                       <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
@@ -964,7 +964,7 @@ export default function PracticeDetail() {
                 <h2 className="text-xl font-semibold text-white">Appuntamento Installazione</h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {practice.appointmentData.data && (
                   <div>
                     <label className="text-sm text-slate-500 block mb-1">Data</label>
@@ -1110,7 +1110,7 @@ export default function PracticeDetail() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
                     {practice.offerCanone && (
                       <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
                         <span className="text-slate-400 text-xs block mb-1">Canone Mensile</span>

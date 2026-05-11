@@ -240,34 +240,34 @@ export default function MobilePracticeDetail() {
 
   return (
     <OperatorLayout title={`Pratica ${practice.offerName || 'Mobile'}`}>
-      <div className={`flex items-center justify-between mb-8 p-6 bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByStatus(opStatus)} rounded-2xl`}>
-        <div className="flex items-center gap-4">
+      <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 md:mb-8 p-3 md:p-6 bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByStatus(opStatus)} rounded-2xl gap-3`}>
+        <div className="flex items-start gap-2 md:gap-4 min-w-0 flex-1">
           <Link href="/operator/practices/mobile">
-            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all">
-              <ArrowLeft className="w-6 h-6" />
+            <button className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all flex-shrink-0">
+              <ArrowLeft className="w-5 h-5 md:w-6 md:h-6" />
             </button>
           </Link>
-          <div>
-            <div className="flex items-center gap-3 mb-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 md:gap-3 mb-2 flex-wrap">
               {practice.status === 'completed' && (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-600/20">
+                <span className="px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium bg-emerald-600/20 text-emerald-400 border border-emerald-600/20">
                   Completata
                 </span>
               )}
-              <span className={`px-3 py-1 rounded-full text-xs font-medium ${getOperationalStatusColor(opStatus)}`}>
+              <span className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium ${getOperationalStatusColor(opStatus)}`}>
                 {getOperationalStatusLabel(opStatus)}
               </span>
-              <span className="text-slate-500 text-sm">Step {practice.currentStep}/{practice.totalSteps || 7}</span>
+              <span className="text-slate-500 text-[10px] md:text-sm">Step {practice.currentStep}/{practice.totalSteps || 7}</span>
             </div>
-            <h1 className="text-3xl font-bold text-white">{practice.offerName || 'Pratica Mobile'}</h1>
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <span className="text-xs text-slate-400 mr-2">Cambia Stato:</span>
+            <h1 className="text-lg md:text-3xl font-bold text-white break-words">{practice.offerName || 'Pratica Mobile'}</h1>
+            <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap">
+              <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Cambia Stato:</span>
               {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED','KO_CREDITO','KO_COPERTURA'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => updateOpStatus(s)}
                   disabled={statusLoading || opStatus === s}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
                     opStatus === s
                       ? getOperationalStatusColor(s)
                       : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
@@ -309,24 +309,24 @@ export default function MobilePracticeDetail() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap">
           <Link href={`/operator/practices/mobile/new?edit=${practice.id}`}>
-            <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all">
-              <PencilSimple className="w-4 h-4" /> Modifica
+            <button className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all text-xs md:text-sm">
+              <PencilSimple className="w-3.5 h-3.5 md:w-4 md:h-4" /> Modifica
             </button>
           </Link>
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50"
+            className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-rose-600/20 text-rose-400 hover:bg-rose-600/30 border border-rose-600/30 rounded-xl transition-all disabled:opacity-50 text-xs md:text-sm"
           >
-            <Trash className="w-4 h-4" /> {deleting ? 'Eliminazione...' : 'Elimina'}
+            <Trash className="w-3.5 h-3.5 md:w-4 md:h-4" /> {deleting ? '...' : 'Elimina'}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 pb-24 md:pb-0">
+        <div className="lg:col-span-2 space-y-3 md:space-y-6">
           {/* Note & Cronologia */}
           <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-6">
@@ -431,7 +431,7 @@ export default function MobilePracticeDetail() {
           </div>
 
           <Section icon={User} title="Cliente">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               {showValue('Nome', customer.firstName)}
               {showValue('Cognome', customer.lastName)}
               {showValue('Codice fiscale', customer.fiscalCode)}
@@ -449,7 +449,7 @@ export default function MobilePracticeDetail() {
           </Section>
 
           <Section icon={Phone} title="Numero & MNP">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               {showValue('Numero da portare', m.numeroDaPortare)}
               {showValue('CF vecchia linea', m.codiceFiscaleVecchiaLinea)}
               {showValue('Tipo linea', m.tipoLinea)}
@@ -459,7 +459,7 @@ export default function MobilePracticeDetail() {
           </Section>
 
           <Section icon={CreditCard} title="Pagamento & Ricarica">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               {showValue('Ricarica', m.ricarica === 'ALTRO' ? m.ricaricaAltro : m.ricarica)}
               {showValue('IBAN / CDC', m.ibanCdc)}
               {showValue('Note pagamento', m.noteMetodoPagamento)}
@@ -467,7 +467,7 @@ export default function MobilePracticeDetail() {
           </Section>
 
           <Section icon={FileText} title="TIM Unica & Note">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               {showValue('TIM Unica', m.timUnica === 'ALTRO' ? m.timUnicaAltro : m.timUnica)}
               {showValue('Numero rete fissa TIM', m.numeroReteFissaTimUnica)}
               {showValue('Note generiche', m.noteGeneriche)}

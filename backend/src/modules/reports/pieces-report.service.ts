@@ -5,15 +5,17 @@ import { Practice } from '../practices/entities/practice.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
 import { Offer } from '../offers/entities/offer.entity';
+import { Customer } from '../customers/entities/customer.entity';
 
 /**
  * TAPPA 3.1 — Service per "Report Pezzi" indipendente dalle gare.
  *
- * Filosofia: ogni pratica ACTIVATED non importata e con soldBy = 1 pezzo
- * per quel venditore. Questo report è la fotografia della performance
- * mensile della shop / company, indipendente da quante gare ci sono.
+ * Filosofia: ogni pratica non importata e con soldBy = 1 pezzo
+ * per quel venditore. A differenza della logica gare, qui mostriamo
+ * TUTTI gli stati (con breakdown) così l'utente vede la fotografia
+ * reale del periodo (in lavorazione, attivate, KO, annullate, ecc.).
  *
- * Il pezzo "vendita dispositivi" arriverà in Tappa 3.2 (inventory_sales).
+ * Filtro opzionale: `statuses` (CSV) per restringere agli stati voluti.
  */
 @Injectable()
 export class PiecesReportService {
@@ -26,19 +28,21 @@ export class PiecesReportService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Offer)
     private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(Customer)
+    private readonly customerRepo: Repository<Customer>,
   ) {}
 
   /**
    * Riporta i pezzi del periodo, raggruppati per operatore + (opzionale) categoria.
    *
-   * @param scope: 'shop' = solo tenantId; 'company' = tutti i tenant della company
+   * @param scope: 'shop' | 'company'
    * @param tenantId: shop attivo (sempre richiesto)
    * @param companyId: opzionale; se scope=company è obbligatorio
-   * @param from: data inizio (YYYY-MM-DD) - default = primo del mese corrente
-   * @param to: data fine (YYYY-MM-DD) - default = oggi
-   * @param category?: filtro categoria (FIXED_LINE/MOBILE/ENERGY/...)
-   * @param provider?: filtro provider testuale (case-insensitive)
-   * @param operatorId?: limitato a un solo operatore (utile per "i miei pezzi")
+   * @param from / to: range date (YYYY-MM-DD)
+   * @param category, provider, operatorId: filtri
+   * @param statuses: array (o CSV) di status logici da includere. Default: tutti.
+   *                  Valori possibili: 'completed', 'in_progress', 'draft', 'cancelled'
+   * @param includePractices: se true allega l'elenco pratiche raw (con id, customer, status...)
    */
   async getPieces(params: {
     scope: 'shop' | 'company';
@@ -49,6 +53,7 @@ export class PiecesReportService {
     category?: string;
     provider?: string;
     operatorId?: string;
+    statuses?: string[] | string;
     includePractices?: boolean;
   }) {
     const from = params.from || this.firstOfThisMonth();
@@ -56,21 +61,22 @@ export class PiecesReportService {
 
     const shopIds = await this.resolveShopIds(params);
 
+    const statusList = this.normalizeStatuses(params.statuses);
+
     const qb = this.practiceRepo
       .createQueryBuilder('p')
       .leftJoinAndMapOne('p.offer', Offer, 'o', 'o.id = p.offerId')
       .leftJoinAndMapOne('p.seller', User, 'u', 'u.id = p.soldById')
+      .leftJoinAndMapOne('p.customerInfo', Customer, 'c', 'c.id = p.customerId')
       .where('p.tenantId IN (:...shopIds)', { shopIds })
-      // Allineato con le gare (fix-final5): conta le pratiche completate
-      // dall'operatore, non solo quelle già attivate dal back-office.
-      .andWhere('p.status = :st', { st: 'completed' })
-      .andWhere(
-        "p.operationalStatus IS NULL OR p.operationalStatus NOT IN ('REJECTED', 'KO_CREDITO', 'KO_COPERTURA')",
-      )
       .andWhere('p.sourceImportJobId IS NULL')
       .andWhere('p.soldById IS NOT NULL')
       .andWhere('p.createdAt >= :from', { from })
       .andWhere('p.createdAt <= :to', { to: `${to} 23:59:59` });
+
+    if (statusList && statusList.length > 0) {
+      qb.andWhere('p.status IN (:...statuses)', { statuses: statusList });
+    }
 
     if (params.category) {
       qb.andWhere('p.category = :cat', { cat: params.category.toUpperCase() });
@@ -90,20 +96,27 @@ export class PiecesReportService {
       qb.andWhere('p.soldById = :opId', { opId: params.operatorId });
     }
 
+    qb.orderBy('p.createdAt', 'DESC');
+
     const practices = await qb.getMany();
 
-    // Aggrega per operatore × (shop, categoria, provider)
-    const map = new Map<
-      string,
-      {
-        userId: string;
-        userName: string;
-        userEmail: string | null;
-        shopId: string;
-        breakdown: Record<string, number>;
-        total: number;
-      }
-    >();
+    // Aggrega per operatore
+    type Row = {
+      userId: string;
+      userName: string;
+      userEmail: string | null;
+      shopId: string;
+      breakdown: Record<string, number>;
+      statusBreakdown: Record<string, number>; // 'completed' | 'in_progress' | ...
+      total: number;
+    };
+
+    const map = new Map<string, Row>();
+
+    // Aggregato globale per status (top-level)
+    const globalStatusBreakdown: Record<string, number> = {};
+    const globalCategoryBreakdown: Record<string, number> = {};
+    const globalProviderBreakdown: Record<string, number> = {};
 
     for (const p of practices) {
       const userId = p.soldById!;
@@ -113,6 +126,7 @@ export class PiecesReportService {
       const prov =
         (offer?.provider || p.offerType || p.type || '?').toString().toUpperCase();
       const breakdownKey = `${cat}|${prov}`;
+      const statusKey = (p.status || 'draft') as string;
 
       const k = `${userId}|${p.tenantId}`;
       let row = map.get(k);
@@ -128,16 +142,35 @@ export class PiecesReportService {
           userEmail: seller?.email || null,
           shopId: p.tenantId,
           breakdown: {},
+          statusBreakdown: {},
           total: 0,
         };
         map.set(k, row);
       }
       row.breakdown[breakdownKey] = (row.breakdown[breakdownKey] || 0) + 1;
+      row.statusBreakdown[statusKey] = (row.statusBreakdown[statusKey] || 0) + 1;
       row.total += 1;
+
+      globalStatusBreakdown[statusKey] = (globalStatusBreakdown[statusKey] || 0) + 1;
+      globalCategoryBreakdown[cat] = (globalCategoryBreakdown[cat] || 0) + 1;
+      globalProviderBreakdown[prov] = (globalProviderBreakdown[prov] || 0) + 1;
     }
 
     const rows = Array.from(map.values()).sort((a, b) => b.total - a.total);
     const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+
+    // Mappa shopId → shopName (sempre, ci serve anche per le pratiche)
+    const shopNames = new Map<string, string>();
+    if (params.scope === 'company' && params.companyId) {
+      const tenants = await this.tenantRepo.find({
+        where: { companyId: params.companyId },
+        select: ['id', 'name'],
+      });
+      tenants.forEach((t) => shopNames.set(t.id, t.name));
+    } else {
+      const tenant = await this.tenantRepo.findOne({ where: { id: params.tenantId } });
+      if (tenant) shopNames.set(tenant.id, tenant.name);
+    }
 
     const result: any = {
       from,
@@ -147,39 +180,43 @@ export class PiecesReportService {
         category: params.category || null,
         provider: params.provider || null,
         operatorId: params.operatorId || null,
+        statuses: statusList,
       },
       grandTotal,
+      statusBreakdown: globalStatusBreakdown,
+      categoryBreakdown: globalCategoryBreakdown,
+      providerBreakdown: globalProviderBreakdown,
       rows,
     };
 
-    // Se richiesto, allega anche l'elenco raw delle pratiche (per UI espandibile)
     if (params.includePractices) {
-      const shopNames = new Map<string, string>();
-      if (params.scope === 'company' && params.companyId) {
-        const tenants = await this.tenantRepo.find({
-          where: { companyId: params.companyId },
-          select: ['id', 'name'],
-        });
-        tenants.forEach((t) => shopNames.set(t.id, t.name));
-      } else {
-        const tenant = await this.tenantRepo.findOne({ where: { id: params.tenantId } });
-        if (tenant) shopNames.set(tenant.id, tenant.name);
-      }
-
       result.practices = practices.map((p) => {
         const offer = (p as any).offer as Offer | undefined;
         const seller = (p as any).seller as User | undefined;
+        const customer = (p as any).customerInfo as Customer | undefined;
         const sellerName = seller
           ? [seller.firstName, seller.lastName].filter(Boolean).join(' ').trim() || seller.email
           : p.soldById?.slice(0, 8) || '?';
+        const customerName = customer
+          ? [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim() ||
+            customer.email ||
+            null
+          : null;
         return {
           id: p.id,
           offerName: p.offerName || null,
           provider: (offer?.provider || p.offerType || p.type || null)?.toString().toUpperCase() || null,
           category: p.category || null,
-          customerName: null, // non carichiamo customer qui per performance
+          type: p.type || null,
+          status: p.status || null,
+          operationalStatus: p.operationalStatus || null,
+          skyTvStatus: p.skyTvStatus || null,
+          customerId: p.customerId || null,
+          customerName,
           createdAt: p.createdAt,
+          shopId: p.tenantId,
           shopName: shopNames.get(p.tenantId) || p.tenantId.slice(0, 8),
+          sellerId: p.soldById,
           sellerName,
         };
       });
@@ -188,7 +225,10 @@ export class PiecesReportService {
     return result;
   }
 
-  /** "I miei pezzi del mese" per il widget dashboard operator. */
+  /** "I miei pezzi del mese" per il widget dashboard operator.
+   * Mantiene il vecchio comportamento (solo pratiche completed) per coerenza
+   * con la dashboard e con le gare.
+   */
   async getMyPieces(userId: string, tenantId: string, includePractices?: boolean) {
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     return this.getPieces({
@@ -198,8 +238,18 @@ export class PiecesReportService {
       operatorId: userId,
       from: this.firstOfThisMonth(),
       to: this.today(),
+      statuses: ['completed'],
       includePractices,
     });
+  }
+
+  private normalizeStatuses(s?: string[] | string): string[] {
+    if (!s) return [];
+    const arr = Array.isArray(s) ? s : String(s).split(',');
+    const valid = new Set(['draft', 'in_progress', 'completed', 'cancelled']);
+    return arr
+      .map((x) => String(x).trim().toLowerCase())
+      .filter((x) => valid.has(x));
   }
 
   private async resolveShopIds(params: {

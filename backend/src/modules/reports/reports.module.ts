@@ -7,11 +7,12 @@ import { Practice } from '../practices/entities/practice.entity';
 import { Tenant } from '../tenants/entities/tenant.entity';
 import { User } from '../users/entities/user.entity';
 import { Offer } from '../offers/entities/offer.entity';
+import { Customer } from '../customers/entities/customer.entity';
 import { MembershipsModule } from '../memberships/memberships.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Practice, Tenant, User, Offer]),
+    TypeOrmModule.forFeature([Practice, Tenant, User, Offer, Customer]),
     MembershipsModule, // PermissionsGuard ha bisogno di MembershipsService
   ],
   controllers: [WashReportController, PiecesReportController],

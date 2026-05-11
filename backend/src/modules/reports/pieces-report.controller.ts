@@ -41,6 +41,8 @@ export class PiecesReportController {
     @Query('category') category?: string,
     @Query('provider') provider?: string,
     @Query('operatorId') operatorId?: string,
+    @Query('statuses') statuses?: string,
+    @Query('includePractices') includePractices?: string,
   ) {
     const tenantId = req.user.tenantId;
     if (!tenantId) throw new BadRequestException('Nessuno shop attivo');
@@ -55,6 +57,8 @@ export class PiecesReportController {
       category,
       provider,
       operatorId,
+      statuses,
+      includePractices: includePractices === 'true' || includePractices === '1',
     });
   }
 

@@ -279,12 +279,29 @@ export class ExportsService {
     userId: string;
     companyId?: string | null;
     month?: string;
+    from?: string;
+    to?: string;
+    statuses?: string;
+    category?: string;
+    provider?: string;
   }): Promise<string> {
     const { tenantId, userId, companyId } = params;
-    const month = params.month || this.currentMonth();
-    const [year, mon] = month.split('-').map(Number);
-    const from = `${month}-01`;
-    const to = `${month}-${this.lastDayOfMonth(year, mon)}`;
+
+    // Se month è passato → range del mese; altrimenti usa from/to (default mese corrente)
+    let from: string;
+    let to: string;
+    let label: string;
+    if (params.from && params.to) {
+      from = params.from;
+      to = params.to;
+      label = `${this.formatDateIt(from)} → ${this.formatDateIt(to)}`;
+    } else {
+      const month = params.month || this.currentMonth();
+      const [year, mon] = month.split('-').map(Number);
+      from = `${month}-01`;
+      to = `${month}-${this.lastDayOfMonth(year, mon)}`;
+      label = this.monthLabel(month);
+    }
 
     const report = await this.piecesService.getPieces({
       scope: companyId ? 'company' : 'shop',
@@ -292,86 +309,321 @@ export class ExportsService {
       companyId: companyId || null,
       from,
       to,
+      statuses: params.statuses,
+      category: params.category,
+      provider: params.provider,
+      includePractices: true,
     });
 
     const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
     const user = await this.userRepo.findOne({ where: { id: userId } });
 
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    const doc = new PDFDocument({ margin: 40, size: 'A4', bufferPages: true });
     const exportsDir = path.join(process.cwd(), 'uploads', 'exports');
     if (!fs.existsSync(exportsDir)) fs.mkdirSync(exportsDir, { recursive: true });
-    const fileName = `report-pezzi-${month}-${Date.now()}.pdf`;
+    const fileName = `report-pezzi-${from}_${to}-${Date.now()}.pdf`;
     const filePath = path.join(exportsDir, fileName);
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
 
-    // Header
-    doc.fontSize(20).font('Helvetica-Bold');
-    doc.text('Report Mensile — Pezzi Venduti', 40, 40);
-    doc.fontSize(10).font('Helvetica');
-    doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 40, 70);
-    doc.text(`Periodo: ${this.monthLabel(month)}`, 40, 85);
-    doc.text(`Shop/Company: ${tenant?.name || 'N/D'}`, 40, 100);
-    doc.text(`Generato da: ${[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'N/D'}`, 40, 115);
-    doc.moveTo(40, 135).lineTo(555, 135).stroke('#cccccc');
+    const PAGE_W = 595; // A4
+    const M = 40;
+    const CONTENT_W = PAGE_W - M * 2;
+    const PAGE_BOTTOM = 800;
 
-    let y = 155;
+    let y = M;
 
-    // Riepilogo
-    doc.fontSize(14).font('Helvetica-Bold');
-    doc.text('Riepilogo', 40, y);
-    y += 25;
-    doc.fontSize(11).font('Helvetica');
-    doc.text(`Totale pezzi venduti: ${report.grandTotal}`, 40, y);
-    y += 18;
+    // ===== Header =====
+    doc.save();
+    doc.fillColor('#0f172a').rect(0, 0, PAGE_W, 90).fill();
+    doc.restore();
+    doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold')
+      .text('Report Pezzi Venduti', M, 28);
+    doc.fontSize(10).font('Helvetica').fillColor('#cbd5e1')
+      .text(label, M, 56);
+    doc.fontSize(9).fillColor('#94a3b8')
+      .text(
+        `Generato il ${new Date().toLocaleDateString('it-IT')} • ${tenant?.name || 'N/D'} • ${
+          [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'N/D'
+        }`,
+        M, 72,
+      );
+    y = 110;
 
-    const catMap = new Map<string, number>();
-    const provMap = new Map<string, number>();
-    for (const row of report.rows) {
-      for (const [key, count] of Object.entries(row.breakdown)) {
-        const [cat, prov] = key.split('|');
-        catMap.set(cat, (catMap.get(cat) || 0) + (count as number));
-        provMap.set(prov, (provMap.get(prov) || 0) + (count as number));
-      }
-    }
+    // ===== KPI Box =====
+    const kpiH = 60;
+    const kpiW = (CONTENT_W - 20) / 3;
+    const kpis = [
+      { label: 'Pezzi totali', value: String(report.grandTotal), color: '#0f766e' },
+      { label: 'Operatori', value: String(report.rows.length), color: '#1d4ed8' },
+      { label: 'Stati distinti', value: String(Object.keys(report.statusBreakdown || {}).length), color: '#a16207' },
+    ];
+    kpis.forEach((kpi, i) => {
+      const x = M + i * (kpiW + 10);
+      doc.save();
+      doc.fillColor('#f8fafc').roundedRect(x, y, kpiW, kpiH, 6).fill();
+      doc.restore();
+      doc.fillColor('#64748b').fontSize(9).font('Helvetica').text(kpi.label, x + 12, y + 10);
+      doc.fillColor(kpi.color).fontSize(22).font('Helvetica-Bold').text(kpi.value, x + 12, y + 24);
+    });
+    y += kpiH + 18;
 
-    if (catMap.size > 0) {
-      doc.font('Helvetica-Bold').text('Per categoria:', 40, y);
-      y += 16;
-      doc.font('Helvetica');
-      for (const [cat, count] of catMap) {
-        doc.text(`  • ${this.catLabel(cat)}: ${count}`, 40, y);
-        y += 14;
-      }
-      y += 4;
-    }
-
-    if (provMap.size > 0) {
-      doc.font('Helvetica-Bold').text('Per provider:', 40, y);
-      y += 16;
-      doc.font('Helvetica');
-      for (const [prov, count] of provMap) {
-        doc.text(`  • ${prov}: ${count}`, 40, y);
-        y += 14;
-      }
-      y += 8;
-    }
-
-    // Classifica operatori
-    if (report.rows.length > 0) {
-      y += 10;
-      doc.fontSize(14).font('Helvetica-Bold');
-      doc.text('Classifica Operatori', 40, y);
-      y += 25;
-      this.drawTableRow(doc, 40, y, ['Pos', 'Operatore', 'Pezzi'], [40, 300, 80], true);
+    // ===== Riepilogo per Status =====
+    const statusEntries = Object.entries(report.statusBreakdown || {}) as [string, number][];
+    if (statusEntries.length > 0) {
+      y = this.ensureSpace(doc, y, 60, M);
+      doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold').text('Riepilogo per stato', M, y);
       y += 20;
-      doc.font('Helvetica').fontSize(10);
-      for (let i = 0; i < report.rows.length; i++) {
-        const row = report.rows[i];
-        if (y > 750) { doc.addPage(); y = 40; }
-        this.drawTableRow(doc, 40, y, [`${i + 1}`, row.userName, String(row.total)], [40, 300, 80], false, i % 2 === 1);
-        y += 18;
+      const cols = 4;
+      const gap = 8;
+      const colW = (CONTENT_W - gap * (cols - 1)) / cols;
+      const sorted = statusEntries.sort((a, b) => b[1] - a[1]);
+      sorted.forEach(([st, count], ix) => {
+        const col = ix % cols;
+        const row = Math.floor(ix / cols);
+        const x = M + col * (colW + gap);
+        const cy = y + row * 38;
+        const meta = this.statusMeta(st);
+        doc.save();
+        doc.fillColor(meta.bg).roundedRect(x, cy, colW, 32, 4).fill();
+        doc.restore();
+        doc.fillColor(meta.fg).fontSize(8).font('Helvetica-Bold').text(meta.label, x + 8, cy + 5);
+        doc.fillColor('#0f172a').fontSize(14).font('Helvetica-Bold').text(String(count), x + 8, cy + 15);
+      });
+      const rowsCount = Math.ceil(sorted.length / cols);
+      y += rowsCount * 38 + 8;
+    }
+
+    // ===== Riepilogo Categoria + Provider (due colonne) =====
+    const catEntries = Object.entries(report.categoryBreakdown || {}) as [string, number][];
+    const provEntries = Object.entries(report.providerBreakdown || {}) as [string, number][];
+    if (catEntries.length > 0 || provEntries.length > 0) {
+      y = this.ensureSpace(doc, y, 30, M);
+      doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold').text('Distribuzione', M, y);
+      y += 20;
+      const colW = (CONTENT_W - 20) / 2;
+
+      const drawList = (
+        title: string,
+        entries: [string, number][],
+        x: number,
+        labelFn: (k: string) => string,
+      ) => {
+        let ly = y;
+        doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold').text(title, x, ly);
+        ly += 16;
+        doc.fontSize(10).font('Helvetica').fillColor('#0f172a');
+        entries
+          .sort((a, b) => b[1] - a[1])
+          .forEach(([k, v]) => {
+            doc.text(`• ${labelFn(k)}`, x + 4, ly, { width: colW - 60 });
+            doc.text(String(v), x + colW - 50, ly, { width: 40, align: 'right' });
+            ly += 14;
+          });
+        return ly;
+      };
+
+      const catEnd = catEntries.length
+        ? drawList('Per categoria', catEntries, M, (k) => this.catLabel(k))
+        : y;
+      const provEnd = provEntries.length
+        ? drawList('Per provider', provEntries, M + colW + 20, (k) => k)
+        : y;
+      y = Math.max(catEnd, provEnd) + 10;
+    }
+
+    // ===== Classifica Operatori =====
+    if (report.rows.length > 0) {
+      y = this.ensureSpace(doc, y, 80, M);
+      doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold').text('Classifica operatori', M, y);
+      y += 18;
+
+      const headers = ['#', 'Operatore', 'Negozio', 'Attivati', 'In lavor.', 'KO/Annul.', 'Totale'];
+      const widths = [28, 160, 110, 50, 50, 60, 57];
+      this.drawRow(doc, M, y, headers, widths, { header: true });
+      y += 22;
+
+      report.rows.forEach((row: any, i: number) => {
+        y = this.ensureSpace(doc, y, 22, M);
+        const sb = row.statusBreakdown || {};
+        const completed = sb.completed || 0;
+        const inProgress = (sb.in_progress || 0) + (sb.draft || 0);
+        const ko = sb.cancelled || 0;
+        const cells = [
+          `${i + 1}`,
+          row.userName,
+          this.lookupShopName(row.shopId, report.practices),
+          String(completed),
+          String(inProgress),
+          String(ko),
+          String(row.total),
+        ];
+        this.drawRow(doc, M, y, cells, widths, { header: false, alt: i % 2 === 1 });
+        y += 20;
+      });
+      y += 14;
+
+      // ===== Grafico a barre orizzontali (Top operatori) =====
+      const topRows = report.rows.slice(0, 10); // max 10
+      const maxTotal = topRows.reduce((m: number, r: any) => Math.max(m, r.total), 0) || 1;
+
+      // Spazio richiesto: heading 28 + (rows * 22) + padding
+      const chartNeeded = 28 + topRows.length * 22 + 10;
+      y = this.ensureSpace(doc, y, chartNeeded, M);
+
+      doc.fillColor('#0f172a').fontSize(13).font('Helvetica-Bold')
+        .text('Grafico — Top operatori per pezzi', M, y);
+      y += 22;
+
+      // Layout barre: label sx (160px) + barra (max ~280px) + valore (60px)
+      const labelW = 160;
+      const valueW = 50;
+      const barAreaW = CONTENT_W - labelW - valueW - 16;
+
+      // Colori per status (stessi del riepilogo)
+      const cCompleted = '#16a34a';
+      const cInProgress = '#3b82f6';
+      const cKo = '#dc2626';
+      const cTrack = '#f1f5f9';
+
+      topRows.forEach((row: any, i: number) => {
+        const sb = row.statusBreakdown || {};
+        const completed = sb.completed || 0;
+        const inProgress = (sb.in_progress || 0) + (sb.draft || 0);
+        const ko = sb.cancelled || 0;
+        const total = row.total || (completed + inProgress + ko);
+
+        const rowH = 18;
+        // Label
+        doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold')
+          .text(`${i + 1}. ${row.userName}`, M, y + 4, {
+            width: labelW - 8,
+            ellipsis: true,
+            lineBreak: false,
+          });
+
+        // Track
+        const barX = M + labelW;
+        doc.save();
+        doc.fillColor(cTrack).roundedRect(barX, y, barAreaW, rowH, 3).fill();
+        doc.restore();
+
+        // Stack segments proporzionali al MASSIMO globale (così le barre sono confrontabili)
+        const widthFor = (n: number) => (n / maxTotal) * barAreaW;
+        let segX = barX;
+
+        if (completed > 0) {
+          const w = widthFor(completed);
+          doc.save(); doc.fillColor(cCompleted).roundedRect(segX, y, w, rowH, 3).fill(); doc.restore();
+          segX += w;
+        }
+        if (inProgress > 0) {
+          const w = widthFor(inProgress);
+          doc.save(); doc.fillColor(cInProgress).rect(segX, y, w, rowH).fill(); doc.restore();
+          segX += w;
+        }
+        if (ko > 0) {
+          const w = widthFor(ko);
+          doc.save(); doc.fillColor(cKo).rect(segX, y, w, rowH).fill(); doc.restore();
+          segX += w;
+        }
+
+        // Valore totale
+        doc.fillColor('#0f172a').fontSize(10).font('Helvetica-Bold')
+          .text(String(total), barX + barAreaW + 8, y + 4, {
+            width: valueW,
+            align: 'left',
+            lineBreak: false,
+          });
+
+        y += rowH + 4;
+      });
+
+      // Legenda
+      y += 6;
+      const drawLegend = (x: number, color: string, label: string) => {
+        doc.save(); doc.fillColor(color).roundedRect(x, y + 2, 10, 10, 2).fill(); doc.restore();
+        doc.fillColor('#475569').fontSize(8).font('Helvetica')
+          .text(label, x + 14, y + 3, { lineBreak: false });
+      };
+      drawLegend(M, cCompleted, 'Attivati / Completati');
+      drawLegend(M + 130, cInProgress, 'In lavorazione');
+      drawLegend(M + 240, cKo, 'KO / Annullati');
+      y += 22;
+    }
+
+    // ===== Dettaglio pratiche raggruppato per status =====
+    const practices: any[] = report.practices || [];
+    if (practices.length > 0) {
+      const groups = new Map<string, any[]>();
+      for (const p of practices) {
+        const k = p.status || 'unknown';
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k)!.push(p);
       }
+      const order = ['completed', 'in_progress', 'draft', 'cancelled'];
+      const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+        const ai = order.indexOf(a); const bi = order.indexOf(b);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+
+      doc.addPage();
+      y = M;
+      doc.fillColor('#0f172a').fontSize(15).font('Helvetica-Bold')
+        .text('Dettaglio pratiche per stato', M, y);
+      y += 24;
+
+      for (const stKey of sortedKeys) {
+        const list = groups.get(stKey)!;
+        const meta = this.statusMeta(stKey);
+        y = this.ensureSpace(doc, y, 60, M);
+
+        // Heading status
+        doc.save();
+        doc.fillColor(meta.bg).roundedRect(M, y, CONTENT_W, 24, 4).fill();
+        doc.restore();
+        doc.fillColor(meta.fg).fontSize(11).font('Helvetica-Bold')
+          .text(`${meta.label}  (${list.length})`, M + 10, y + 7);
+        y += 30;
+
+        // Tabella
+        const headers = ['Data', 'Cliente', 'Operatore', 'Categoria', 'Provider', 'St. operativo'];
+        const widths = [62, 120, 110, 70, 70, 83];
+        this.drawRow(doc, M, y, headers, widths, { header: true });
+        y += 22;
+
+        list.forEach((p, i) => {
+          y = this.ensureSpace(doc, y, 22, M, () => {
+            // re-disegna heading status quando si va a pagina nuova
+            doc.fillColor('#0f172a').fontSize(11).font('Helvetica-Bold')
+              .text(`${meta.label} (continua)`, M, M);
+            this.drawRow(doc, M, M + 22, headers, widths, { header: true });
+            return M + 44;
+          });
+          const cells = [
+            p.createdAt ? this.formatDateIt(new Date(p.createdAt).toISOString().slice(0, 10)) : '-',
+            (p.customerName || '—').toString(),
+            (p.sellerName || '—').toString(),
+            this.catLabel(p.category || ''),
+            (p.provider || '—').toString(),
+            this.opStatusLabel(p.operationalStatus || p.skyTvStatus),
+          ];
+          this.drawRow(doc, M, y, cells, widths, { header: false, alt: i % 2 === 1 });
+          y += 20;
+        });
+        y += 10;
+      }
+    }
+
+    // ===== Footer pagine =====
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
+      doc.switchToPage(i);
+      doc.fontSize(8).fillColor('#94a3b8').font('Helvetica')
+        .text(`Pagina ${i + 1} di ${pageCount}`, M, PAGE_BOTTOM + 10, {
+          width: CONTENT_W,
+          align: 'right',
+        });
     }
 
     doc.end();
@@ -381,16 +633,91 @@ export class ExportsService {
     });
   }
 
-  private drawTableRow(doc: any, x: number, y: number, cells: string[], widths: number[], isHeader: boolean, altBg = false) {
-    const rowHeight = 18;
-    if (altBg) { doc.save(); doc.fillColor('#f5f5f5').rect(x, y - 2, 515, rowHeight).fill(); doc.restore(); }
-    if (isHeader) { doc.save(); doc.fillColor('#e0e0e0').rect(x, y - 2, 515, rowHeight).fill(); doc.restore(); doc.font('Helvetica-Bold').fontSize(10); }
+  private ensureSpace(doc: any, y: number, needed: number, margin: number, onNewPage?: () => number): number {
+    if (y + needed > 800) {
+      doc.addPage();
+      return onNewPage ? onNewPage() : margin;
+    }
+    return y;
+  }
+
+  private drawRow(
+    doc: any,
+    x: number,
+    y: number,
+    cells: string[],
+    widths: number[],
+    opts: { header?: boolean; alt?: boolean } = {},
+  ) {
+    const rowHeight = 20;
+    const totalW = widths.reduce((s, w) => s + w, 0);
+    if (opts.header) {
+      doc.save();
+      doc.fillColor('#1e293b').rect(x, y, totalW, rowHeight).fill();
+      doc.restore();
+      doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(9);
+    } else {
+      if (opts.alt) {
+        doc.save();
+        doc.fillColor('#f8fafc').rect(x, y, totalW, rowHeight).fill();
+        doc.restore();
+      }
+      doc.fillColor('#0f172a').font('Helvetica').fontSize(9);
+    }
     let cx = x;
     for (let i = 0; i < cells.length; i++) {
-      doc.fillColor('#333333').text(cells[i], cx + 4, y + 2, { width: widths[i] - 8, ellipsis: true });
+      doc.text(String(cells[i] ?? ''), cx + 6, y + 6, {
+        width: widths[i] - 12,
+        ellipsis: true,
+        lineBreak: false,
+      });
       cx += widths[i];
     }
-    doc.moveTo(x, y + rowHeight - 2).lineTo(x + 515, y + rowHeight - 2).stroke('#dddddd');
+    doc.save();
+    doc.strokeColor('#e2e8f0').lineWidth(0.5)
+      .moveTo(x, y + rowHeight).lineTo(x + totalW, y + rowHeight).stroke();
+    doc.restore();
+  }
+
+  private statusMeta(s: string): { label: string; bg: string; fg: string } {
+    const m: Record<string, { label: string; bg: string; fg: string }> = {
+      completed: { label: 'Completate / Attivate', bg: '#dcfce7', fg: '#166534' },
+      in_progress: { label: 'In lavorazione', bg: '#dbeafe', fg: '#1e40af' },
+      draft: { label: 'Bozza', bg: '#f1f5f9', fg: '#475569' },
+      cancelled: { label: 'Annullate / KO', bg: '#fee2e2', fg: '#991b1b' },
+    };
+    return m[s] || { label: s || '—', bg: '#f1f5f9', fg: '#475569' };
+  }
+
+  private opStatusLabel(s: string | null | undefined): string {
+    if (!s) return '—';
+    const m: Record<string, string> = {
+      PENDING: 'In attesa',
+      IN_PROGRESS: 'In lavorazione',
+      ACTIVATED: 'Attivata',
+      REJECTED: 'Rifiutata',
+      KO_CREDITO: 'KO Credito',
+      KO_COPERTURA: 'KO Copertura',
+      IN_LAVORAZIONE: 'In lavorazione',
+      IN_VERIFICA_WM: 'In verifica WM',
+      NON_SALITA_ARCADIA: 'Non salita Arcadia',
+      ATTIVO: 'Attivo',
+      KO_GENERICO: 'KO generico',
+      KO_RINUNCIA_CLIENTE: 'KO rinuncia',
+    };
+    return m[s] || s;
+  }
+
+  private formatDateIt(iso: string): string {
+    if (!iso) return '';
+    const [y, m, d] = iso.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+
+  private lookupShopName(shopId: string, practices?: any[]): string {
+    if (!practices) return shopId.slice(0, 8);
+    const p = practices.find((x) => x.shopId === shopId);
+    return p?.shopName || shopId.slice(0, 8);
   }
 
   private currentMonth(): string { return new Date().toISOString().slice(0, 7); }

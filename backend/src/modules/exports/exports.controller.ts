@@ -65,7 +65,14 @@ export class ExportsController {
   @Post('monthly-pieces-pdf')
   @RequirePermission('canExportData')
   async monthlyPiecesPDF(
-    @Body() body: { month?: string },
+    @Body() body: {
+      month?: string;
+      from?: string;
+      to?: string;
+      statuses?: string;
+      category?: string;
+      provider?: string;
+    },
     @Req() req,
     @Res() res: Response,
   ) {
@@ -74,6 +81,11 @@ export class ExportsController {
       userId: req.user.userId || req.user.id || req.user.sub,
       companyId: req.user.companyId || null,
       month: body.month,
+      from: body.from,
+      to: body.to,
+      statuses: body.statuses,
+      category: body.category,
+      provider: body.provider,
     });
     const fileName = filePath.split('/').pop();
     res.download(filePath, fileName, (err) => {

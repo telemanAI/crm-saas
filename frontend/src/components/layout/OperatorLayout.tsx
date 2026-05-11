@@ -158,7 +158,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
   return (
     <div
-      className={`min-h-screen transition-colors duration-300 ${
+      className={`min-h-screen w-full overflow-x-hidden transition-colors duration-300 ${
         isDark ? 'bg-slate-950' : 'bg-gray-50'
       }`}
     >
@@ -508,7 +508,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         />
       )}
 
-      <main className="md:ml-64">
+      <main className="w-full md:ml-64 min-w-0">
         <header
           className={`h-14 md:h-16 backdrop-blur-sm border-b flex items-center justify-between px-3 md:px-6 sticky top-0 z-30 gap-2 transition-colors duration-300 ${
             isDark ? 'bg-slate-900/85 border-slate-800' : 'bg-white/85 border-gray-200'

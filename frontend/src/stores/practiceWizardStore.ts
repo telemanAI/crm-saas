@@ -36,6 +36,7 @@ export interface CustomerAddress {
 
 export interface PracticeData {
   type?: 'TIM_FIBRA' | 'SKY';
+  offerId?: string;
   offerCode?: string;
   offerName?: string;
   offerCanone?: string;

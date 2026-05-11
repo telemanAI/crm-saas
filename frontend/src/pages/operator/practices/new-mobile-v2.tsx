@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import PracticeWizardMobileV2 from './new-mobile-v2';
+// 🚧 v11.5 — Wizard mobile-v2: copia integrale del PC con SOLO la view
+// modificata (uno step alla volta + footer fisso). Logica/endpoint/state
+// totalmente identici al desktop. NON usare `useIsMobile` qui dentro (è già
+// chi monta il componente a farlo).
 import { 
   Check, 
   CaretDown, 
@@ -283,17 +285,13 @@ const offersCatalog = {
   ]
 };
 
-export default function NewPractice() {
-  // 🎯 v11.5 — Routing mobile/desktop attivo:
-  //   - desktop (md+): wizard COMPLETO `NewPracticeDesktop` (file PC, INVARIATO)
-  //   - mobile (<768): wizard `PracticeWizardMobileV2` (fork del PC, view ottimizzata
-  //     uno step alla volta + footer fisso). Logica/endpoint/store IDENTICI al PC.
-  const isMobile = useIsMobile();
-  if (isMobile) return <PracticeWizardMobileV2 />;
-  return <NewPracticeDesktop />;
+export default function PracticeWizardMobileV2() {
+  // 🚧 Wizard mobile v2 (rete fissa): copia fedele del PC con UI per touch.
+  // Tutti gli endpoint, validazioni e store sono IDENTICI al desktop.
+  return <MobileWizardCore />;
 }
 
-function NewPracticeDesktop() {
+function MobileWizardCore() {
   const router = useRouter();
   const { token } = useAuthStore();
   const { data, setData, currentStep, setStep, reset, practiceId, setPracticeId } = usePracticeWizardStore();
@@ -961,23 +959,23 @@ function NewPracticeDesktop() {
 
   return (
     <OperatorLayout title={practiceId ? "Modifica Pratica" : "Nuova Pratica"}>
-      <div className="p-8 max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+      <div className="p-3 max-w-4xl mx-auto">
+        <div className="mb-4">
+          <h1 className="text-xl font-bold text-white mb-1">
             {practiceId ? "Modifica Pratica" : "Nuova Pratica"}
           </h1>
-          <p className="text-slate-400">
-            {practiceId ? "Modifica i dati" : `Compila i ${totalSteps} passaggi`}
+          <p className="text-slate-400 text-xs">
+            {practiceId ? "Modifica i dati" : `Step ${steps.findIndex(s => s.id === currentStep) + 1}/${totalSteps} · ${steps.find(s => s.id === currentStep)?.title || ''}`}
           </p>
         </div>
 
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-slate-400">Progresso</span>
-            <span className="text-sm text-indigo-400">{completedSteps.length}/{totalSteps}</span>
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-400">Progresso</span>
+            <span className="text-xs text-indigo-400">{completedSteps.length}/{totalSteps}</span>
           </div>
-          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-            <motion.div 
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <motion.div
               className="h-full bg-gradient-to-r from-indigo-600 to-purple-600"
               initial={{ width: 0 }}
               animate={{ width: `${(completedSteps.length / totalSteps) * 100}%` }}
@@ -985,13 +983,13 @@ function NewPracticeDesktop() {
           </div>
         </div>
 
-        <div className="space-y-4">
-          {steps.map((step) => {
+        <div className="space-y-4 pb-32">
+          {steps.filter((s) => s.id === currentStep).map((step) => {
             const Icon = step.icon;
             const isCompleted = completedSteps.includes(step.id);
-            const isExpanded = expandedStep === step.id;
+            const isExpanded = true; // v2 mobile: SEMPRE espanso (uno step alla volta)
             const isValid = isStepValid(step.id);
-            
+
             const targetIndex = steps.findIndex(s => s.id === step.id);
             const maxCompletedIndex = Math.max(
               ...completedStepIds.map(id => steps.findIndex(s => s.stepId === id)),
@@ -2560,6 +2558,54 @@ function NewPracticeDesktop() {
             );
           })}
         </div>
+      </div>
+
+      {/* Footer fisso mobile-v2: Indietro / Avanti */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-3 py-3 flex items-center gap-2 md:hidden">
+        <button
+          onClick={() => {
+            const idx = steps.findIndex((s) => s.id === currentStep);
+            if (idx > 0) {
+              const prev = steps[idx - 1];
+              setStep(prev.id);
+              setExpandedStep(prev.id);
+            } else {
+              router.push('/operator/practices');
+            }
+          }}
+          className="h-12 px-4 rounded-xl bg-slate-800 text-slate-200 inline-flex items-center gap-1 font-semibold"
+          data-testid="mobile-v2-back"
+        >
+          ← Indietro
+        </button>
+        <div className="flex-1 text-center text-xs text-slate-500">
+          Step {steps.findIndex((s) => s.id === currentStep) + 1}/{steps.length}
+        </div>
+        <button
+          onClick={async () => {
+            const idx = steps.findIndex((s) => s.id === currentStep);
+            const cur = steps[idx];
+            if (!cur) return;
+            // Usa lo stesso handler del PC: salva lo step corrente + avanza
+            try {
+              if (cur.stepId === 'summary') {
+                await handleSubmit();
+              } else {
+                await handleStepComplete(cur.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            } catch (e) {
+              // handleStepComplete mostra già l'alert/toast
+            }
+          }}
+          disabled={!isStepValid(currentStep)}
+          className="flex-1 h-12 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50"
+          data-testid="mobile-v2-next"
+        >
+          {steps.findIndex((s) => s.id === currentStep) === steps.length - 1
+            ? 'Salva e completa'
+            : 'Avanti →'}
+        </button>
       </div>
     </OperatorLayout>
   );

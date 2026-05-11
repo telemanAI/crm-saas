@@ -126,31 +126,31 @@ export default function EnergyPracticesList() {
 
   return (
     <OperatorLayout title="Pratiche Luce e Gas">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <Lightning className="w-7 h-7 text-amber-400" weight="duotone" />
-            Pratiche Luce e Gas
+      <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl md:text-3xl font-bold text-white mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
+            <Lightning className="w-5 h-5 md:w-7 md:h-7 text-amber-400 flex-shrink-0" weight="duotone" />
+            <span className="truncate">Pratiche Luce e Gas</span>
           </h1>
-          <p className="text-slate-400">Gestisci switch, volture, subentri e posa contatori</p>
+          <p className="text-slate-400 text-xs md:text-base">Gestisci switch, volture, subentri e posa contatori</p>
         </div>
         {canCreatePractices && (
           <Link href="/operator/practices/energy/new">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-amber-600/25"
+              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-3 md:px-6 py-2.5 md:py-3 rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-amber-600/25 text-sm md:text-base whitespace-nowrap flex-shrink-0"
               data-testid="energy-new-practice-btn"
             >
-              <Plus className="w-5 h-5" />
-              Nuova Pratica Luce/Gas
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Nuova </span>Luce/Gas
             </motion.button>
           </Link>
         )}
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex flex-wrap items-center gap-4">
-        <div className="relative flex-1 min-w-[260px] max-w-md">
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 md:p-4 mb-4 md:mb-6 grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 sm:gap-4">
+        <div className="relative w-full sm:flex-1 sm:min-w-[260px] sm:max-w-md">
           <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input
             type="text"

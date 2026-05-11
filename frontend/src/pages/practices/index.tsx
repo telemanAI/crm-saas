@@ -157,16 +157,17 @@ export default function PracticesList() {
 
   return (
     <OperatorLayout title="Pratiche">
-      <div className="flex items-center justify-between mb-8">
+      {/* HEADER RESPONSIVE */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Pratiche</h1>
-          <p className="text-slate-400">Gestisci le pratiche TIM e SKY</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Pratiche Rete Fissa</h1>
+          <p className="text-slate-400 text-sm sm:text-base">TIM, Vodafone, SKY e altre</p>
         </div>
         <Link href="/operator/practices/new">
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-6 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-indigo-600/25"
+            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25 w-full sm:w-auto"
           >
             <Plus className="w-5 h-5" />
             Nuova Pratica
@@ -174,63 +175,68 @@ export default function PracticesList() {
         </Link>
       </div>
 
-      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-4 mb-6 flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
-          <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+      {/* BARRA FILTRI - RESPONSIVE */}
+      <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 sm:p-4 mb-6 flex flex-col gap-3">
+        {/* Ricerca - sempre full width */}
+        <div className="relative w-full">
+          <MagnifyingGlass className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
           <input
             type="text"
             placeholder="Cerca pratica..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-3 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 text-sm sm:text-base text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
           />
         </div>
         
-        <div className="flex items-center gap-2">
-          <Funnel className="w-5 h-5 text-slate-500" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as FilterType)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-          >
-            <option value="ALL">Tutte</option>
-            <option value="TIM_FIBRA">TIM</option>
-            <option value="VODAFONE">Vodafone</option>
-            <option value="WINDTRE">WindTre</option>
-            <option value="ILIAD">Iliad</option>
-            <option value="OPTIMA">Optima</option>
-            <option value="IREN">Iren</option>
-            <option value="SKY">SKY</option>
-          </select>
-        </div>
+        {/* Filtri - scrollabili orizzontalmente su mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Funnel className="w-4 h-4 text-slate-500" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as FilterType)}
+              className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 whitespace-nowrap"
+            >
+              <option value="ALL">Tutte</option>
+              <option value="TIM_FIBRA">TIM</option>
+              <option value="VODAFONE">Vodafone</option>
+              <option value="WINDTRE">WindTre</option>
+              <option value="ILIAD">Iliad</option>
+              <option value="OPTIMA">Optima</option>
+              <option value="IREN">Iren</option>
+              <option value="SKY">SKY</option>
+            </select>
+          </div>
 
-        <div className="flex items-center gap-2 ml-4">
-          <Funnel className="w-5 h-5 text-slate-500" />
-          <select
-            value={operationalStatusFilter}
-            onChange={(e) => setOperationalStatusFilter(e.target.value as any)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-          >
-            <option value="ALL">Tutti gli stati</option>
-            <option value="PENDING">In Attesa</option>
-            <option value="IN_PROGRESS">In Lavorazione</option>
-            <option value="ACTIVATED">Attivata</option>
-            <option value="REJECTED">KO</option>
-          </select>
-        </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Funnel className="w-4 h-4 text-slate-500" />
+            <select
+              value={operationalStatusFilter}
+              onChange={(e) => setOperationalStatusFilter(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 whitespace-nowrap"
+            >
+              <option value="ALL">Tutti gli stati</option>
+              <option value="PENDING">In Attesa</option>
+              <option value="IN_PROGRESS">In Lavorazione</option>
+              <option value="ACTIVATED">Attivata</option>
+              <option value="REJECTED">KO</option>
+            </select>
+          </div>
 
-        <div className="flex items-center gap-2 ml-4">
-          <Funnel className="w-5 h-5 text-slate-500" />
-          <select
-            value={statoGlobaleFilter}
-            onChange={(e) => setStatoGlobaleFilter(e.target.value as any)}
-            className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-          >
-            <option value="ALL">Tutti gli stati globali</option>
-            <option value="completo">Complete</option>
-            <option value="non_completo">Non Complete</option>
-            <option value="daChiudere">Convergenze da Chiudere</option>
-          </select>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <Funnel className="w-4 h-4 text-slate-500" />
+            <select
+              value={statoGlobaleFilter}
+              onChange={(e) => setStatoGlobaleFilter(e.target.value as any)}
+              className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 whitespace-nowrap"
+            >
+              <option value="ALL">Tutti gli stati globali</option>
+              <option value="completo">Complete</option>
+              <option value="non_completo">Non Complete</option>
+              <option value="daChiudere">Convergenze da Chiudere</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -243,7 +249,7 @@ export default function PracticesList() {
           </Link>
         </div>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3 sm:gap-4">
           {filteredPractices.map((practice, index) => (
             <motion.div
               key={practice.id}
@@ -251,11 +257,48 @@ export default function PracticesList() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
               onClick={() => router.push(`/operator/practices/${practice.id}`)}
-              className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-6 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+              className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-4 sm:p-6 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
+              {/* CARD RESPONSIVE - Stack su mobile, row su desktop */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                {/* Top row: Logo + Operatore + Status */}
+                <div className="flex items-center justify-between sm:hidden">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700 flex-shrink-0">
+                      <span className={`font-bold text-xs sm:text-sm ${
+                        practice.type === 'TIM_FIBRA' ? 'text-blue-400' : 
+                        practice.type === 'VODAFONE' ? 'text-rose-400' :
+                        practice.type === 'WINDTRE' ? 'text-orange-400' :
+                        practice.type === 'ILIAD' ? 'text-red-400' :
+                        practice.type === 'OPTIMA' ? 'text-emerald-400' :
+                        practice.type === 'IREN' ? 'text-amber-400' :
+                        practice.type === 'SKY' ? 'text-cyan-400' : 'text-slate-400'
+                      }`}>
+                        {practice.type === 'TIM_FIBRA' ? 'TIM' : 
+                         practice.type === 'VODAFONE' ? 'Voda' :
+                         practice.type === 'WINDTRE' ? 'W3' :
+                         practice.type === 'ILIAD' ? 'Iliad' :
+                         practice.type === 'OPTIMA' ? 'Opt' :
+                         practice.type === 'IREN' ? 'Iren' :
+                         practice.type === 'SKY' ? 'SKY' : (practice.type as string)?.substring(0,3)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm text-slate-200">{getTypeLabel(practice.type)}</span>
+                      <h3 className="font-semibold text-white text-sm line-clamp-1 group-hover:text-indigo-400 transition-colors">
+                        {practice.offerName}
+                      </h3>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    {getStatusIcon(practice.status)}
+                    <span className="text-xs">{getStatusLabel(practice.status)}</span>
+                  </div>
+                </div>
+
+                {/* Desktop layout - hidden on mobile */}
+                <div className="hidden sm:flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700 flex-shrink-0">
                     <span className={`font-bold text-sm ${
                       practice.type === 'TIM_FIBRA' ? 'text-blue-400' : 
                       practice.type === 'VODAFONE' ? 'text-rose-400' :
@@ -276,14 +319,17 @@ export default function PracticesList() {
                   </div>
                   <span className="font-bold">{getTypeLabel(practice.type)}</span>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
+
+                {/* Info cliente - sempre visibile */}
+                <div className="flex-1 min-w-0">
+                  {/* Solo desktop */}
+                  <h3 className="hidden sm:block font-semibold text-white group-hover:text-indigo-400 transition-colors truncate">
                     {practice.offerName}
                   </h3>
                   
                   {/* BADGE CONVERGENZA */}
                   {practice.convergenza?.attiva && (
-                    <div className="mt-2">
+                    <div className="mt-1 sm:mt-2">
                       <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
                         practice.statoGlobale === 'completo' 
                           ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
@@ -298,25 +344,27 @@ export default function PracticesList() {
                   )}
                   
                   <div className="text-sm text-slate-400 mt-1">
-                    <p>{practice.customer?.firstName} {practice.customer?.lastName}</p>
+                    <p className="truncate">{practice.customer?.firstName} {practice.customer?.lastName}</p>
                     {practice.customer?.fiscalCode && (
                       <p className="text-xs text-slate-500 font-mono mt-1">CF: {practice.customer.fiscalCode}</p>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-6">
+
+                {/* Azioni e status */}
+                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-6 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/50">
                   {practice.status?.toLowerCase() === 'draft' && (
                     <Link href={`/operator/practices/new?edit=${practice.id}`}>
                       <button 
                         onClick={(e) => e.stopPropagation()}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors mr-4"
+                        className="px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors"
                       >
                         Continua
                       </button>
                     </Link>
                   )}
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-sm text-slate-400 mb-1">
+                  <div className="hidden sm:block text-right">
+                    <div className="flex items-center justify-end gap-2 text-sm text-slate-400 mb-1">
                       {getStatusIcon(practice.status)}
                       <span>{getStatusLabel(practice.status)}</span>
                     </div>
@@ -324,13 +372,16 @@ export default function PracticesList() {
                       Step {practice.currentStep}/8
                     </div>
                   </div>
-                  <div className="text-right text-sm text-slate-500">
-                    {new Date(practice.createdAt).toLocaleDateString('it-IT')}
+                  <div className="flex sm:block items-center gap-2 text-xs sm:text-sm text-slate-500">
+                    <span className="sm:hidden">Step {practice.currentStep}/8</span>
+                    <span>{new Date(practice.createdAt).toLocaleDateString('it-IT')}</span>
                   </div>
                 </div>
               </div>
             </motion.div>
           ))}
+          {/* Spacer finale per permettere lo scroll oltre la bottom nav */}
+          <div className="h-20 sm:h-0" />
         </div>
       )}
     </OperatorLayout>

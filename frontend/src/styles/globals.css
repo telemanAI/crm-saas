@@ -389,3 +389,37 @@ html:not(.dark) [class*="bg-slate-900\\/50"] li {
     background-color: rgba(156, 163, 175, 0.3);
   }
 }
+
+/* ============================================
+   UTILITY RESPONSIVE - MOBILE FIX
+   ============================================ */
+
+/* Nasconde la scrollbar mantenendo lo scroll */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Line clamp utility */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Safe area iOS - padding bottom per iPhone con notch */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

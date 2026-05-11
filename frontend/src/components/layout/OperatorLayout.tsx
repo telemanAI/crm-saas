@@ -536,7 +536,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
           </div>
         </header>
 
-        <div className="p-3 md:p-6">{children}</div>
+        <div className="p-3 md:p-6 pb-24 md:pb-6">{children}</div>
       </main>
 
       {/* Quick navigator mobile — visibile SOLO su mobile e SOLO quando il drawer è chiuso */}

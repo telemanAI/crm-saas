@@ -78,18 +78,18 @@ export default function ShopSwitcher() {
       <button
         data-testid="shop-switcher-btn"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2.5 px-3 py-2 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 rounded-xl transition-all group"
+        className="flex items-center gap-1.5 md:gap-2.5 px-2 md:px-3 py-1.5 md:py-2 bg-slate-900/50 hover:bg-slate-900/80 border border-slate-800 hover:border-indigo-500/40 rounded-lg md:rounded-xl transition-all group max-w-[160px] sm:max-w-none"
       >
-        <Storefront weight="duotone" className="w-4.5 h-4.5 text-indigo-400" />
-        <div className="text-left">
-          <p className="text-white text-sm font-semibold leading-tight">{activeShop?.name || 'Seleziona negozio'}</p>
+        <Storefront weight="duotone" className="w-4 h-4 md:w-4.5 md:h-4.5 text-indigo-400 flex-shrink-0" />
+        <div className="text-left min-w-0">
+          <p className="text-white text-xs md:text-sm font-semibold leading-tight truncate max-w-[110px] sm:max-w-none">{activeShop?.name || 'Seleziona negozio'}</p>
           {activeShop?.subscriptionCode && (
-            <p className="text-slate-500 text-[10px] font-mono leading-tight">Codice {activeShop.subscriptionCode}</p>
+            <p className="hidden sm:block text-slate-500 text-[10px] font-mono leading-tight">Codice {activeShop.subscriptionCode}</p>
           )}
         </div>
         {shops.length > 1 && (
           <>
-            <CaretDown className="w-3 h-3 text-slate-500 ml-1" />
+            <CaretDown className="w-3 h-3 text-slate-500 ml-0.5 md:ml-1 flex-shrink-0" />
             <span className="hidden md:flex items-center gap-0.5 ml-2 px-1.5 py-0.5 bg-slate-950 rounded text-[10px] text-slate-500 font-mono border border-slate-800">
               ⌘K
             </span>

@@ -2561,7 +2561,10 @@ function MobileWizardCore() {
       </div>
 
       {/* Footer fisso mobile-v2: Indietro / Avanti */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-3 py-3 flex items-center gap-2 md:hidden">
+      <div
+        data-mobile-footer="true"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-3 py-3 flex items-center gap-2 md:hidden"
+      >
         <button
           onClick={() => {
             const idx = steps.findIndex((s) => s.id === currentStep);

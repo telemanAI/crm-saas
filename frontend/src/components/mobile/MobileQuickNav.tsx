@@ -63,12 +63,26 @@ export default function MobileQuickNav() {
   const longTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tapStart = useRef<{ x: number; y: number; t: number }>({ x: 0, y: 0, t: 0 });
 
-  // Carica posizione salvata
+  // Carica posizione salvata + osserva la presenza di un footer mobile (es. wizard)
+  // per auto-sollevarsi e non sovrapporsi.
+  const [hasMobileFooter, setHasMobileFooter] = useState(false);
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(POS_KEY);
       if (saved) setPos(JSON.parse(saved));
     } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const check = () => {
+      setHasMobileFooter(!!document.querySelector('[data-mobile-footer="true"]'));
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => obs.disconnect();
   }, []);
 
   const savePos = (p: Pos) => {
@@ -194,10 +208,13 @@ export default function MobileQuickNav() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  // Posizione effettiva (fallback bottom-right)
+  // Posizione effettiva (fallback bottom-right + offset footer se presente)
+  const defaultBottom = hasMobileFooter ? 92 : 20;
   const style: React.CSSProperties = {
     right: pos ? `${pos.x}px` : '20px',
-    bottom: pos ? `${pos.y}px` : 'calc(20px + env(safe-area-inset-bottom, 0px))',
+    bottom: pos
+      ? `${Math.max(pos.y, hasMobileFooter ? 84 : 8)}px`
+      : `calc(${defaultBottom}px + env(safe-area-inset-bottom, 0px))`,
   };
 
   return (

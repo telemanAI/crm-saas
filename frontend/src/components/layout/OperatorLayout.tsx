@@ -181,22 +181,23 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
       )}
 
       <aside
-        className={`fixed left-0 top-0 h-full w-64 border-r z-40 flex flex-col transition-[transform,background-color] duration-300 ${
-          isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'
+        className={`fixed left-0 top-0 h-full w-72 md:w-64 border-r z-50 md:z-40 flex flex-col transition-[transform,background-color] duration-200 shadow-2xl md:shadow-none ${
+          isDark ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'
         } md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
+        data-testid="operator-sidebar"
       >
         <div
-          className={`p-6 border-b flex-shrink-0 ${
+          className={`p-4 md:p-6 border-b flex-shrink-0 flex items-center justify-between ${
             isDark ? 'border-slate-800' : 'border-gray-200'
           }`}
         >
-          <Link href="/operator/dashboard" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center">
+          <Link href="/operator/dashboard" className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center flex-shrink-0">
               <Buildings weight="fill" className="w-5 h-5 text-white" />
             </div>
-            <div>
+            <div className="min-w-0">
               <h1 className={`font-bold ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>CRM</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+              <p className={`text-xs truncate ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
                 {user?.role === 'SUPER_ADMIN'
                   ? 'Super Admin'
                   : effectiveRole === 'FOUNDER'
@@ -207,6 +208,18 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
               </p>
             </div>
           </Link>
+          {/* Close button visible only on mobile */}
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen(false)}
+            className={`md:hidden p-2 -mr-2 rounded-lg flex-shrink-0 ${
+              isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'
+            }`}
+            aria-label="Chiudi menu"
+            data-testid="mobile-drawer-close"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 sidebar-scroll">
@@ -489,7 +502,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
       {/* Backdrop drawer mobile */}
       {mobileNavOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden"
           onClick={() => setMobileNavOpen(false)}
           data-testid="mobile-drawer-backdrop"
         />
@@ -497,15 +510,15 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
 
       <main className="md:ml-64">
         <header
-          className={`h-16 backdrop-blur-sm border-b flex items-center justify-between px-4 md:px-6 sticky top-0 z-30 transition-colors duration-300 ${
-            isDark ? 'bg-slate-900/50 border-slate-800' : 'bg-white/80 border-gray-200'
+          className={`h-14 md:h-16 backdrop-blur-sm border-b flex items-center justify-between px-3 md:px-6 sticky top-0 z-30 gap-2 transition-colors duration-300 ${
+            isDark ? 'bg-slate-900/85 border-slate-800' : 'bg-white/85 border-gray-200'
           }`}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             <button
               type="button"
               onClick={() => setMobileNavOpen((v) => !v)}
-              className={`md:hidden p-2 rounded-lg ${
+              className={`md:hidden p-2 -ml-1 rounded-lg flex-shrink-0 ${
                 isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'
               }`}
               aria-label="Apri menu"
@@ -513,11 +526,11 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             >
               {mobileNavOpen ? <X className="w-5 h-5" /> : <List className="w-5 h-5" />}
             </button>
-            <h2 className={`text-base md:text-lg font-semibold truncate ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
+            <h2 className={`text-sm md:text-lg font-semibold truncate min-w-0 ${isDark ? 'text-slate-100' : 'text-gray-900'}`}>
               {title}
             </h2>
           </div>
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
             {shops.length > 0 ? <ShopSwitcher /> : null}
             <NotificationBell />
           </div>
@@ -526,8 +539,8 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         <div className="p-3 md:p-6">{children}</div>
       </main>
 
-      {/* Quick navigator mobile (joystick + radial menu) — visibile SOLO su mobile */}
-      {isMobile && <MobileQuickNav />}
+      {/* Quick navigator mobile — visibile SOLO su mobile e SOLO quando il drawer è chiuso */}
+      {isMobile && !mobileNavOpen && <MobileQuickNav />}
     </div>
   );
 }

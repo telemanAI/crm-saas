@@ -189,21 +189,22 @@ export default function PracticesList() {
 
   return (
     <OperatorLayout title="Pratiche">
-      <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2">Pratiche</h1>
-          <p className="text-slate-400 text-xs md:text-sm">Gestisci le pratiche TIM e SKY</p>
+      {/* 🟢 v12.1 — Mobile responsive header (deploy marker: 2026-05-11-v12.1-fixed-list) */}
+      <div className="flex items-start justify-between mb-4 md:mb-8 gap-2 md:gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg sm:text-2xl md:text-3xl font-bold text-white mb-1 md:mb-2 truncate">Pratiche Rete Fissa</h1>
+          <p className="text-slate-400 text-[11px] sm:text-xs md:text-sm truncate">TIM, Vodafone, SKY e altre</p>
         </div>
         {canCreatePractices && (
-          <Link href="/operator/practices/new">
+          <Link href="/operator/practices/new" className="flex-shrink-0">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               data-testid="practices-new-btn"
-              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-3 md:px-6 py-2.5 md:py-3 rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-indigo-600/25 text-sm md:text-base whitespace-nowrap"
+              className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold px-2.5 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-indigo-600/25 text-xs md:text-base whitespace-nowrap"
             >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Nuova </span>Pratica
+              <Plus className="w-4 h-4 md:w-5 md:h-5" weight="bold" />
+              <span className="hidden sm:inline">Nuova</span>
             </motion.button>
           </Link>
         )}

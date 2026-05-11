@@ -126,24 +126,25 @@ export default function EnergyPracticesList() {
 
   return (
     <OperatorLayout title="Pratiche Luce e Gas">
-      <div className="flex items-center justify-between mb-6 md:mb-8 gap-3">
+      {/* 🟢 v12.1 — Mobile responsive header (deploy marker: 2026-05-11-v12.1-energy-list) */}
+      <div className="flex items-start justify-between mb-4 md:mb-8 gap-2 md:gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl md:text-3xl font-bold text-white mb-1 md:mb-2 flex items-center gap-2 md:gap-3">
+          <h1 className="text-lg sm:text-xl md:text-3xl font-bold text-white mb-1 md:mb-2 flex items-center gap-1.5 md:gap-3 leading-tight">
             <Lightning className="w-5 h-5 md:w-7 md:h-7 text-amber-400 flex-shrink-0" weight="duotone" />
-            <span className="truncate">Pratiche Luce e Gas</span>
+            <span className="truncate">Pratiche Luce/Gas</span>
           </h1>
-          <p className="text-slate-400 text-xs md:text-base">Gestisci switch, volture, subentri e posa contatori</p>
+          <p className="text-slate-400 text-[11px] sm:text-xs md:text-base truncate">Switch, volture, subentri, posa</p>
         </div>
         {canCreatePractices && (
-          <Link href="/operator/practices/energy/new">
+          <Link href="/operator/practices/energy/new" className="flex-shrink-0">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-3 md:px-6 py-2.5 md:py-3 rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-amber-600/25 text-sm md:text-base whitespace-nowrap flex-shrink-0"
+              className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-semibold px-2.5 md:px-6 py-2 md:py-3 rounded-lg md:rounded-xl flex items-center gap-1 md:gap-2 shadow-lg shadow-amber-600/25 text-xs md:text-base whitespace-nowrap"
               data-testid="energy-new-practice-btn"
             >
-              <Plus className="w-4 h-4 md:w-5 md:h-5" />
-              <span className="hidden sm:inline">Nuova </span>Luce/Gas
+              <Plus className="w-4 h-4 md:w-5 md:h-5" weight="bold" />
+              <span className="hidden sm:inline">Nuova</span>
             </motion.button>
           </Link>
         )}
@@ -151,7 +152,7 @@ export default function EnergyPracticesList() {
 
       <div className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-3 md:p-4 mb-4 md:mb-6 grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-3 sm:gap-4">
         <div className="relative w-full sm:flex-1 sm:min-w-[260px] sm:max-w-md">
-          <MagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+          <MagnifyingGlass className="absolute left-3 md:left-4 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-slate-500" />
           <input
             type="text"
             placeholder="Cerca per cliente, CF o offerta..."

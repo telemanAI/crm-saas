@@ -30,7 +30,7 @@ interface NavItem {
   dir: Direction;
   href: string;
   label: string;
-  Icon: React.ComponentType<{ className?: string; weight?: any }>;
+  Icon: React.ComponentType<{ className?: string; weight?: any; style?: React.CSSProperties }>;
   color: string;
 }
 

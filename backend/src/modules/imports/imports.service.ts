@@ -242,6 +242,7 @@ export class ImportsService {
                 tenantId,
                 userId,
                 strategy,
+                job.id,
               );
               
               if (result.customer) {
@@ -262,7 +263,7 @@ export class ImportsService {
               successfulRows++;
             } else {
               const result = await this.fixedLineAdapter.processRow(
-                row, job.mappingConfig, tenantId, userId,
+                row, job.mappingConfig, tenantId, userId, job.id,
               );
               if (result.customer) createdCustomers++;
               if (result.practice) createdPractices++;

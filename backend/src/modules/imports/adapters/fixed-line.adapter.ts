@@ -93,6 +93,7 @@ export class FixedLineAdapter {
     mapping: any,
     tenantId: string,
     userId: string,
+    importJobId?: string,
   ): Promise<{ customer: Customer; practice: Practice }> {
     const validationResult = await this.validateRow(row, mapping, tenantId);
     
@@ -103,10 +104,10 @@ export class FixedLineAdapter {
     const data = validationResult.data;
 
     // 1. Trova o crea cliente
-    let customer = await this.findOrCreateCustomer(data, tenantId, mapping.duplicateStrategy);
+    let customer = await this.findOrCreateCustomer(data, tenantId, mapping.duplicateStrategy, importJobId);
 
     // 2. Crea pratica
-    const practice = await this.createPractice(data, customer.id, tenantId, userId);
+    const practice = await this.createPractice(data, customer.id, tenantId, userId, importJobId);
 
     return { customer, practice };
   }
@@ -115,6 +116,7 @@ export class FixedLineAdapter {
     data: any,
     tenantId: string,
     strategy: 'SKIP' | 'UPDATE' | 'CREATE_NEW',
+    importJobId?: string,
   ): Promise<Customer> {
     // Cerca cliente esistente per CF
     let existing = await this.customerRepository.findOne({
@@ -144,6 +146,7 @@ export class FixedLineAdapter {
       email: data.email,
       address: data.address || {},
       status: 'active',
+      sourceImportJobId: importJobId,
     });
 
     return await this.customerRepository.save(newCustomer);
@@ -154,13 +157,14 @@ export class FixedLineAdapter {
     customerId: string,
     tenantId: string,
     userId: string,
+    importJobId?: string,
   ): Promise<Practice> {
     const practice = this.practiceRepository.create({
       tenantId,
       customerId,
       createdBy: userId,
       type: data.type as PracticeType,
-      status: data.status || 'draft',
+      status: importJobId ? 'completed' : (data.status || 'draft'),
       operationalStatus: data.operationalStatus || 'PENDING',
       offerCode: data.offerCode,
       offerName: data.offerName,
@@ -170,10 +174,11 @@ export class FixedLineAdapter {
       offerNote: data.offerNote,
       lineType: data.lineType,
       technology: data.technology,
-      notes: data.notes,
+      notes: importJobId ? `[Pratica importata] ${data.notes || ''}` : data.notes,
       installationAddress: data.installationAddress || {},
       currentStep: 1,
       completedSteps: [],
+      sourceImportJobId: importJobId,
     });
 
     return await this.practiceRepository.save(practice);

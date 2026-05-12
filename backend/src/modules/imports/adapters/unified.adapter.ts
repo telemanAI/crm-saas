@@ -608,7 +608,7 @@ export class UnifiedAdapter {
       offerNote: data.offerNote,
       lineType: data.lineType,
       technology: data.technology,
-      notes: data.notes,
+      notes: importJobId ? `[Pratica importata] ${data.notes || ''}` : data.notes,
       installationAddress: data.installationAddress || {},
       currentStep: 1,
       completedSteps: [],

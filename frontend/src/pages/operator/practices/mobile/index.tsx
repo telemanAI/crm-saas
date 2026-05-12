@@ -203,7 +203,11 @@ export default function MobilePracticesList() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04 }}
-                onClick={() => router.push(`/operator/practices/mobile/${p.id}`)}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button') || target.closest('a')) return;
+                  router.push(`/operator/practices/mobile/${p.id}`);
+                }}
                 className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg overflow-hidden`}
                 data-testid="mobile-practice-card"
               >

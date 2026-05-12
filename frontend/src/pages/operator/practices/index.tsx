@@ -307,7 +307,11 @@ export default function PracticesList() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                onClick={() => router.push(`/operator/practices/${practice.id}`)}
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (target.closest('button') || target.closest('a')) return;
+                  router.push(`/operator/practices/${practice.id}`);
+                }}
                 className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg overflow-hidden`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">

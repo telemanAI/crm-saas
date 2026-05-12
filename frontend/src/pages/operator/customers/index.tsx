@@ -144,7 +144,11 @@ export default function CustomersList() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              onClick={() => router.push(`/operator/customers/${customer.id}`)}
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest('button') || target.closest('a')) return;
+                router.push(`/operator/customers/${customer.id}`);
+              }}
               className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer hover:border-slate-700 transition-all group"
             >
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">

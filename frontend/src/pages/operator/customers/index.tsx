@@ -147,32 +147,32 @@ export default function CustomersList() {
               onClick={() => router.push(`/operator/customers/${customer.id}`)}
               className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer hover:border-slate-700 transition-all group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-12 h-12 shrink-0 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center">
                     <Users className="w-6 h-6" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-white group-hover:text-indigo-400 transition-colors truncate">
                       {customer.firstName} {customer.lastName}
                     </h3>
-                    <p className="text-sm text-slate-400">CF: {customer.fiscalCode}</p>
+                    <p className="text-sm text-slate-400 truncate">CF: {customer.fiscalCode}</p>
                   </div>
                 </div>
-                               <div className="flex items-center gap-6 text-sm text-slate-400">
+                <div className="flex items-center gap-4 lg:gap-6 text-sm text-slate-400 flex-wrap">
                   {customer.phonePrimary && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4" />
-                      <span>{customer.phonePrimary}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Phone className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{customer.phonePrimary}</span>
                     </div>
                   )}
                   {customer.email && (
-                    <div className="flex items-center gap-2">
-                      <Envelope className="w-4 h-4" />
-                      <span>{customer.email}</span>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Envelope className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{customer.email}</span>
                     </div>
                   )}
-                  <div className="text-slate-500">
+                  <div className="text-slate-500 whitespace-nowrap">
                     {new Date(customer.createdAt).toLocaleDateString('it-IT')}
                   </div>
                   {/* Pulsante elimina — Phase B: usa canDeleteCustomers */}

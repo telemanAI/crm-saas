@@ -259,7 +259,7 @@ function ProductRow({
 
   return (
     <div
-      className="grid grid-cols-[1fr_auto] md:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-center bg-slate-900 hover:bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2.5 transition"
+      className="grid grid-cols-[1fr_auto] md:grid-cols-[2fr_1fr_1fr_auto] gap-3 items-center bg-slate-900 hover:bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2.5 transition min-w-0"
       data-testid={`product-row-${product.id}`}
     >
       <div className="min-w-0">

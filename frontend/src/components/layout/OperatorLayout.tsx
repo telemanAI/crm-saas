@@ -508,7 +508,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
         />
       )}
 
-      <main className="w-full md:ml-64 min-w-0">
+      <main className="w-full md:ml-64 md:w-[calc(100%-16rem)] min-w-0 overflow-x-hidden">
         <header
           className={`h-14 md:h-16 backdrop-blur-sm border-b flex items-center justify-between px-3 md:px-6 sticky top-0 z-30 gap-2 transition-colors duration-300 ${
             isDark ? 'bg-slate-900/85 border-slate-800' : 'bg-white/85 border-gray-200'

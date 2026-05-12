@@ -274,7 +274,7 @@ export default function PracticeDetail() {
     doUpdateStatus(pendingStatus, koReason.trim());
   };
 
-  const updateSkyTvStatus = async (newSkyTvStatus: string) => {
+  const updateSkyTvStatus = async (newSkyTvStatus: string | null) => {
     if (!practice || statusLoading) return;
     // Se è uno stato KO Sky TV, apri prima il form motivazione
     if (newSkyTvStatus && newSkyTvStatus.startsWith('KO_')) {
@@ -284,7 +284,7 @@ export default function PracticeDetail() {
     await doUpdateSkyTv(newSkyTvStatus);
   };
 
-  const doUpdateSkyTv = async (newSkyTvStatus: string, reason?: string) => {
+  const doUpdateSkyTv = async (newSkyTvStatus: string | null, reason?: string) => {
     if (!practice) return;
     setStatusLoading(true);
     try {

@@ -7,28 +7,33 @@
     @apply antialiased;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
-    -ms-touch-action: manipulation;
   }
 
-  /* Elimina il 300ms tap-delay su TUTTI gli elementi interattivi */
-  button, a, [role="button"], label, select, input[type="submit"],
-  input[type="button"], input[type="reset"], .touch-manipulation,
-  [class*="cursor-pointer"] {
-    touch-action: manipulation;
-    -ms-touch-action: manipulation;
-    -webkit-touch-callout: none;
-    -webkit-user-select: none;
-    user-select: none;
-  }
+  /* ============================================
+     FIX DOPPIO-TAP MOBILE
+     Gli stili hover si applicano SOLO su dispositivi
+     con puntatore preciso (mouse), NON su touch.
+     Questo elimina il doppio-tap su iOS/Android
+     senza compromettere il funzionamento dei click.
+     ============================================ */
+  @media (hover: none) {
+    /* Su touch: rimuovi tutti gli effetti hover */
+    *:hover {
+      border-color: inherit !important;
+      background-color: inherit !important;
+      color: inherit !important;
+    }
 
-  /* Permetti la selezione testo su input, textarea e contenteditable */
-  input[type="text"], input[type="email"], input[type="password"],
-  input[type="number"], input[type="tel"], input[type="search"],
-  textarea, [contenteditable="true"] {
-    -webkit-user-select: auto;
-    user-select: auto;
-    touch-action: manipulation;
-    -ms-touch-action: manipulation;
+    /* Su touch: permetti solo l'effetto :active (feedback immediato) */
+    button:active, a:active, [role="button"]:active {
+      opacity: 0.85;
+      transition: opacity 0.05s;
+    }
+
+    /* Su touch: rimuovi il delay 300ms su tutti gli elementi cliccabili */
+    button, a, [role="button"], input[type="submit"], input[type="button"] {
+      touch-action: manipulation;
+    }
   }
   body {
     @apply bg-slate-950 text-slate-200;

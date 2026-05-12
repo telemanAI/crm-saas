@@ -149,7 +149,7 @@ export default function CustomersList() {
                 if (target.closest('button') || target.closest('a')) return;
                 router.push(`/operator/customers/${customer.id}`);
               }}
-              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-default md:cursor-pointer active:opacity-90 md:hover:border-slate-700 transition-all group touch-manipulation"
+              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6 cursor-pointer transition-all group"
             >
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 min-w-0">
                 <div className="flex items-center gap-4 min-w-0">

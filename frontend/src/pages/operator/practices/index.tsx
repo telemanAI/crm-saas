@@ -308,7 +308,7 @@ export default function PracticesList() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
                 onClick={() => router.push(`/operator/practices/${practice.id}`)}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg overflow-hidden`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
@@ -333,9 +333,9 @@ export default function PracticesList() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap min-w-0">
                       <span className="font-bold text-white text-sm md:text-base">{getTypeLabel(practice.type)}</span>
-                      <h3 className="font-semibold text-white truncate text-sm md:text-base max-w-[160px] sm:max-w-[260px]">
+                      <h3 className="font-semibold text-white truncate text-sm md:text-base max-w-full sm:max-w-[260px]">
                         {practice.offerName}
                       </h3>
                     </div>
@@ -375,10 +375,10 @@ export default function PracticesList() {
                   </div>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 flex-wrap sm:flex-nowrap">
+                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 flex-wrap sm:flex-nowrap min-w-0">
                     {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
-                      <Link href={`/operator/practices/new?edit=${practice.id}`}>
-                        <button 
+                      <Link href={`/operator/practices/new?edit=${practice.id}`} className="shrink-0">
+                        <button
                           onClick={(e) => e.stopPropagation()}
                           className="px-3 md:px-4 py-1.5 md:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
                         >
@@ -386,7 +386,7 @@ export default function PracticesList() {
                         </button>
                       </Link>
                     )}
-                    <div className="text-right">
+                    <div className="text-right min-w-0">
                       <div className="flex items-center justify-end gap-1.5 md:gap-2 text-xs md:text-sm text-slate-400 mb-0.5 md:mb-1">
                         {getStatusIcon(practice.status)}
                         <span>{getStatusLabel(practice.status)}</span>
@@ -395,7 +395,7 @@ export default function PracticesList() {
                         Step {practice.currentStep}/8
                       </div>
                     </div>
-                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap">
+                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap shrink-0">
                       {new Date(practice.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>

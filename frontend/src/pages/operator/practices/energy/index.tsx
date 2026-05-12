@@ -200,7 +200,7 @@ export default function EnergyPracticesList() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.04 }}
                 onClick={() => router.push(`/operator/practices/energy/${p.id}`)}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg`}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg overflow-hidden`}
                 data-testid="energy-practice-card"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -235,9 +235,9 @@ export default function EnergyPracticesList() {
                       </div>
                     </div>
                   </div>
-                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50">
+                  <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 min-w-0">
                     {(p.status?.toLowerCase() === 'draft' || p.status?.toLowerCase() === 'in_progress') && canCreatePractices && (
-                      <Link href={`/operator/practices/energy/new?edit=${p.id}`}>
+                      <Link href={`/operator/practices/energy/new?edit=${p.id}`} className="shrink-0">
                         <button
                           onClick={(e) => e.stopPropagation()}
                           className="px-3 md:px-4 py-1.5 md:py-2 bg-amber-500 hover:bg-amber-400 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
@@ -246,14 +246,14 @@ export default function EnergyPracticesList() {
                         </button>
                       </Link>
                     )}
-                    <div className="text-right">
+                    <div className="text-right min-w-0">
                       <div className="flex items-center justify-end gap-1.5 md:gap-2 text-xs md:text-sm text-slate-400 mb-0.5 md:mb-1">
                         {getStatusIcon(p.status)}
                         <span>{getStatusLabel(p.status)}</span>
                       </div>
                       <div className="text-[10px] md:text-xs text-slate-500">Step {p.currentStep || 1}/6</div>
                     </div>
-                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap">
+                    <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap shrink-0">
                       {new Date(p.createdAt).toLocaleDateString('it-IT')}
                     </div>
                   </div>

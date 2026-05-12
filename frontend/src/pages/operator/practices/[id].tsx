@@ -851,104 +851,108 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
-                <MapPin className="w-5 h-5" />
+          {(practice.lineType || practice.technology || safeString(practice.installationAddress?.street) || (practice.oldLineData && Object.keys(practice.oldLineData).length > 0)) && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold text-white">Dettagli Linea</h2>
               </div>
-              <h2 className="text-xl font-semibold text-white">Dettagli Linea</h2>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label className="text-sm text-slate-500 block mb-1">Tipo Attivazione</label>
-                <span className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
-                  practice.lineType === 'NUOVA' 
-                    ? 'bg-emerald-600/20 text-emerald-400' 
-                    : 'bg-amber-600/20 text-amber-400'
-                }`}>
-                  {practice.lineType === 'NUOVA' ? 'Nuova Attivazione' : 'Migrazione'}
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {practice.lineType && (
+                  <div>
+                    <label className="text-sm text-slate-500 block mb-1">Tipo Attivazione</label>
+                    <span className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
+                      practice.lineType === 'NUOVA'
+                        ? 'bg-emerald-600/20 text-emerald-400'
+                        : 'bg-amber-600/20 text-amber-400'
+                    }`}>
+                      {practice.lineType === 'NUOVA' ? 'Nuova Attivazione' : 'Migrazione'}
+                    </span>
+                  </div>
+                )}
+                {practice.technology && (
+                  <div>
+                    <label className="text-sm text-slate-500 block mb-1">Tecnologia</label>
+                    <p className="text-white font-medium">{safeString(practice.technology)}</p>
+                  </div>
+                )}
+
+                {safeString(practice.installationAddress?.street) && (
+                  <div className="col-span-2">
+                    <label className="text-sm text-slate-500 block mb-1">Indirizzo Installazione</label>
+                    <p className="text-white flex items-start gap-2">
+                      <MapPin className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />
+                      {safeString(practice.installationAddress?.street)}
+                      {safeString(practice.installationAddress?.comune) && `, ${safeString(practice.installationAddress?.comune)}`}
+                      {safeString(practice.installationAddress?.citta) && ` (${safeString(practice.installationAddress?.citta)})`}
+                      {safeString(practice.installationAddress?.cap) && ` - ${safeString(practice.installationAddress?.cap)}`}
+                    </p>
+                  </div>
+                )}
               </div>
-              {practice.technology && (
-                <div>
-                  <label className="text-sm text-slate-500 block mb-1">Tecnologia</label>
-                  <p className="text-white font-medium">{safeString(practice.technology)}</p>
+
+              {practice.oldLineData && Object.keys(practice.oldLineData).length > 0 && (
+                <div className="mt-6 pt-6 border-t border-slate-800">
+                  <h3 className="text-sm font-medium text-amber-400 mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4" />
+                    Dati Linea Precedente (Migrazione)
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
+                    {safeString(practice.oldLineData.oldPhoneNumber) && (
+                      <div>
+                        <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
+                        <span className="text-white font-medium">{safeString(practice.oldLineData.oldPhoneNumber)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.migrationCode) && (
+                      <div>
+                        <span className="text-slate-500 block text-xs mb-1">Codice Migrazione</span>
+                        <span className="text-white font-mono">{safeString(practice.oldLineData.migrationCode)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.gestore) && (
+                      <div>
+                        <span className="text-slate-500 block text-xs mb-1">Gestore</span>
+                        <span className="text-white font-medium">{safeString(practice.oldLineData.gestore)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.gestoreAltro) && (
+                      <div>
+                        <span className="text-slate-500 block text-xs mb-1">Altro Gestore</span>
+                        <span className="text-white font-medium">{safeString(practice.oldLineData.gestoreAltro)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.fiscalCodeOldLine) && (
+                      <div>
+                        <span className="text-slate-500 block text-xs mb-1">CF Vecchia Linea</span>
+                        <span className="text-white font-mono text-sm">{safeString(practice.oldLineData.fiscalCodeOldLine)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.prodottiRestituire) && (
+                      <div className="col-span-2">
+                        <span className="text-slate-500 block text-xs mb-1">Prodotti da Restituire</span>
+                        <span className="text-white">{safeString(practice.oldLineData.prodottiRestituire)}</span>
+                      </div>
+                    )}
+                    {safeString(practice.oldLineData.notes) && (
+                      <div className="col-span-2">
+                        <span className="text-slate-500 block text-xs mb-1">Note Vecchia Linea</span>
+                        <p className="text-slate-300 text-sm">{safeString(practice.oldLineData.notes)}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-              
-              {safeString(practice.installationAddress?.street) && (
-                <div className="col-span-2">
-                  <label className="text-sm text-slate-500 block mb-1">Indirizzo Installazione</label>
-                  <p className="text-white flex items-start gap-2">
-                    <MapPin className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />
-                    {safeString(practice.installationAddress?.street)}
-                    {safeString(practice.installationAddress?.comune) && `, ${safeString(practice.installationAddress?.comune)}`}
-                    {safeString(practice.installationAddress?.citta) && ` (${safeString(practice.installationAddress?.citta)})`}
-                    {safeString(practice.installationAddress?.cap) && ` - ${safeString(practice.installationAddress?.cap)}`}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {practice.oldLineData && Object.keys(practice.oldLineData).length > 0 && (
-              <div className="mt-6 pt-6 border-t border-slate-800">
-                <h3 className="text-sm font-medium text-amber-400 mb-3 flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Dati Linea Precedente (Migrazione)
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
-                  {safeString(practice.oldLineData.oldPhoneNumber) && (
-                    <div>
-                      <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
-                      <span className="text-white font-medium">{safeString(practice.oldLineData.oldPhoneNumber)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.migrationCode) && (
-                    <div>
-                      <span className="text-slate-500 block text-xs mb-1">Codice Migrazione</span>
-                      <span className="text-white font-mono">{safeString(practice.oldLineData.migrationCode)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.gestore) && (
-                    <div>
-                      <span className="text-slate-500 block text-xs mb-1">Gestore</span>
-                      <span className="text-white font-medium">{safeString(practice.oldLineData.gestore)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.gestoreAltro) && (
-                    <div>
-                      <span className="text-slate-500 block text-xs mb-1">Altro Gestore</span>
-                      <span className="text-white font-medium">{safeString(practice.oldLineData.gestoreAltro)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.fiscalCodeOldLine) && (
-                    <div>
-                      <span className="text-slate-500 block text-xs mb-1">CF Vecchia Linea</span>
-                      <span className="text-white font-mono text-sm">{safeString(practice.oldLineData.fiscalCodeOldLine)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.prodottiRestituire) && (
-                    <div className="col-span-2">
-                      <span className="text-slate-500 block text-xs mb-1">Prodotti da Restituire</span>
-                      <span className="text-white">{safeString(practice.oldLineData.prodottiRestituire)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.oldLineData.notes) && (
-                    <div className="col-span-2">
-                      <span className="text-slate-500 block text-xs mb-1">Note Vecchia Linea</span>
-                      <p className="text-slate-300 text-sm">{safeString(practice.oldLineData.notes)}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </motion.div>
+            </motion.div>
+          )}
           
           {practice.appointmentData && (
             <motion.div 

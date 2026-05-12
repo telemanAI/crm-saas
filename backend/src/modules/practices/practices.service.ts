@@ -527,6 +527,14 @@ export class PracticesService {
     userId: string,
     tenantId: string,
   ): Promise<void> {
+    // Opzione A: se il frontend invia stepKey, usa il mapping per chiave
+    // invece del numero fisso. Questo gestisce gli step dinamici del wizard.
+    if (dto.stepKey) {
+      await this.applyFixedLineStepByKey(practice, dto, userId, tenantId);
+      return;
+    }
+
+    // Fallback: logica legacy per numero fisso (retrocompatibilità)
     switch (dto.stepNumber) {
       case 1:
         if (dto.data?.type !== undefined) practice.type = dto.data.type;
@@ -618,6 +626,111 @@ export class PracticesService {
               dto.data?.marketingConsent ?? dto.data?.privacyData?.marketingConsent ?? false,
           };
         }
+        break;
+    }
+  }
+
+  private async applyFixedLineStepByKey(
+    practice: Practice,
+    dto: UpdateStepDto,
+    userId: string,
+    tenantId: string,
+  ): Promise<void> {
+    const key = dto.stepKey!;
+    const d = dto.data || {};
+
+    switch (key) {
+      case 'offer':
+        if (d.type !== undefined) practice.type = d.type;
+        if (d.offerCode !== undefined) practice.offerCode = d.offerCode;
+        if (d.offerName !== undefined) practice.offerName = d.offerName;
+        if (d.offerCanone !== undefined) practice.offerCanone = d.offerCanone;
+        if (d.offerAttivazione !== undefined) practice.offerAttivazione = d.offerAttivazione;
+        if (d.offerVincolo !== undefined) practice.offerVincolo = d.offerVincolo;
+        if (d.offerNote !== undefined) practice.offerNote = d.offerNote;
+        if (d.offerDisattivazione !== undefined) practice.offerDisattivazione = d.offerDisattivazione;
+        if (d.offerType !== undefined) practice.offerType = d.offerType;
+        if (d.offerScadenza !== undefined) practice.offerScadenza = d.offerScadenza;
+        break;
+
+      case 'sellers':
+        if (d.soldBy !== undefined) practice.soldBy = d.soldBy;
+        if (d.enteredBy !== undefined) practice.enteredBy = d.enteredBy;
+        if (d.soldById !== undefined) practice.soldById = d.soldById;
+        if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+        break;
+
+      case 'customer':
+        await this.applyCustomerStep(practice, dto, userId);
+        break;
+
+      case 'packages':
+        if (d.additionalPackages !== undefined) practice.additionalPackages = d.additionalPackages;
+        break;
+
+      case 'wash':
+        if (d.washConfig !== undefined) practice.washConfig = d.washConfig;
+        break;
+
+      case 'line-new':
+        if (d.lineType !== undefined) practice.lineType = d.lineType ?? null;
+        if (d.installationAddress !== undefined) practice.installationAddress = d.installationAddress ?? null;
+        if (d.technology !== undefined) practice.technology = d.technology ?? null;
+        if (d.notes !== undefined) practice.newLineNotes = d.notes ?? null;
+        if (d.convergenza !== undefined) {
+          practice.convergenza = d.convergenza;
+          practice.statoGlobale = this.calculateStatoGlobale(practice.convergenza);
+        }
+        if (d.lavorazioniPostAttivazione !== undefined) practice.lavorazioniPostAttivazione = d.lavorazioniPostAttivazione;
+        break;
+
+      case 'line-old':
+        if (d.oldLineData !== undefined || d.oldPhoneNumber !== undefined) {
+          const old = d.oldLineData || d;
+          practice.oldLineData = {
+            oldPhoneNumber: old?.oldPhoneNumber ?? null,
+            migrationCode: old?.migrationCode ?? null,
+            gestore: old?.gestore ?? null,
+            gestoreAltro: old?.gestoreAltro ?? null,
+            fiscalCodeOldLine: old?.fiscalCodeOldLine ?? null,
+            prodottiRestituire: old?.prodottiRestituire ?? null,
+            notes: old?.notes ?? null,
+          };
+        }
+        break;
+
+      case 'payment':
+        if (d.paymentMethod !== undefined || d.iban !== undefined) {
+          practice.paymentMethod = {
+            iban: d.paymentMethod?.iban ?? d.iban ?? null,
+            postePay: d.paymentMethod?.postePay ?? d.postePay ?? null,
+            bollettino: d.paymentMethod?.bollettino ?? d.bollettino ?? false,
+          };
+        }
+        break;
+
+      case 'privacy':
+        if (d.gdprConsent !== undefined || d.marketingConsent !== undefined) {
+          practice.privacyData = {
+            gdprConsent: d.gdprConsent ?? d.privacyData?.gdprConsent ?? false,
+            marketingConsent: d.marketingConsent ?? d.privacyData?.marketingConsent ?? false,
+          };
+        }
+        break;
+
+      case 'appointment':
+        if (d.data !== undefined || d.ora !== undefined) {
+          practice.appointmentData = {
+            data: d.data ?? practice.appointmentData?.data,
+            ora: d.ora ?? practice.appointmentData?.ora,
+            oraFine: d.oraFine ?? practice.appointmentData?.oraFine,
+            accordi: d.accordi ?? practice.appointmentData?.accordi,
+          };
+        }
+        break;
+
+      default:
+        // Se la chiave non è riconosciuta, fallback per retrocompatibilità
         break;
     }
   }

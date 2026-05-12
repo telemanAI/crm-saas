@@ -7,6 +7,10 @@ export class UpdateStepDto {
   stepNumber: number;
 
   @IsOptional()
+  @IsString()
+  stepKey?: string;
+
+  @IsOptional()
   @IsObject()
   data?: any;
 

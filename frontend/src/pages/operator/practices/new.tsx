@@ -703,8 +703,10 @@ function NewPracticeDesktop() {
         return response.data.id;
       } else if (practiceId) {
         const stepData = getStepData(stepNumber);
+        const currentStepDef = steps.find(s => s.id === stepNumber);
         await api.put(`/practices/${practiceId}/step`, {
           stepNumber: stepNumber,
+          stepKey: currentStepDef?.stepId,
           data: stepData
         }, {
           headers: { Authorization: `Bearer ${token}` }

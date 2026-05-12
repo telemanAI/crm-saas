@@ -355,6 +355,18 @@ export default function PracticeDetail() {
     }
   };
 
+  const getSkyTvColor = (status: string) => {
+    switch (status) {
+      case 'ATTIVO': return 'bg-emerald-500 text-white border-emerald-500';
+      case 'IN_LAVORAZIONE': return 'bg-blue-500 text-white border-blue-500';
+      case 'IN_VERIFICA_WM': return 'bg-amber-500 text-white border-amber-500';
+      case 'NON_SALITA_ARCADIA': return 'bg-orange-500 text-white border-orange-500';
+      default: return 'bg-rose-500 text-white border-rose-500';
+    }
+  };
+
+  const isSkyTvKoStatus = (s: string) => s.startsWith('KO_');
+
   const getSkyTvLabel = (status: string) => {
     const map: Record<string, string> = {
       'IN_LAVORAZIONE': 'In lavorazione',
@@ -495,38 +507,35 @@ export default function PracticeDetail() {
 
             {practice.offerName?.toUpperCase().includes('SKY TV') && (
               <div className="mt-4 p-4 bg-cyan-950/20 border border-cyan-500/20 rounded-xl">
-                <label className="block text-sm text-cyan-300 mb-2 font-medium">
-                  Stato Sky TV
-                </label>
-                <select
-                  value={practice.skyTvStatus || ''}
-                  onChange={(e) => updateSkyTvStatus(e.target.value)}
-                  disabled={statusLoading}
-                  className="bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 text-sm w-full max-w-xs"
-                >
-                  <option value="">— Nessuno —</option>
-                  <option value="IN_LAVORAZIONE">In lavorazione</option>
-                  <option value="IN_VERIFICA_WM">In verifica WM</option>
-                  <option value="NON_SALITA_ARCADIA">Non salita su Arcadia</option>
-                  <option value="ATTIVO">Attivo</option>
-                  <option value="KO_GENERICO">KO Generico</option>
-                  <option value="KO_CREDITO">KO Credito</option>
-                  <option value="KO_COPERTURA">KO Copertura</option>
-                  <option value="KO_RINUNCIA_CLIENTE">KO Rinuncia Cliente</option>
-                </select>
-                {practice.skyTvStatus && (
-                  <span className={`inline-flex mt-2 px-2 py-1 rounded-md text-xs font-medium border ${
-                    practice.skyTvStatus === 'ATTIVO' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
-                    practice.skyTvStatus === 'IN_LAVORAZIONE' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
-                    practice.skyTvStatus === 'IN_VERIFICA_WM' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' :
-                    practice.skyTvStatus === 'NON_SALITA_ARCADIA' ? 'bg-orange-500/20 text-orange-400 border-orange-500/30' :
-                    'bg-rose-500/20 text-rose-400 border-rose-500/30'
-                  }`}>
-                    {getSkyTvLabel(practice.skyTvStatus)}
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs text-cyan-300 mr-1 font-medium w-full md:w-auto">Stato Sky TV:</span>
+                  {([
+                    '',
+                    'IN_LAVORAZIONE',
+                    'IN_VERIFICA_WM',
+                    'NON_SALITA_ARCADIA',
+                    'ATTIVO',
+                    'KO_GENERICO',
+                    'KO_CREDITO',
+                    'KO_COPERTURA',
+                    'KO_RINUNCIA_CLIENTE',
+                  ] as const).map((s) => (
+                    <button
+                      key={s || 'none'}
+                      onClick={() => updateSkyTvStatus(s || null)}
+                      disabled={statusLoading || practice.skyTvStatus === (s || null)}
+                      className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
+                        practice.skyTvStatus === (s || null)
+                          ? (s ? getSkyTvColor(s) : 'bg-slate-600 text-white border-slate-500')
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      {s ? getSkyTvLabel(s) : 'Nessuno'}
+                    </button>
+                  ))}
+                </div>
 
-                {pendingSkyTvStatus && pendingSkyTvStatus.startsWith('KO_') && (
+                {pendingSkyTvStatus && isSkyTvKoStatus(pendingSkyTvStatus) && (
                   <div className="mt-4 p-4 bg-rose-950/30 border border-rose-500/40 rounded-xl">
                     <label className="flex items-center gap-2 text-sm text-rose-300 mb-2 font-medium">
                       <TelevisionSimple className="w-4 h-4" weight="fill" />
@@ -894,6 +903,15 @@ export default function PracticeDetail() {
                       {safeString(practice.installationAddress?.comune) && `, ${safeString(practice.installationAddress?.comune)}`}
                       {safeString(practice.installationAddress?.citta) && ` (${safeString(practice.installationAddress?.citta)})`}
                       {safeString(practice.installationAddress?.cap) && ` - ${safeString(practice.installationAddress?.cap)}`}
+                    </p>
+                  </div>
+                )}
+
+                {practice.lavorazioniPostAttivazione && (
+                  <div className="col-span-2">
+                    <label className="text-sm text-slate-500 block mb-1">Lavorazioni Post Attivazione</label>
+                    <p className="text-sm text-slate-300 bg-slate-950/50 p-3 rounded-lg border border-slate-800 whitespace-pre-wrap">
+                      {safeString(practice.lavorazioniPostAttivazione)}
                     </p>
                   </div>
                 )}
@@ -1313,15 +1331,6 @@ export default function PracticeDetail() {
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              {practice.lavorazioniPostAttivazione && (
-                <div className="border-t border-slate-700 pt-4 mt-4">
-                  <h4 className="text-sm font-semibold text-slate-300 mb-2">Lavorazioni Post Attivazione</h4>
-                  <p className="text-sm text-slate-400 bg-slate-950/50 p-3 rounded-lg border border-slate-800">
-                    {safeString(practice.lavorazioniPostAttivazione)}
-                  </p>
                 </div>
               )}
 

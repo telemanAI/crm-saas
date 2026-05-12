@@ -3,6 +3,7 @@ import NoSsr from '@/components/NoSsr';
 import '@/styles/globals.css';
 import { useThemeStore } from '@/stores/themeStore';
 import { useEffect } from 'react';
+import Head from 'next/head';
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { isDark } = useThemeStore();
@@ -28,6 +29,12 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
 function MyApp({ Component, pageProps }: any) {
   return (
     <NoSsr>
+      <Head>
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
+      </Head>
       <AuthProvider>
         <ThemeProvider>
           <Component {...pageProps} />

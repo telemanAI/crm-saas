@@ -5,6 +5,30 @@
 @layer base {
   html {
     @apply antialiased;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -ms-touch-action: manipulation;
+  }
+
+  /* Elimina il 300ms tap-delay su TUTTI gli elementi interattivi */
+  button, a, [role="button"], label, select, input[type="submit"],
+  input[type="button"], input[type="reset"], .touch-manipulation,
+  [class*="cursor-pointer"] {
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Permetti la selezione testo su input, textarea e contenteditable */
+  input[type="text"], input[type="email"], input[type="password"],
+  input[type="number"], input[type="tel"], input[type="search"],
+  textarea, [contenteditable="true"] {
+    -webkit-user-select: auto;
+    user-select: auto;
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
   }
   body {
     @apply bg-slate-950 text-slate-200;

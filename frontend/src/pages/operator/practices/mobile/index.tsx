@@ -208,7 +208,7 @@ export default function MobilePracticesList() {
                   if (target.closest('button') || target.closest('a')) return;
                   router.push(`/operator/practices/mobile/${p.id}`);
                 }}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer hover:border-slate-600 transition-all group shadow-lg overflow-hidden`}
+                className={`bg-slate-900/80 backdrop-blur-xl border ${borderByOp(p.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-default md:cursor-pointer active:opacity-90 md:hover:border-slate-600 transition-all group shadow-lg overflow-hidden touch-manipulation`}
                 data-testid="mobile-practice-card"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">

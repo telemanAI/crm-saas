@@ -1,11 +1,75 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Component, type ReactNode, type ErrorInfo } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo, Warning, SignOut } from 'phosphor-react';
+import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo, Warning, SignOut, ArrowCounterClockwise } from 'phosphor-react';
 import { authApi, invitesApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+
+/**
+ * Error Boundary — cattura crash nel render e mostra una pagina di recovery
+ * invece di una pagina vuota (fondamentale per WebView in-app su mobile).
+ */
+class InviteErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; errorMessage: string }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, errorMessage: error.message };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Log silenzioso — in produzione si può inviare a un servizio di tracking
+    console.error('[InviteErrorBoundary]', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-md"
+          >
+            <div className="bg-slate-900/90 backdrop-blur-xl border border-rose-500/20 rounded-2xl p-6 md:p-8 shadow-2xl">
+              <div className="w-14 h-14 bg-rose-500/20 rounded-2xl mx-auto mb-4 flex items-center justify-center">
+                <Warning className="w-7 h-7 text-rose-400" weight="fill" />
+              </div>
+              <h1 className="text-xl font-bold text-white text-center mb-2">
+                Si è verificato un errore
+              </h1>
+              <p className="text-slate-400 text-sm text-center mb-6">
+                Qualcosa è andato storto nel caricamento dell&apos;invito.
+                Prova a ricaricare la pagina o usa il link diretto sotto.
+              </p>
+              <button
+                onClick={() => window.location.reload()}
+                className="flex items-center justify-center gap-2 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-colors mb-3"
+              >
+                <ArrowCounterClockwise className="w-5 h-5" />
+                Ricarica pagina
+              </button>
+              <button
+                onClick={() => {
+                  const url = window.location.href;
+                  window.open(url, '_blank');
+                }}
+                className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-3 rounded-xl transition-colors"
+              >
+                Apri in una nuova scheda
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 type Mode = 'choose' | 'password' | 'loading' | 'existing';
 
@@ -36,7 +100,7 @@ function Input({ icon, type = 'text', placeholder, value, onChange, required, te
   );
 }
 
-export default function InviteAccept() {
+function InviteAcceptInner() {
   const router = useRouter();
   const token = router.query.token as string | undefined;
   const { user, token: authToken, setAuth, clearAuth } = useAuthStore();
@@ -258,5 +322,14 @@ export default function InviteAccept() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+// Export wrappato con Error Boundary per catturare crash silenziosi su WebView mobile
+export default function InviteAccept() {
+  return (
+    <InviteErrorBoundary>
+      <InviteAcceptInner />
+    </InviteErrorBoundary>
   );
 }

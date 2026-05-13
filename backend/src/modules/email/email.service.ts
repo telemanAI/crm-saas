@@ -371,16 +371,24 @@ export class EmailService {
                     </table>
                     ${noteBlock}
                     
-                    <!-- CTA BUTTON: table-based per compatibilità client email mobile -->
+                    <!-- CTA BUTTON: colore solido + important per resistere al dark mode iOS -->
                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:32px auto;">
                       <tr>
-                        <td style="border-radius:10px;background:linear-gradient(135deg,#4f46e5,#7c3aed);text-align:center;">
+                        <td align="center" style="border-radius:12px;background-color:#6366f1 !important;mso-line-height-rule:exactly;-webkit-text-size-adjust:none;text-size-adjust:none;">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${inviteUrl}" style="height:52px;v-text-anchor:middle;width:280px;" arcsize="10%" fillcolor="#6366f1" stroke="f">
+                            <w:anchorlock/>
+                            <center style="color:#ffffff;font-weight:600;font-size:16px;">Accetta invito e accedi</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-- -->
                           <a href="${inviteUrl}" 
                              target="_blank" 
                              rel="noopener noreferrer"
-                             style="display:inline-block;padding:16px 40px;color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:16px;-webkit-text-size-adjust:none;mso-hide:all;">
+                             style="display:inline-block;padding:16px 40px;color:#ffffff !important;background-color:#6366f1 !important;text-decoration:none;border-radius:12px;font-weight:600;font-size:16px;-webkit-text-size-adjust:none;text-size-adjust:none;mso-hide:all;">
                             Accetta invito e accedi
                           </a>
+                          <!--<![endif]-->
                         </td>
                       </tr>
                     </table>

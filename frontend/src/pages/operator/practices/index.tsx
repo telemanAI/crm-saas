@@ -302,18 +302,16 @@ export default function PracticesList() {
             const opBadge = getOperationalStatusBadge(practice.operationalStatus);
             const skyBadge = getSkyTvStatusBadge(practice.skyTvStatus);
             return (
-              <motion.div
+              <Link
                 key={practice.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={(e) => {
-                  const target = e.target as HTMLElement;
-                  if (target.closest('button') || target.closest('a')) return;
-                  router.push(`/operator/practices/${practice.id}`);
-                }}
-                className={`bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer transition-all group shadow-lg overflow-hidden`}
+                href={`/operator/practices/${practice.id}`}
+                className={`block bg-slate-900/80 backdrop-blur-xl border ${getBorderColorByOperationalStatus(practice.operationalStatus)} rounded-2xl p-3 md:p-5 cursor-pointer transition-all group shadow-lg overflow-hidden`}
               >
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                     <div className="w-12 h-12 shrink-0 rounded-xl flex items-center justify-center bg-slate-800 border border-slate-700">
@@ -381,14 +379,16 @@ export default function PracticesList() {
 
                   <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 flex-wrap sm:flex-nowrap min-w-0">
                     {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
-                      <Link href={`/operator/practices/new?edit=${practice.id}`} className="shrink-0">
-                        <button
-                          onClick={(e) => e.stopPropagation()}
-                          className="px-3 md:px-4 py-1.5 md:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
-                        >
-                          Continua
-                        </button>
-                      </Link>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          router.push(`/operator/practices/new?edit=${practice.id}`);
+                        }}
+                        className="shrink-0 relative z-10 px-3 md:px-4 py-1.5 md:py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        Continua
+                      </button>
                     )}
                     <div className="text-right min-w-0">
                       <div className="flex items-center justify-end gap-1.5 md:gap-2 text-xs md:text-sm text-slate-400 mb-0.5 md:mb-1">
@@ -404,7 +404,8 @@ export default function PracticesList() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+                </motion.div>
+              </Link>
             );
           })}
         </div>

@@ -351,7 +351,7 @@ export default function PracticeDetail() {
       case 'KO_CREDITO': return 'KO Credito';
       case 'KO_COPERTURA': return 'KO Copertura';
       case 'IN_PROGRESS': return 'In Lavorazione';
-      default: return 'In Attesa';
+      default: return 'Da Completare';
     }
   };
 

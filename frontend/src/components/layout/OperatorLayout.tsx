@@ -518,7 +518,7 @@ export default function OperatorLayout({ children, title = 'Dashboard' }: Operat
             <button
               type="button"
               onClick={() => setMobileNavOpen((v) => !v)}
-              className={`md:hidden p-2 -ml-1 rounded-lg flex-shrink-0 ${
+              className={`md:hidden p-2 -ml-1 rounded-lg flex-shrink-0 touch-manipulation ${
                 isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'
               }`}
               aria-label="Apri menu"

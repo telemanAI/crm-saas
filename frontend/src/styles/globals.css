@@ -10,30 +10,31 @@
   }
 
   /* ============================================
-     FIX DOPPIO-TAP MOBILE
-     Gli stili hover si applicano SOLO su dispositivi
-     con puntatore preciso (mouse), NON su touch.
-     Questo elimina il doppio-tap su iOS/Android
-     senza compromettere il funzionamento dei click.
+     FIX DRAWER TEMA CHIARO: voci del menu
      ============================================ */
-  @media (hover: none) {
-    /* Su touch: rimuovi tutti gli effetti hover */
-    *:hover {
-      border-color: inherit !important;
-      background-color: inherit !important;
-      color: inherit !important;
-    }
+  /* Su tema chiaro: forza colori scuri per tutte le voci del drawer */
+  html:not(.dark) aside nav a,
+  html:not(.dark) aside nav button {
+    color: #374151 !important; /* gray-700 — sufficiente contrasto su bianco */
+  }
+  html:not(.dark) aside nav a[class*="bg-indigo-"],
+  html:not(.dark) aside nav a[class*="bg-emerald-"],
+  html:not(.dark) aside nav a[class*="bg-violet-"] {
+    color: inherit !important;
+  }
 
-    /* Su touch: permetti solo l'effetto :active (feedback immediato) */
-    button:active, a:active, [role="button"]:active {
-      opacity: 0.85;
-      transition: opacity 0.05s;
-    }
+  /* ============================================
+     FIX DOPPIO-TAP MOBILE + TAP ISTANTANEO
+     ============================================ */
+  /* Rimuovi il delay 300ms su tutti gli elementi interattivi (touch) */
+  button, a, [role="button"], input[type="submit"], input[type="button"], label, select {
+    touch-action: manipulation;
+  }
 
-    /* Su touch: rimuovi il delay 300ms su tutti gli elementi cliccabili */
-    button, a, [role="button"], input[type="submit"], input[type="button"] {
-      touch-action: manipulation;
-    }
+  /* Feedback :active immediato su touch (nessun delay) */
+  button:active, a:active, [role="button"]:active {
+    opacity: 0.85;
+    transition: opacity 0.05s;
   }
   body {
     @apply bg-slate-950 text-slate-200;

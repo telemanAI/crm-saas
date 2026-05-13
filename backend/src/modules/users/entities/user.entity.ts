@@ -85,6 +85,15 @@ export class User {
   @Column({ type: 'text', name: 'avatar_url', nullable: true })
   avatarUrl: string | null;
 
+  // ===== REFRESH TOKEN per sessioni multiple stabili =====
+  // Token opaco rotante per rinnovo automatico access_token senza
+  // richiedere nuovo login. Ogni device ha il proprio ciclo di vita.
+  @Column({ type: 'varchar', length: 255, name: 'refresh_token', nullable: true })
+  refreshToken: string | null;
+
+  @Column({ type: 'timestamp', name: 'refresh_token_expires', nullable: true })
+  refreshTokenExpires: Date | null;
+
   // Timestamp
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -615,8 +615,7 @@ export default function PracticeDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-6 pb-24 md:pb-0">
-        <div className="lg:col-span-2 space-y-3 md:space-y-6">
+      <div className="max-w-4xl mx-auto space-y-3 md:space-y-6 pb-24 md:pb-0">
           
           {practice.additionalPackages?.selectedIds?.some(pkgId => pkgId !== 'none') && (
             <motion.div 
@@ -1463,7 +1462,6 @@ export default function PracticeDetail() {
             )}
           </motion.div>
         </div>
-      </div>
     </OperatorLayout>
   );
 }

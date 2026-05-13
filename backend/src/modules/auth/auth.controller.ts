@@ -70,6 +70,13 @@ export class AuthController {
     return this.authService.resendVerificationEmail(email);
   }
 
+  @Public()
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(@Body('refresh_token') refreshToken: string) {
+    return this.authService.refreshToken(refreshToken);
+  }
+
   /**
    * Endpoint diagnostico (protetto): ritorna lo stato esatto dell'utente
    * chiamante dal punto di vista del backend. Utile per capire in produzione

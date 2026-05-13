@@ -395,8 +395,15 @@ export class AuthService {
       tenantId: activeShopId,
     });
 
+    // Genera refresh token opaco per sessioni multiple
+    const refreshToken = uuidv4();
+    user.refreshToken = refreshToken;
+    user.refreshTokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 giorni
+    await this.userRepo.save(user);
+
     return {
       access_token: token,
+      refresh_token: refreshToken,
       user: {
         id: user.id,
         email: user.email,
@@ -469,6 +476,67 @@ export class AuthService {
       companyId: company.id,
       shop: { id: shop.id, name: shop.name, slug: shop.slug },
       user: { id: user.id, email: user.email, role: user.role },
+    };
+  }
+
+  /**
+   * Rinnova l'access_token usando un refresh token valido.
+   * Supporta sessioni multiple: ogni device ha il proprio refresh token.
+   */
+  async refreshToken(refreshToken: string) {
+    if (!refreshToken) throw new UnauthorizedException('Refresh token mancante');
+
+    const user = await this.userRepo.findOne({
+      where: { refreshToken },
+      select: ['id', 'email', 'role', 'tenantId', 'firstName', 'lastName', 'avatarUrl', 'refreshToken', 'refreshTokenExpires', 'lastActiveShopId'],
+    });
+    if (!user) throw new UnauthorizedException('Refresh token non valido');
+    if (user.refreshTokenExpires && user.refreshTokenExpires < new Date()) {
+      throw new UnauthorizedException('Refresh token scaduto. Effettua nuovo login.');
+    }
+
+    // Risolvi shop attivo (stessa logica di fastLogin)
+    const shopsData = await this.membershipsService.findActiveShopsForUser(user.id);
+    const shops = shopsData.map((s) => ({
+      shopId: s.shop.id,
+      name: s.shop.name,
+      subscriptionCode: s.shop.subscriptionCode,
+      role: s.membership.role,
+      permissions: s.membership.permissions,
+      companyId: s.shop.companyId,
+    }));
+
+    if (shops.length === 0) {
+      throw new UnauthorizedException('Nessun negozio attivo associato a questo account.');
+    }
+
+    const preferredShop = user.lastActiveShopId
+      ? shops.find((s) => s.shopId === user.lastActiveShopId)
+      : null;
+    const activeShop = preferredShop || shops[0];
+    const activeShopId = activeShop?.shopId || user.tenantId || null;
+    const activeRole = activeShop?.role || user.role;
+
+    // Emetti nuovo access_token (refresh token resta lo stesso)
+    const accessToken = this.jwtService.sign({
+      email: user.email,
+      sub: user.id,
+      role: activeRole,
+      tenantId: activeShopId,
+    });
+
+    return {
+      access_token: accessToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: activeRole,
+        tenantId: activeShopId,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatarUrl: user.avatarUrl,
+      },
+      shops,
     };
   }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -8,6 +8,7 @@ import {
 } from 'phosphor-react';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/lib/api';
+import { setRefreshToken } from '@/lib/axios';
 
 type LoginMode = 'password' | 'otp';
 
@@ -127,6 +128,14 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
 
+  // Precompila email dall'ultimo login riuscito
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const lastEmail = window.localStorage.getItem('lastLoginEmail');
+      if (lastEmail) setEmail(lastEmail);
+    }
+  }, []);
+
   const applyRememberMe = (value: boolean) => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('authRememberMe', value ? 'true' : 'false');
@@ -139,9 +148,10 @@ export default function Login() {
     setError(null);
     try {
       const result: any = await authApi.loginV2(email, password, superAdminCode || undefined);
-      const { user, access_token, shops } = result;
+      const { user, access_token, refresh_token, shops } = result;
       if (!user || !access_token) throw new Error('Risposta del server non valida');
       applyRememberMe(rememberMe);
+      if (refresh_token) setRefreshToken(refresh_token);
       setAuth(user, access_token, shops || []);
       if (user.role === 'SUPER_ADMIN') return router.push('/admin/dashboard');
       if ((shops || []).length > 1) return router.push('/select-shop');
@@ -184,6 +194,7 @@ export default function Login() {
         );
       }
       applyRememberMe(rememberMe);
+      if (result.refresh_token) setRefreshToken(result.refresh_token);
       setAuth(result.user, result.token, result.shops || []);
       if ((result.shops || []).length > 1) return router.push('/select-shop');
       return router.push('/operator/dashboard');

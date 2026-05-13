@@ -94,10 +94,10 @@ const tabStorage = {
     if (typeof window === 'undefined') return;
     const tabId = getTabId();
     const perTabKey = `auth-storage-${tabId}`;
+    // FIX sessioni multiple: rimuovi SOLO il sessionStorage della tab corrente.
+    // NON rimuovere il master — il logout di un device non deve disconnettere
+    // gli altri. Ogni device gestisce il proprio ciclo di vita separatamente.
     window.sessionStorage.removeItem(perTabKey);
-    // Logout esplicito: invalida anche il master così le altre tab/device
-    // perdono accesso al prossimo refresh.
-    window.localStorage.removeItem(MASTER_KEY);
   },
 };
 
@@ -183,6 +183,11 @@ export const useAuthStore = create<AuthState>()(
           }
         }
 
+        // Salva email per prefill del form login (senza password, solo email)
+        if (typeof window !== 'undefined' && user.email) {
+          window.localStorage.setItem('lastLoginEmail', user.email);
+        }
+
         set({
           user: effectiveUser,
           token,
@@ -226,17 +231,22 @@ export const useAuthStore = create<AuthState>()(
 
       clearAuth: () => {
         if (typeof window !== 'undefined') {
-          // Phase E — pulizia completa: tab corrente + master cross-tab.
-          // (Le altre tab perderanno accesso al primo refresh — desiderato
-          //  perché l'utente ha fatto logout esplicito).
+          // FIX sessioni multiple: pulisci SOLO la tab corrente.
+          // Il master (localStorage) NON viene toccato così gli altri
+          // device/tab continuano a funzionare normalmente.
+          // Il flag rememberMe viene disattivato (prossima nuova tab dovrà
+          // rifare login) ma il master rimane attivo per i device esistenti.
           window.localStorage.removeItem(REMEMBER_FLAG);
-          window.localStorage.removeItem(MASTER_KEY);
+          // NON rimuovere MASTER_KEY — altrimenti gli altri device perdono
+          // la sessione al refresh. window.localStorage.removeItem(MASTER_KEY);
           // Pulisci anche eventuali residui delle vecchie key (compat retro)
           window.localStorage.removeItem('auth-storage');
           window.sessionStorage.removeItem('auth-storage');
           // Pulisci la chiave per-tab corrente
           const tabId = getTabId();
           window.sessionStorage.removeItem(`auth-storage-${tabId}`);
+          // Pulisci refresh token (logout da questo device)
+          window.localStorage.removeItem('refreshToken');
         }
         set({
           user: null,

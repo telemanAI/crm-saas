@@ -47,6 +47,7 @@ import { Practice } from './modules/practices/entities/practice.entity';
 import { CustomField } from './modules/custom-fields/entities/custom-field.entity';
 import { CustomFieldValue } from './modules/custom-fields/entities/custom-field-value.entity';
 import { AuditLog } from './modules/audit/entities/audit-log.entity';
+import { SystemError } from './modules/audit/entities/system-error.entity';
 import { CashClosing } from './modules/cash/entities/cash-closing.entity';
 import { CashRegister } from './modules/cash/entities/cash-register.entity';
 import { CashTransaction } from './modules/cash/entities/cash-transaction.entity';
@@ -79,6 +80,7 @@ import { PendingRegistration } from './modules/auth/entities/pending-registratio
         CustomField,
         CustomFieldValue,
         AuditLog,
+        SystemError,
         CashClosing,
         CashRegister,
         CashTransaction,

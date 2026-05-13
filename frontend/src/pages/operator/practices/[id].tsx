@@ -798,15 +798,19 @@ export default function PracticeDetail() {
                     <div className={`w-2 h-2 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                     Convergenza {practice.statoGlobale === 'completo' ? 'Completata' : 'Da Chiudere'}
                   </h4>
-                  <div className="space-y-2 text-sm">
-                    {practice.convergenza.servizi?.map((s: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800">
-                        <span className="text-slate-300">{s.nome}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.completato ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
-                          {s.completato ? 'Completato' : 'In Attesa'}
-                        </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    {practice.convergenza.tipo && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                        <span className="text-slate-500 text-xs block mb-1">Tipo</span>
+                        <span className="text-white">{practice.convergenza.tipo === 'daChiudere' ? 'Da Chiudere' : 'Chiusa'}</span>
                       </div>
-                    ))}
+                    )}
+                    {practice.convergenza.numero && (
+                      <div className="bg-slate-900/50 rounded-lg p-3 border border-slate-800">
+                        <span className="text-slate-500 text-xs block mb-1">Numero</span>
+                        <span className="text-white font-mono">{safeString(practice.convergenza.numero)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

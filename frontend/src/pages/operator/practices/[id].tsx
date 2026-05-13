@@ -615,8 +615,205 @@ export default function PracticeDetail() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto space-y-3 md:space-y-6 pb-24 md:pb-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6 pb-24 md:pb-0">
+        {/* Colonna Sinistra: Info Pratica + tutto il resto */}
+        <div className="lg:col-span-2 space-y-4 md:space-y-6">
           
+          {/* INFO PRATICA — Primo gruppo in evidenza */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-slate-900/80 backdrop-blur-xl border border-indigo-500/20 rounded-2xl p-5 md:p-6"
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
+                <FileText className="w-5 h-5" />
+              </div>
+              <h2 className="text-xl font-semibold text-white">Info Pratica</h2>
+            </div>
+
+            <div className="space-y-4">
+              {practice.offerName && (
+                <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800">
+                  <h3 className="text-indigo-400 font-semibold mb-3 flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Dettaglio Offerta
+                  </h3>
+                  
+                  <div className="space-y-2 mb-4">
+                    <p className="text-white font-medium leading-tight">{practice.offerName}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        practice.offerType === 'business' 
+                          ? 'bg-purple-600/20 text-purple-400' 
+                          : 'bg-blue-600/20 text-blue-400'
+                      }`}>
+                        {practice.offerType === 'business' ? 'Business' : 'Consumer'}
+                      </span>
+                      <span className="text-xs text-slate-500">{practice.type}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-4">
+                    {practice.offerCanone && (
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
+                        <span className="text-slate-400 text-xs block mb-1">Canone</span>
+                        <span className="text-emerald-400 font-bold">{safeString(practice.offerCanone)}</span>
+                      </div>
+                    )}
+                    {practice.offerAttivazione && (
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
+                        <span className="text-slate-400 text-xs block mb-1">Attivazione</span>
+                        <span className="text-white font-semibold">{safeString(practice.offerAttivazione)}</span>
+                      </div>
+                    )}
+                    {practice.offerVincolo && (
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
+                        <span className="text-slate-400 text-xs block mb-1">Vincolo</span>
+                        <span className="text-amber-400 font-semibold">{safeString(practice.offerVincolo)}</span>
+                      </div>
+                    )}
+                    {practice.offerDisattivazione && (
+                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
+                        <span className="text-slate-400 text-xs block mb-1">Disattivazione</span>
+                        <span className="text-rose-400 text-sm font-semibold">{safeString(practice.offerDisattivazione)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {practice.offerNote && (
+                    <div className="bg-amber-900/10 border border-amber-600/20 rounded-lg p-3 mb-3">
+                      <span className="text-amber-500 text-xs block mb-1 font-medium">Note Importanti</span>
+                      <p className="text-slate-300 text-sm leading-relaxed">{safeString(practice.offerNote)}</p>
+                    </div>
+                  )}
+                  
+                  {practice.offerScadenza && (
+                    <div className="flex items-center gap-2 text-sm bg-slate-900/50 rounded-lg p-2 border border-slate-800">
+                      <Calendar className="w-4 h-4 text-amber-400" />
+                      <span className="text-slate-400">Scadenza promo:</span>
+                      <span className="text-amber-400 font-semibold">{safeString(practice.offerScadenza)}</span>
+                    </div>
+                  )}
+
+                  {practice.additionalPackages && (
+                    <div className="mt-4 pt-4 border-t border-slate-700 bg-gradient-to-r from-emerald-900/20 to-indigo-900/20 rounded-xl p-4 border border-emerald-500/20">
+                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-emerald-400" />
+                        Riepilogo Costi
+                      </h4>
+                      <div className="space-y-2 text-sm mb-3">
+                        <div className="flex justify-between text-slate-400">
+                          <span>Canone Base:</span>
+                          <span>{safeString(practice.offerCanone) || '-'}</span>
+                        </div>
+                        {practice.additionalPackages.totalPrice > 0 && (
+                          <div className="flex justify-between text-indigo-300">
+                            <span>Pacchetti:</span>
+                            <span>+ €{practice.additionalPackages.totalPrice.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="border-t border-slate-600 pt-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white font-bold">Totale:</span>
+                          <span className="text-xl font-bold text-emerald-400">
+                            €{(() => {
+                              const basePrice = parseFloat(practice.offerCanone?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
+                              return (basePrice + (practice.additionalPackages?.totalPrice || 0)).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-slate-500 block mb-1">Tipo Offerta</label>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${
+                      practice.type === 'TIM_FIBRA' ? 'bg-blue-500' : 
+                      practice.type === 'VODAFONE' ? 'bg-rose-500' :
+                      practice.type === 'WINDTRE' ? 'bg-orange-500' :
+                      practice.type === 'ILIAD' ? 'bg-red-500' :
+                      practice.type === 'OPTIMA' ? 'bg-emerald-500' :
+                      practice.type === 'IREN' ? 'bg-amber-500' :
+                      'bg-cyan-500'
+                    }`} />
+                    <span className="text-white font-medium">
+                      {practice.type === 'TIM_FIBRA' ? 'TIM Fibra' : 
+                       practice.type === 'VODAFONE' ? 'Vodafone' :
+                       practice.type === 'WINDTRE' ? 'WindTre' :
+                       practice.type === 'ILIAD' ? 'Iliad' :
+                       practice.type === 'OPTIMA' ? 'Optima' :
+                       practice.type === 'IREN' ? 'Iren' :
+                       practice.type === 'SKY' ? 'SKY' :
+                       safeString(practice.type)}
+                    </span>
+                  </div>
+                </div>
+                
+                {practice.offerCode && (
+                  <div>
+                    <label className="text-sm text-slate-500 block mb-1">Codice Offerta</label>
+                    <p className="text-white font-mono text-sm bg-slate-800/50 px-2 py-1 rounded inline-block">
+                      {safeString(practice.offerCode)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {practice.soldBy && (
+                  <div>
+                    <label className="text-sm text-slate-500 block mb-1">Venduto Da</label>
+                    <p className="text-white">{safeString(practice.soldBy)}</p>
+                  </div>
+                )}
+                
+                {practice.enteredBy && (
+                  <div>
+                    <label className="text-sm text-slate-500 block mb-1">Inserito Da</label>
+                    <p className="text-white">{safeString(practice.enteredBy)}</p>
+                  </div>
+                )}
+              </div>
+
+              {practice.customerId && (
+                <Link href={`/operator/customers/${practice.customerId}`}>
+                  <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/30 rounded-xl transition-all text-sm font-medium group">
+                    <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    Vai al Cliente
+                    <NavigationArrow className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                </Link>
+              )}
+
+              {practice.convergenza?.attiva && (
+                <div className="border-t border-slate-700 pt-4 mt-2">
+                  <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                    Convergenza {practice.statoGlobale === 'completo' ? 'Completata' : 'Da Chiudere'}
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    {practice.convergenza.servizi?.map((s: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 bg-slate-900/50 rounded-lg border border-slate-800">
+                        <span className="text-slate-300">{s.nome}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${s.completato ? 'bg-emerald-600/20 text-emerald-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                          {s.completato ? 'Completato' : 'In Attesa'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* PACCHETTI AGGIUNTIVI */}
           {practice.additionalPackages?.selectedIds?.some(pkgId => pkgId !== 'none') && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
@@ -721,143 +918,6 @@ export default function PracticeDetail() {
               </div>
             </motion.div>
           )}
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
-                  <Shield className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold text-white">Note & Cronologia</h2>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {(practice.notesHistory?.length || 0)} note inserite
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mb-6 p-4 bg-slate-800/80 rounded-xl border border-slate-600">
-              <label className="block text-sm text-slate-200 mb-2 font-medium">Aggiungi nuova nota</label>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Scrivi qui la tua nota..."
-                rows={3}
-                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none text-sm transition-all"
-              />
-              <div className="flex justify-end mt-3">
-                <button 
-                  onClick={async () => {
-                    if (!notes.trim()) return;
-                    setNotesLoading(true);
-                    try {
-                      await api.put(`/practices/${id}/step`, {
-                        stepNumber: 3,
-                        data: { notes: notes }
-                      }, {
-                        headers: { Authorization: `Bearer ${token}` }
-                      });
-                      setNotes('');
-                      fetchPractice();
-                    } catch (err) {
-                      alert('Errore salvataggio nota');
-                    } finally {
-                      setNotesLoading(false);
-                    }
-                  }}
-                  disabled={notesLoading || !notes.trim()}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                    notesLoading || !notes.trim()
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-400' 
-                      : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30'
-                  }`}
-                >
-                  <Check className="w-4 h-4" />
-                  {notesLoading ? 'Salvataggio...' : 'Aggiungi Nota'}
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
-              {practice.notesHistory && practice.notesHistory.length > 0 ? (
-                practice.notesHistory
-                  .slice()
-                  .reverse()
-                  .map((note, index) => {
-                    const isKo = !!(note as any).isKoReason;
-                    const isSkyTvKo = !!(note as any).isSkyTvKoReason;
-                    const highlight = isKo || isSkyTvKo;
-                    return (
-                      <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
-                        <div className={`absolute left-[-5px] top-0 w-2 h-2 rounded-full ${highlight ? 'bg-rose-500 ring-2 ring-rose-500/30' : 'bg-amber-500'}`} />
-
-                        <div className={`rounded-xl p-4 border ${
-                          highlight
-                            ? 'bg-rose-950/30 border-rose-500/40'
-                            : 'bg-slate-950/50 border-slate-800'
-                        }`}>
-                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {highlight && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase tracking-wider">
-                                  <Warning className="w-3 h-3" weight="fill" />
-                                  Motivazione KO
-                                </span>
-                              )}
-                              {isSkyTvKo && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-[10px] font-bold uppercase tracking-wider">
-                                  <TelevisionSimple className="w-3 h-3" weight="fill" />
-                                  Sky TV
-                                </span>
-                              )}
-                              <span className={`text-xs font-medium ${highlight ? 'text-rose-300' : 'text-amber-400'}`}>
-                                {safeString(note.createdBy) || 'Operatore'}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-slate-500">
-                                {new Date(note.createdAt).toLocaleString('it-IT', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                              <button
-                                onClick={() => {
-                                  const historyLength = practice.notesHistory?.length || 0;
-                                  handleDeleteNote(historyLength - 1 - index);
-                                }}
-                                className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                                title="Elimina nota"
-                              >
-                                <Trash className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${highlight ? 'text-rose-100' : 'text-slate-300'}`}>
-                            {safeString(note.text)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-              ) : (
-                <div className="text-center py-8 text-slate-500">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Nessuna nota presente</p>
-                  <p className="text-xs mt-1">Aggiungi la prima nota usando il form sopra</p>
-                </div>
-              )}
-            </div>
-          </motion.div>
 
           {(practice.lineType || practice.technology || safeString(practice.installationAddress?.street) || (practice.oldLineData && Object.keys(practice.oldLineData).length > 0)) && (
             <motion.div
@@ -1093,271 +1153,144 @@ export default function PracticeDetail() {
               </div>
             </motion.div>
           )}
-        </div>
+        </div>{/* /lg:col-span-2 */}
 
-        <div className="space-y-6">
-          
+        {/* Colonna Destra: Note Cronologia + Progresso */}
+        <div className="lg:col-span-1 space-y-4 md:space-y-6">
+
+
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
             className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
           >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-cyan-600/20 text-cyan-400 flex items-center justify-center">
-                <FileText className="w-5 h-5" />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Note & Cronologia</h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {(practice.notesHistory?.length || 0)} note inserite
+                  </p>
+                </div>
               </div>
-              <h2 className="text-xl font-semibold text-white">Info Pratica</h2>
             </div>
 
-            <div className="space-y-4">
-              {practice.offerName && (
-                <div className="bg-slate-950/50 rounded-xl p-4 border border-slate-800 mb-4">
-                  <h3 className="text-indigo-400 font-semibold mb-3 flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
-                    Dettaglio Offerta
-                  </h3>
-                  
-                  <div className="space-y-2 mb-4">
-                    <p className="text-white font-medium leading-tight">{practice.offerName}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        practice.offerType === 'business' 
-                          ? 'bg-purple-600/20 text-purple-400' 
-                          : 'bg-blue-600/20 text-blue-400'
-                      }`}>
-                        {practice.offerType === 'business' ? 'Business' : 'Consumer'}
-                      </span>
-                      <span className="text-xs text-slate-500">{practice.type}</span>
-                    </div>
-                  </div>
+            <div className="mb-6 p-4 bg-slate-800/80 rounded-xl border border-slate-600">
+              <label className="block text-sm text-slate-200 mb-2 font-medium">Aggiungi nuova nota</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Scrivi qui la tua nota..."
+                rows={3}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl p-3 text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500/50 resize-none text-sm transition-all"
+              />
+              <div className="flex justify-end mt-3">
+                <button 
+                  onClick={async () => {
+                    if (!notes.trim()) return;
+                    setNotesLoading(true);
+                    try {
+                      await api.put(`/practices/${id}/step`, {
+                        stepNumber: 3,
+                        data: { notes: notes }
+                      }, {
+                        headers: { Authorization: `Bearer ${token}` }
+                      });
+                      setNotes('');
+                      fetchPractice();
+                    } catch (err) {
+                      alert('Errore salvataggio nota');
+                    } finally {
+                      setNotesLoading(false);
+                    }
+                  }}
+                  disabled={notesLoading || !notes.trim()}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                    notesLoading || !notes.trim()
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed dark:bg-slate-700 dark:text-slate-400' 
+                      : 'bg-amber-600 hover:bg-amber-500 text-white shadow-lg shadow-amber-600/30'
+                  }`}
+                >
+                  <Check className="w-4 h-4" />
+                  {notesLoading ? 'Salvataggio...' : 'Aggiungi Nota'}
+                </button>
+              </div>
+            </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-4">
-                    {practice.offerCanone && (
-                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
-                        <span className="text-slate-400 text-xs block mb-1">Canone Mensile</span>
-                        <span className="text-emerald-400 font-bold text-lg">{safeString(practice.offerCanone)}</span>
-                      </div>
-                    )}
-                    {practice.offerAttivazione && (
-                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
-                        <span className="text-slate-400 text-xs block mb-1">Attivazione</span>
-                        <span className="text-white font-semibold">{safeString(practice.offerAttivazione)}</span>
-                      </div>
-                    )}
-                    {practice.offerVincolo && (
-                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
-                        <span className="text-slate-400 text-xs block mb-1">Vincolo</span>
-                        <span className="text-amber-400 font-semibold">{safeString(practice.offerVincolo)}</span>
-                      </div>
-                    )}
-                    {practice.offerDisattivazione && (
-                      <div className="bg-slate-900/80 rounded-lg p-3 border border-slate-700">
-                        <span className="text-slate-400 text-xs block mb-1">Disattivazione</span>
-                        <span className="text-rose-400 text-sm font-semibold">{safeString(practice.offerDisattivazione)}</span>
-                      </div>
-                    )}
-                  </div>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+              {practice.notesHistory && practice.notesHistory.length > 0 ? (
+                practice.notesHistory
+                  .slice()
+                  .reverse()
+                  .map((note, index) => {
+                    const isKo = !!(note as any).isKoReason;
+                    const isSkyTvKo = !!(note as any).isSkyTvKoReason;
+                    const highlight = isKo || isSkyTvKo;
+                    return (
+                      <div key={index} className="relative pl-6 pb-4 border-l-2 border-slate-700 last:border-0">
+                        <div className={`absolute left-[-5px] top-0 w-2 h-2 rounded-full ${highlight ? 'bg-rose-500 ring-2 ring-rose-500/30' : 'bg-amber-500'}`} />
 
-                  {practice.offerNote && (
-                    <div className="bg-amber-900/10 border border-amber-600/20 rounded-lg p-3 mb-3">
-                      <span className="text-amber-500 text-xs block mb-1 font-medium">Note Importanti</span>
-                      <p className="text-slate-300 text-sm leading-relaxed">{safeString(practice.offerNote)}</p>
-                    </div>
-                  )}
-                  
-                  {practice.offerScadenza && (
-                    <div className="flex items-center gap-2 text-sm bg-slate-900/50 rounded-lg p-2 border border-slate-800">
-                      <Calendar className="w-4 h-4 text-amber-400" />
-                      <span className="text-slate-400">Scadenza promo:</span>
-                      <span className="text-amber-400 font-semibold">{safeString(practice.offerScadenza)}</span>
-                    </div>
-                  )}
-
-                  {practice.additionalPackages && (
-                    <div className="mt-4 pt-4 border-t border-slate-700 bg-gradient-to-r from-emerald-900/20 to-indigo-900/20 rounded-xl p-4 border border-emerald-500/20">
-                      <h4 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                        <CreditCard className="w-4 h-4 text-emerald-400" />
-                        Riepilogo Costi
-                      </h4>
-                      
-                      <div className="space-y-2 text-sm mb-3">
-                        <div className="flex justify-between text-slate-400">
-                          <span>Canone Base:</span>
-                          <span>{safeString(practice.offerCanone) || '-'}</span>
-                        </div>
-                        {practice.additionalPackages.totalPrice > 0 && (
-                          <div className="flex justify-between text-indigo-300">
-                            <span>Pacchetti:</span>
-                            <span>+ €{practice.additionalPackages.totalPrice.toFixed(2)}</span>
+                        <div className={`rounded-xl p-4 border ${
+                          highlight
+                            ? 'bg-rose-950/30 border-rose-500/40'
+                            : 'bg-slate-950/50 border-slate-800'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {highlight && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-600/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase tracking-wider">
+                                  <Warning className="w-3 h-3" weight="fill" />
+                                  Motivazione KO
+                                </span>
+                              )}
+                              {isSkyTvKo && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 text-[10px] font-bold uppercase tracking-wider">
+                                  <TelevisionSimple className="w-3 h-3" weight="fill" />
+                                  Sky TV
+                                </span>
+                              )}
+                              <span className={`text-xs font-medium ${highlight ? 'text-rose-300' : 'text-amber-400'}`}>
+                                {safeString(note.createdBy) || 'Operatore'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">
+                                {new Date(note.createdAt).toLocaleString('it-IT', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const historyLength = practice.notesHistory?.length || 0;
+                                  handleDeleteNote(historyLength - 1 - index);
+                                }}
+                                className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                                title="Elimina nota"
+                              >
+                                <Trash className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                      
-                      <div className="border-t border-slate-600 pt-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-white font-bold">Totale:</span>
-                          <span className="text-xl font-bold text-emerald-400">
-                            €{(() => {
-                              const basePrice = parseFloat(practice.offerCanone?.replace(/[^0-9.,]/g, '').replace(',', '.') || '0');
-                              return (basePrice + (practice.additionalPackages?.totalPrice || 0)).toFixed(2);
-                            })()}
-                          </span>
+                          <p className={`text-sm leading-relaxed whitespace-pre-wrap ${highlight ? 'text-rose-100' : 'text-slate-300'}`}>
+                            {safeString(note.text)}
+                          </p>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <label className="text-sm text-slate-500 block mb-1">Tipo Offerta</label>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    practice.type === 'TIM_FIBRA' ? 'bg-blue-500' : 
-                    practice.type === 'VODAFONE' ? 'bg-rose-500' :
-                    practice.type === 'WINDTRE' ? 'bg-orange-500' :
-                    practice.type === 'ILIAD' ? 'bg-red-500' :
-                    practice.type === 'OPTIMA' ? 'bg-emerald-500' :
-                    practice.type === 'IREN' ? 'bg-amber-500' :
-                    'bg-cyan-500'
-                  }`} />
-                  <span className="text-white font-medium">
-                    {practice.type === 'TIM_FIBRA' ? 'TIM Fibra' : 
-                     practice.type === 'VODAFONE' ? 'Vodafone' :
-                     practice.type === 'WINDTRE' ? 'WindTre' :
-                     practice.type === 'ILIAD' ? 'Iliad' :
-                     practice.type === 'OPTIMA' ? 'Optima' :
-                     practice.type === 'IREN' ? 'Iren' :
-                     practice.type === 'SKY' ? 'SKY' :
-                     safeString(practice.type)}
-                  </span>
-                </div>
-              </div>
-              
-              {practice.offerCode && (
-                <div>
-                  <label className="text-sm text-slate-500 block mb-1">Codice Offerta</label>
-                  <p className="text-white font-mono text-sm bg-slate-800/50 px-2 py-1 rounded inline-block">
-                    {safeString(practice.offerCode)}
-                  </p>
-                </div>
-              )}
-              
-              {practice.soldBy && (
-                <div>
-                  <label className="text-sm text-slate-500 block mb-1">Venduto Da</label>
-                  <p className="text-white">{safeString(practice.soldBy)}</p>
-                </div>
-              )}
-              
-              {practice.enteredBy && (
-                <div>
-                  <label className="text-sm text-slate-500 block mb-1">Inserito Da</label>
-                  <p className="text-white">{safeString(practice.enteredBy)}</p>
-                </div>
-              )}
-
-              {practice.customerId && (
-                <div className="pt-2">
-                  <Link href={`/operator/customers/${practice.customerId}`}>
-                    <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/30 rounded-xl transition-all text-sm font-medium group">
-                      <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                      Vai al Cliente
-                      <NavigationArrow className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
-                    </button>
-                  </Link>
-                </div>
-              )}
-
-              {practice.convergenza?.attiva && (
-                <div className="border-t border-slate-700 pt-4 mt-4">
-                  <h4 className="text-sm font-semibold text-indigo-400 mb-3 flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${practice.statoGlobale === 'completo' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                    Convergenza {practice.statoGlobale === 'completo' ? 'Completata' : 'Da Chiudere'}
-                  </h4>
-                  
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-400">Tipo:</span>
-                      <span className="text-white">{practice.convergenza.tipo === 'daChiudere' ? 'Da Chiudere' : 'Chiusa'}</span>
-                    </div>
-                    
-                    {practice.convergenza.tipo === 'chiusa' && practice.convergenza.numero && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Numero:</span>
-                        <span className="text-white font-mono">{safeString(practice.convergenza.numero)}</span>
-                      </div>
-                    )}
-                    
-                    {practice.convergenza.tipo === 'daChiudere' && (
-                      <div className="space-y-2">
-                        <label className="text-xs text-amber-400 block">
-                          Inserisci numero da convergere per completare:
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={convergenzaNumero}
-                            onChange={(e) => setConvergenzaNumero(e.target.value)}
-                            placeholder="Numero o codice"
-                            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white"
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!convergenzaNumero.trim()) return;
-                              setSavingConvergenza(true);
-                              try {
-                                await api.patch(`/practices/${id}/convergence`, {
-                                  numero: convergenzaNumero
-                                }, {
-                                  headers: { Authorization: `Bearer ${token}` }
-                                });
-                                fetchPractice();
-                                setConvergenzaNumero('');
-                                alert('Numero convergenza aggiornato! Pratica completata.');
-                              } catch (err) {
-                                alert('Errore salvataggio numero convergenza');
-                              } finally {
-                                setSavingConvergenza(false);
-                              }
-                            }}
-                            disabled={savingConvergenza || !convergenzaNumero.trim()}
-                            className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                          >
-                            {savingConvergenza ? '...' : '✓'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-4 border-t border-slate-800">
-                <label className="text-sm text-slate-500 block mb-1">Data Creazione</label>
-                <p className="text-white text-sm">
-                  {new Date(practice.createdAt).toLocaleDateString('it-IT', {
-                    day: '2-digit',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-              
-              {practice.updatedAt !== practice.createdAt && (
-                <div>
-                  <label className="text-sm text-slate-500 block mb-1">Ultima Modifica</label>
-                  <p className="text-white text-sm">
-                    {new Date(practice.updatedAt).toLocaleDateString('it-IT', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </p>
+                    );
+                  })
+              ) : (
+                <div className="text-center py-8 text-slate-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Nessuna nota presente</p>
+                  <p className="text-xs mt-1">Aggiungi la prima nota usando il form sopra</p>
                 </div>
               )}
             </div>

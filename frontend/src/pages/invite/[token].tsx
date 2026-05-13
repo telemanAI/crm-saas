@@ -384,3 +384,10 @@ export default function InviteAccept() {
           <p className="text-center text-xs text-slate-500 mt-5">
             Invito valido fino al{' '}
             <span className="text-slate-400">{new Date(invite.expiresAt).toLocaleString('it-IT')}</span>
+          </p>
+
+        </div>
+      </motion.div>
+    </div>
+  );
+}

@@ -396,10 +396,20 @@ export class AuthService {
     });
 
     // Genera refresh token opaco per sessioni multiple
-    const refreshToken = uuidv4();
-    user.refreshToken = refreshToken;
-    user.refreshTokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 giorni
-    await this.userRepo.save(user);
+    // NOTA: wrappato in try/catch perché le colonne potrebbero non esistere
+    // nel DB finché non viene eseguita la migration. Il login deve funzionare
+    // anche senza refresh token.
+    let refreshToken: string | null = null;
+    try {
+      refreshToken = uuidv4();
+      user.refreshToken = refreshToken;
+      user.refreshTokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 giorni
+      await this.userRepo.save(user);
+    } catch (e) {
+      // Le colonne refresh_token/refresh_token_expires non esistono ancora
+      // nel DB. Ignora silenziosamente — il login funziona senza refresh token.
+      refreshToken = null;
+    }
 
     return {
       access_token: token,

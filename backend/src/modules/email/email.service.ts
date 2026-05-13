@@ -10,7 +10,9 @@ export class EmailService {
   constructor() {
     this.resend = new Resend(process.env.RESEND_API_KEY);
     this.senderEmail = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-    this.frontendUrl = process.env.FRONTEND_URL || 'https://www.telemanai.it';
+    let url = process.env.FRONTEND_URL || 'https://www.telemanai.it';
+    // FIX: sostituisci protocollo 'render://' con 'https://'
+    this.frontendUrl = url.replace(/^render:\/\//, 'https://');
   }
 
   async validateEmailConfiguration(): Promise<{ valid: boolean; error?: string }> {

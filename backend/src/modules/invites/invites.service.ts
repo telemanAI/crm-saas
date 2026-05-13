@@ -87,7 +87,10 @@ export class InvitesService {
       await this.inviteRepo.save(invite);
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // FIX: alcuni hosting (es. Render) generano URL con protocollo 'render://'
+    // invece di 'https://'. Sostituisci per garantire link funzionanti.
+    frontendUrl = frontendUrl.replace(/^render:\/\//, 'https://');
     const inviteUrl = `${frontendUrl}/invite/${token}`;
     await this.emailService.sendInviteEmail(
       normalized,
@@ -111,7 +114,8 @@ export class InvitesService {
     invite.expiresAt = new Date(Date.now() + INVITE_TTL_HOURS * 60 * 60 * 1000);
     await this.inviteRepo.save(invite);
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    let frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    frontendUrl = frontendUrl.replace(/^render:\/\//, 'https://');
     const inviteUrl = `${frontendUrl}/invite/${invite.token}`;
     await this.emailService.sendInviteEmail(
       invite.email,

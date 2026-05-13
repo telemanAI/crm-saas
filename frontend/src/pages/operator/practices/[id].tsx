@@ -1394,7 +1394,8 @@ export default function PracticeDetail() {
               </div>
             )}
           </motion.div>
-        </div>
+        </div>{/* /lg:col-span-1 */}
+      </div>{/* /lg:grid-cols-3 */}
     </OperatorLayout>
   );
 }

@@ -1,66 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { motion } from 'framer-motion';
-import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo, Warning, SignOut, Globe } from 'phosphor-react';
+import { Buildings, CircleNotch, CheckCircle, Envelope, Lock, User, ArrowRight, GoogleLogo, FacebookLogo, Warning, SignOut } from 'phosphor-react';
 import { authApi, invitesApi } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-
-/**
- * Rileva se l'utente è in un browser in-app (WebView).
- * Questi browser bloccano OAuth, cookie e localStorage condivisi,
- * causando il fallimento dell'invito su mobile.
- */
-function isInAppBrowser(): boolean {
-  if (typeof window === 'undefined') return false;
-  const ua = navigator.userAgent || navigator.vendor || (window as any).opera;
-  const lowercaseUA = ua.toLowerCase();
-
-  // Rilevamento specifico per app
-  if (/fban|fbav/i.test(ua)) return true;               // Facebook
-  if (/instagram/i.test(ua)) return true;                // Instagram
-  if (/whatsapp/i.test(lowercaseUA)) return true;        // WhatsApp
-  if (/twitter/i.test(ua)) return true;                  // Twitter/X
-  if (/linkedin/i.test(ua)) return true;                 // LinkedIn
-  if (/telegram/i.test(lowercaseUA)) return true;        // Telegram
-  if (/snapchat/i.test(ua)) return true;                 // Snapchat
-  if (/bytedance|tiktok/i.test(ua)) return true;        // TikTok
-  if (/wechat/i.test(lowercaseUA)) return true;          // WeChat
-  if (/line\//i.test(ua)) return true;                   // LINE
-
-  // iOS WebView: Safari ha 'Safari/' nel UA, WebView no (tranne standalone)
-  if (/iPhone|iPad|iPod/.test(ua) && /AppleWebKit/.test(ua)) {
-    const isSafari = /Safari\//.test(ua) && !/CriOS|FxiOS|OPiOS/.test(ua);
-    const isStandalone = (window.navigator as any).standalone === true;
-    if (!isSafari && !isStandalone) return true;
-  }
-
-  // Android WebView: contiene 'wv' o Version/x.x senza Chrome
-  if (/Android/.test(ua)) {
-    if (/wv/.test(ua)) return true;
-    if (/Version\/\d+\.\d+/.test(ua) && !/Chrome/.test(ua)) return true;
-  }
-
-  return false;
-}
-
-/**
- * Genera un intent URL per forzare l'apertura nel browser esterno su Android.
- * Su iOS ritorna il link normale (non c'è API programmatica).
- */
-function getExternalBrowserUrl(url: string): string {
-  const ua = navigator.userAgent || '';
-
-  // Android: usa intent URL per forzare Chrome/Firefox
-  if (/Android/.test(ua)) {
-    const cleanUrl = url.replace(/^https?:\/\//, '');
-    return `intent://${cleanUrl}#Intent;scheme=https;action=android.intent.action.VIEW;end;`;
-  }
-
-  // iOS: ritorna il link normale, l'utente dovrà usare il menu "Condividi" > "Apri in Safari"
-  return url;
-}
 
 type Mode = 'choose' | 'password' | 'loading' | 'existing';
 
@@ -103,7 +48,6 @@ export default function InviteAccept() {
   const [lastName, setLastName] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
-  const [inAppBrowser, setInAppBrowser] = useState<boolean>(false);
 
   // FIX: salva il token in sessionStorage per recovery se OAuth cambia browser (mobile)
   useEffect(() => {
@@ -111,13 +55,6 @@ export default function InviteAccept() {
       sessionStorage.setItem('pendingInviteToken', token);
     }
   }, [token]);
-
-  // FIX: rileva browser in-app e mostra overlay se necessario
-  useEffect(() => {
-    if (typeof window !== 'undefined' && isInAppBrowser()) {
-      setInAppBrowser(true);
-    }
-  }, []);
 
   // FIX: se l'utente torna loggato con lo stesso email dell'invito, propone accettazione diretta
   useEffect(() => {
@@ -197,74 +134,6 @@ export default function InviteAccept() {
     clearAuth();
     setMode('choose');
   };
-
-  // Overlay browser in-app — blocca tutto e forza apertura nel browser esterno
-  if (inAppBrowser) {
-    const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
-    const externalUrl = getExternalBrowserUrl(currentUrl);
-    const isAndroid = typeof navigator !== 'undefined' && /Android/.test(navigator.userAgent);
-
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md"
-        >
-          <div className="bg-slate-900/90 backdrop-blur-xl border border-amber-500/30 rounded-2xl p-6 md:p-8 shadow-2xl shadow-amber-500/10">
-            <div className="w-14 h-14 bg-amber-500/20 rounded-2xl mx-auto mb-4 flex items-center justify-center">
-              <Warning className="w-7 h-7 text-amber-400" weight="fill" />
-            </div>
-
-            <h1 className="text-xl font-bold text-white text-center mb-2">
-              Browser Integrato Rilevato
-            </h1>
-            <p className="text-slate-400 text-sm text-center mb-6 leading-relaxed">
-              Stai usando il browser integrato di un&apos;app (WhatsApp, Instagram, Gmail, ecc.).
-              Questo browser non supporta l&apos;accesso sicuro al gestionale.
-            </p>
-
-            <div className="bg-slate-950/50 border border-slate-800 rounded-xl p-4 mb-6 space-y-3">
-              {isAndroid ? (
-                <>
-                  <p className="text-slate-300 text-sm font-medium">Clicca qui sotto per aprire il link in Chrome:</p>
-                  <a
-                    href={externalUrl}
-                    className="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl transition-colors"
-                  >
-                    <Globe className="w-5 h-5" />
-                    Apri nel browser esterno
-                  </a>
-                </>
-              ) : (
-                <>
-                  <p className="text-slate-300 text-sm font-medium">Per procedere su iPhone/iPad:</p>
-                  <ol className="text-slate-400 text-sm space-y-2 list-decimal list-inside">
-                    <li>Clicca il bottone <strong className="text-white">&quot;...&quot;</strong> o <strong className="text-white">Condividi</strong> in alto</li>
-                    <li>Seleziona <strong className="text-white">&quot;Apri in Safari&quot;</strong></li>
-                  </ol>
-                  <a
-                    href={currentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3.5 rounded-xl transition-colors mt-3"
-                  >
-                    <Globe className="w-5 h-5" />
-                    Prova ad aprire in Safari
-                  </a>
-                </>
-              )}
-            </div>
-
-            <p className="text-slate-500 text-xs text-center">
-              Questo accade perché WhatsApp, Instagram, Gmail e altre app
-              usano un browser limitato che blocca gli accessi sicuri.
-            </p>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
 
   if (error && !invite) {
     return (

@@ -172,42 +172,42 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
   };
 
   return (
-    <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 select-none">
-      <div className="flex items-center justify-between mb-3">
+    <div className="bg-slate-950 border border-slate-700 rounded-xl p-3 select-none max-w-xs">
+      <div className="flex items-center justify-between mb-2">
         <button
           type="button"
           onClick={goPrev}
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          className="p-1 rounded text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm"
           aria-label="Mese precedente"
         >
           ←
         </button>
-        <div className="flex items-center gap-2">
-          <span className="text-white font-medium">{monthNames[viewMonth]}</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-white text-sm font-medium">{monthNames[viewMonth]}</span>
           <input
             type="number"
             value={viewYear}
             onChange={(e) => setViewYear(parseInt(e.target.value || '0', 10) || viewYear)}
-            className="w-20 bg-transparent border border-slate-700 rounded px-2 py-0.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+            className="w-16 bg-transparent border border-slate-700 rounded px-1 py-0 text-white text-xs text-center focus:outline-none focus:border-indigo-500"
           />
         </div>
         <button
           type="button"
           onClick={goNext}
-          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          className="p-1 rounded text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm"
           aria-label="Mese successivo"
         >
           →
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="grid grid-cols-7 gap-0.5 mb-0.5">
         {dayNames.map((n, i) => (
-          <div key={i} className="text-center text-[11px] text-slate-500 font-medium py-1">{n}</div>
+          <div key={i} className="text-center text-[10px] text-slate-500 font-medium py-0.5">{n}</div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5">
         {cells.map((d, idx) => {
           if (d === null) return <div key={idx} />;
           const iso = isoFor(d);
@@ -218,9 +218,9 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
               key={idx}
               type="button"
               onClick={() => onChange(iso)}
-              className={`aspect-square flex items-center justify-center rounded-lg text-sm transition-all ${
+              className={`h-7 w-7 flex items-center justify-center rounded text-xs transition-all ${
                 isSelected
-                  ? 'bg-indigo-600 text-white font-semibold ring-2 ring-indigo-400/40'
+                  ? 'bg-indigo-600 text-white font-semibold ring-1 ring-indigo-400/40'
                   : isToday
                     ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
                     : 'text-slate-300 hover:bg-slate-800'
@@ -233,8 +233,8 @@ function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: stri
       </div>
 
       {value && (
-        <p className="text-xs text-slate-400 mt-3 text-center">
-          Selezionato: <span className="text-indigo-300 font-medium">{new Date(value).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        <p className="text-[10px] text-slate-400 mt-2 text-center">
+          <span className="text-indigo-300 font-medium">{new Date(value).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </p>
       )}
     </div>

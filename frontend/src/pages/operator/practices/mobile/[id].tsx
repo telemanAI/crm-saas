@@ -68,16 +68,16 @@ export default function MobilePracticeDetail() {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [koReason, setKoReason] = useState('');
 
-  // ===== SPRINT — Inline quick edit dal dettaglio Mobile =====
+  // ===== SPRINT — Operatori (allineato a new.tsx OperatorsDropdown) =====
   const canEditPractices = usePermission('canEditPractices');
-  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+  const [operators, setOperators] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
 
   useEffect(() => {
     if (!canEditPractices) return;
     (async () => {
       try {
-        const res = await api.get('/users/team');
-        setTeamUsers(res.data || []);
+        const res = await api.get('/users/operators');
+        setOperators(res.data || []);
       } catch { /* ignore */ }
     })();
   }, [canEditPractices]);

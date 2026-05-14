@@ -117,6 +117,26 @@ export class PracticesController {
     );
   }
 
+  @Patch(':id/global-status')
+  @RequirePermission('canEditPractices')
+  async updateGlobalStatus(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('status') status: 'NON_COMPLETATA' | 'COMPLETATA',
+  ) {
+    const user = req.user;
+    return this.practicesService.updateGlobalStatus(user.tenantId, id, status);
+  }
+
+  @Get(':id/completion-blockers')
+  async getCompletionBlockers(
+    @Request() req,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const user = req.user;
+    return this.practicesService.getCompletionBlockers(user.tenantId, id);
+  }
+
   @Post(':id/force-complete')
   @Roles('ADMIN', 'OPERATOR', 'BACKOFFICE')
   async forceComplete(@Param('id') id: string, @Request() req) {

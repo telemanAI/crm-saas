@@ -639,24 +639,66 @@ export class PracticesService {
   private validateGlobalStatusCompletion(practice: Practice): string[] {
     const errors: string[] = [];
 
-    // 1) Tutti gli step completati
-    const totalSteps = 8; // wizard rete fissa ha 8 step
+    // 1) Tutti gli step completati (wizard rete fissa = 9 step)
+    const totalSteps = 9;
     const completedCount = practice.completedSteps?.length || 0;
     if (completedCount < totalSteps) {
-      errors.push(`Step non compilati: ${totalSteps - completedCount} step rimanenti`);
+      errors.push(`Impossibile completare: ${totalSteps - completedCount} step non compilati`);
     }
 
     // 2) La nuova linea deve essere ATTIVA
     if (practice.operationalStatus !== 'ACTIVATED') {
-      errors.push('La nuova linea non risulta attiva');
+      errors.push('Impossibile completare: la nuova linea non risulta attiva');
     }
 
     // 3) Se Migrazione → vecchia linea deve essere DISATTIVATA
     if (practice.lineType === 'MIGRAZIONE' && practice.oldLineStatus !== 'DISATTIVATA') {
-      errors.push('La vecchia linea non risulta disattivata');
+      errors.push('Impossibile completare: la vecchia linea non risulta disattivata');
     }
 
     return errors;
+  }
+
+  /**
+   * Aggiorna lo stato globale della pratica (NON_COMPLETATA / COMPLETATA).
+   * Per impostare COMPLETATA tutti i vincoli devono essere soddisfatti.
+   * Se i vincoli non sono soddisfatti viene lanciata ForbiddenException con
+   * l'elenco dei blocchi rimanenti.
+   */
+  async updateGlobalStatus(
+    tenantId: string,
+    practiceId: string,
+    newStatus: 'NON_COMPLETATA' | 'COMPLETATA',
+  ): Promise<PracticeResponseDto & { errors?: string[] }> {
+    const practice = await this.findById(tenantId, practiceId);
+
+    if (newStatus === 'COMPLETATA') {
+      const errors = this.validateGlobalStatusCompletion(practice);
+      if (errors.length > 0) {
+        throw new ForbiddenException({
+          message: 'Pratica non completabile',
+          errors,
+        });
+      }
+    }
+
+    practice.globalStatus = newStatus;
+    await this.practiceRepo.save(practice);
+    const updated = await this.findById(tenantId, practiceId);
+    return new PracticeResponseDto(updated);
+  }
+
+  /**
+   * Restituisce eventuali blocchi alla COMPLETAZIONE senza modificare il DB.
+   * Usato dal frontend per mostrare il banner informativo nel dettaglio.
+   */
+  async getCompletionBlockers(
+    tenantId: string,
+    practiceId: string,
+  ): Promise<{ canComplete: boolean; errors: string[] }> {
+    const practice = await this.findById(tenantId, practiceId);
+    const errors = this.validateGlobalStatusCompletion(practice);
+    return { canComplete: errors.length === 0, errors };
   }
 
   private async applyFixedLineStepByKey(

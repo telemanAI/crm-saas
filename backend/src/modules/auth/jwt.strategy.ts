@@ -42,6 +42,33 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     // CHIRURGIA 1: cattura sia tenantId che shopId dal JWT
     let tenantId: string | null = (payload.tenantId || payload.shopId || null);
+    const isSuperAdmin = payload.isSuperAdmin === true;
+
+    // ===== SPRINT — Logout forzato operatore revocato =====
+    // Se il JWT contiene tenantId esplicito (caso normale per OPERATOR/ADMIN),
+    // verifica che esista una membership ATTIVA per (userId, tenantId).
+    // Se l'admin/founder ha revocato la membership (isActive=false), questa
+    // chiamata fallisce con 401 e il frontend interceptor forza il redirect
+    // al login. Il SUPER_ADMIN bypassa questo controllo.
+    // Per i FOUNDER legacy senza riga in user_shop_memberships, esiste il
+    // fallback users.tenantId — quindi accettiamo se la riga utente esiste
+    // ancora ed ha lo stesso tenant.
+    if (tenantId && !isSuperAdmin && payload.tenantId) {
+      const activeMembership = await this.membershipRepo.findOne({
+        where: { userId: payload.sub, shopId: tenantId, isActive: true },
+      });
+      if (!activeMembership) {
+        // Fallback FOUNDER legacy: se l'utente ha tenant_id = tenantId nel
+        // record users, è ancora autorizzato.
+        const u = await this.userRepo.findOne({
+          where: { id: payload.sub },
+          select: ['id', 'tenantId'],
+        });
+        if (!u || u.tenantId !== tenantId) {
+          throw new UnauthorizedException('Accesso revocato per questo shop');
+        }
+      }
+    }
 
     // PHASE A — BUG #2: fallback se tenantId mancante nel JWT
     if (!tenantId) {

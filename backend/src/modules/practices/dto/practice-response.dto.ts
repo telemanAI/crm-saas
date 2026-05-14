@@ -1,4 +1,4 @@
-import { Practice, PracticeCategory } from '../entities/practice.entity';
+import { Practice, PracticeCategory, GlobalStatus, OldLineStatus, OldLineTechnology } from '../entities/practice.entity';
 
 export class PracticeResponseDto {
   id: string;
@@ -8,6 +8,10 @@ export class PracticeResponseDto {
   operationalStatus?: string;
   skyTvStatus?: string | null;
   statoGlobale?: 'completo' | 'non_completo' | null;
+  // ===== SPRINT: nuovi stati linea =====
+  globalStatus?: GlobalStatus;
+  oldLineStatus?: OldLineStatus;
+  oldLineTechnology?: OldLineTechnology;
   currentStep: number;
   completedSteps: number[];
   customerId: string | null;
@@ -77,6 +81,10 @@ export class PracticeResponseDto {
     this.operationalStatus = practice.operationalStatus || 'PENDING';
     this.skyTvStatus = practice.skyTvStatus ?? null;
     this.statoGlobale = practice.statoGlobale || null;
+    // ===== SPRINT: nuovi stati linea =====
+    this.globalStatus = practice.globalStatus || 'NON_COMPLETATA';
+    this.oldLineStatus = practice.oldLineStatus ?? null;
+    this.oldLineTechnology = practice.oldLineTechnology ?? null;
     this.currentStep = practice.currentStep;
 
     const steps = practice.completedSteps as any;

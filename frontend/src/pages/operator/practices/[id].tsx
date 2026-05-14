@@ -617,16 +617,26 @@ export default function PracticeDetail() {
     })();
   }, [canEditPractices]);
 
-  // Helper inline: salva un campo allineato ai veri stepKey di new.tsx (no inventati).
-  // Non passa più tramite 'quick-edit' fittizio: usa esattamente gli stessi
-  // endpoint+payload del wizard di creazione, così i dati finiscono negli
-  // stessi slot DB senza divergenze.
+  // Helper inline: salva un campo allineato ai veri stepKey di new.tsx.
+  // ===== SPRINT — Optimistic update: aggiorna SUBITO lo state locale con i
+  // dati nuovi (così l'UI cambia istantaneamente), poi conferma con fetch.
+  // Se l'API fallisce, il refetch riporta lo stato corretto. =====
   const saveStepKey = async (stepKey: string, payload: Record<string, any>) => {
+    // 1) Optimistic update locale (rendering istantaneo)
+    setPractice((prev) => prev ? { ...prev, ...payload } as any : prev);
     try {
-      await api.put(`/practices/${id}/step`, { stepKey, data: payload });
-      fetchPractice();
+      const res = await api.put(`/practices/${id}/step`, { stepKey, data: payload });
+      // 2) Se il backend ritorna la pratica aggiornata, usiamo quella (fonte di verità)
+      if (res?.data && (res.data.id === id || res.data.id === undefined)) {
+        setPractice((prev) => prev ? sanitizePracticeData({ ...prev, ...res.data }) : prev);
+      } else {
+        // fallback: refetch silenzioso
+        fetchPractice();
+      }
       return true;
-    } catch {
+    } catch (err) {
+      // Rollback: refetch per ripristinare lo stato vero
+      fetchPractice();
       return false;
     }
   };
@@ -1009,13 +1019,16 @@ export default function PracticeDetail() {
                       key={s}
                       data-testid={`old-line-status-${s}`}
                       onClick={async () => {
-                        // Allineato a new.tsx case 'line-old' (riga 891 di new.tsx):
-                        // mando oldLineData esistente + oldLineStatus + oldLineTechnology
-                        await saveStepKey('line-old', {
+                        if (isActive) return;
+                        // SPRINT — Optimistic: cambia subito lo stato locale per UI istantanea
+                        setPractice((prev) => prev ? { ...prev, oldLineStatus: s } as any : prev);
+                        // Allineato a new.tsx case 'line-old' (riga 891): mando l'intero oldLineData esistente
+                        const ok = await saveStepKey('line-old', {
                           oldLineData: practice.oldLineData || {},
                           oldLineStatus: s,
                           oldLineTechnology: practice.oldLineTechnology ?? null,
                         });
+                        if (!ok) fetchPractice();
                       }}
                       disabled={isActive}
                       className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
@@ -1034,9 +1047,10 @@ export default function PracticeDetail() {
               <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Stato globale:</span>
               {(['NON_COMPLETATA','COMPLETATA'] as const).map((s) => {
                 const labels: Record<typeof s, string> = { NON_COMPLETATA: 'Non completata', COMPLETATA: 'Completata' };
+                // SPRINT — colori richiesti: rosso per NON_COMPLETATA, verde per COMPLETATA
                 const colors: Record<typeof s, string> = {
-                  NON_COMPLETATA: 'bg-slate-700/40 text-slate-300 border border-slate-500/40',
-                  COMPLETATA: 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40',
+                  NON_COMPLETATA: 'bg-rose-600/30 text-rose-200 border border-rose-500/50',
+                  COMPLETATA: 'bg-emerald-600/30 text-emerald-200 border border-emerald-500/50',
                 };
                 const isActive = practice.globalStatus === s;
                 return (
@@ -1045,12 +1059,16 @@ export default function PracticeDetail() {
                     data-testid={`global-status-${s}`}
                     onClick={async () => {
                       if (!canEditPractices || isActive) return;
+                      // Optimistic update
+                      setPractice((prev) => prev ? { ...prev, globalStatus: s } as any : prev);
                       try {
-                        await api.patch(`/practices/${id}/global-status`, { status: s });
+                        const res = await api.patch(`/practices/${id}/global-status`, { status: s });
+                        if (res?.data) setPractice((prev) => prev ? sanitizePracticeData({ ...prev, ...res.data }) : prev);
                         setShowCompletionError(false);
                         setCompletionBlockers([]);
-                        fetchPractice();
                       } catch (err: any) {
+                        // Rollback
+                        fetchPractice();
                         const errs = err?.response?.data?.errors || err?.response?.data?.message?.errors;
                         if (Array.isArray(errs) && errs.length > 0) {
                           setCompletionBlockers(errs);
@@ -1542,64 +1560,85 @@ export default function PracticeDetail() {
             </motion.div>
           )}
 
-          {(practice.lineType || practice.technology || safeString(practice.installationAddress?.street) || (practice.oldLineData && Object.keys(practice.oldLineData).length > 0)) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+          {/* ===== SPRINT — Card Dettagli Linea: matita unica per Tipo + Tecnologia + Lavorazioni ===== */}
+          {(canEditPractices || practice.lineType || practice.technology || (practice.oldLineData && Object.keys(practice.oldLineData).length > 0)) && (
+            <EditableCard
+              title="Dettagli Linea"
+              icon={<MapPin className="w-5 h-5" />}
+              iconBgClass="bg-blue-600/20 text-blue-400"
+              canEdit={canEditPractices}
+              testid="line-details-card"
+              initialDraft={{
+                lineType: practice.lineType ?? '',
+                technology: practice.technology ?? '',
+                lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? '',
+              }}
+              onSave={async (d) => {
+                await saveStepKey('line-new', {
+                  lineType: d.lineType || null,
+                  installationAddress: practice.installationAddress || null,
+                  technology: d.technology || null,
+                  notes: practice.newLineNotes ?? null,
+                  convergenza: practice.convergenza ?? null,
+                  lavorazioniPostAttivazione: d.lavorazioniPostAttivazione || null,
+                });
+              }}
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Dettagli Linea</h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {practice.lineType && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Tipo Attivazione</label>
-                    <span className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
-                      practice.lineType === 'NUOVA'
-                        ? 'bg-emerald-600/20 text-emerald-400'
-                        : 'bg-amber-600/20 text-amber-400'
-                    }`}>
-                      {practice.lineType === 'NUOVA' ? 'Nuova Attivazione' : 'Migrazione'}
-                    </span>
+              {({ editing, draft, setDraft }) => (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <FieldView label="Tipo Attivazione">
+                      {editing ? (
+                        <select value={draft.lineType} onChange={(e) => setDraft({ lineType: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50">
+                          <option value="">— Seleziona —</option>
+                          <option value="NUOVA">Nuova Attivazione</option>
+                          <option value="MIGRAZIONE">Migrazione</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-flex px-3 py-1 rounded-lg text-sm font-medium ${
+                          practice.lineType === 'NUOVA' ? 'bg-emerald-600/20 text-emerald-400'
+                          : practice.lineType === 'MIGRAZIONE' ? 'bg-amber-600/20 text-amber-400'
+                          : 'bg-slate-700/40 text-slate-400'
+                        }`}>
+                          {practice.lineType === 'NUOVA' ? 'Nuova Attivazione' : practice.lineType === 'MIGRAZIONE' ? 'Migrazione' : 'Non impostato'}
+                        </span>
+                      )}
+                    </FieldView>
+                    <FieldView label="Tecnologia">
+                      {editing ? (
+                        <select value={draft.technology} onChange={(e) => setDraft({ technology: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50">
+                          <option value="">— Seleziona —</option>
+                          <option value="FTTC">FTTC</option>
+                          <option value="FTTH">FTTH</option>
+                          <option value="FWA">FWA</option>
+                          <option value="ADSL">ADSL</option>
+                        </select>
+                      ) : (
+                        <span className="font-medium">{practice.technology || <span className="text-slate-500 italic">—</span>}</span>
+                      )}
+                    </FieldView>
+                    <div className="sm:col-span-2">
+                      <FieldView label="Lavorazioni Post Attivazione">
+                        {editing ? (
+                          <textarea value={draft.lavorazioniPostAttivazione} onChange={(e) => setDraft({ lavorazioniPostAttivazione: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                        ) : (
+                          <p className="text-sm text-slate-300 whitespace-pre-wrap">{practice.lavorazioniPostAttivazione || <span className="text-slate-500 italic">—</span>}</p>
+                        )}
+                      </FieldView>
+                    </div>
                   </div>
-                )}
-                {practice.technology && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Tecnologia</label>
-                    <p className="text-white font-medium">{safeString(practice.technology)}</p>
-                  </div>
-                )}
 
-                {/* ===== SPRINT — Indirizzo Installazione rimosso da qui perché ripetuto.
-                    Visualizzazione e modifica sono unificate nella card centrale
-                    "Indirizzo di Installazione e Appuntamento". ===== */}
-
-                {practice.lavorazioniPostAttivazione && (
-                  <div className="col-span-2">
-                    <label className="text-sm text-slate-500 block mb-1">Lavorazioni Post Attivazione</label>
-                    <p className="text-sm text-slate-300 bg-slate-950/50 p-3 rounded-lg border border-slate-800 whitespace-pre-wrap">
-                      {safeString(practice.lavorazioniPostAttivazione)}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* ===== SPRINT — Dati Linea Precedente: una sola matita per il blocco intero.
-                  Click matita → tutti i campi diventano editabili → ✓ salva con UN solo PUT (stepKey 'line-old'). ===== */}
-              {practice.lineType === 'MIGRAZIONE' && (
-                <OldLineEditableBlock
-                  practice={practice}
-                  canEdit={canEditPractices}
-                  saveStepKey={saveStepKey}
-                />
+                  {/* ===== SPRINT — Dati Linea Precedente: matita unica per il blocco intero ===== */}
+                  {practice.lineType === 'MIGRAZIONE' && (
+                    <OldLineEditableBlock
+                      practice={practice}
+                      canEdit={canEditPractices}
+                      saveStepKey={saveStepKey}
+                    />
+                  )}
+                </>
               )}
-            </motion.div>
+            </EditableCard>
           )}
           
           {/* ===== SPRINT — Card unificata Indirizzo + Appuntamento: una sola matita.

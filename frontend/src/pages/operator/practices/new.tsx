@@ -134,8 +134,115 @@ interface WizardStep {
   icon: any;
 }
 
-function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {
-  const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
+
+// ===== SPRINT — Mini-calendario inline (no nuove dipendenze) =====
+// Componente custom basato solo su Date nativo: mostra il mese corrente con
+// griglia 7×6, navigazione mese precedente/successivo, anno, click su giorno
+// per selezionarlo. Salva in formato ISO YYYY-MM-DD coerente col backend.
+function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  const today = new Date();
+  const initial = value ? new Date(value) : today;
+  const [viewYear, setViewYear] = useState(initial.getFullYear());
+  const [viewMonth, setViewMonth] = useState(initial.getMonth()); // 0-11
+
+  const monthNames = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const dayNames = ['L','M','M','G','V','S','D'];
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  // Lunedì=0, Domenica=6
+  const firstWeekday = (firstOfMonth.getDay() + 6) % 7;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const isoFor = (d: number) => `${viewYear}-${pad(viewMonth + 1)}-${pad(d)}`;
+  const selectedISO = value;
+
+  const cells: Array<number | null> = [];
+  for (let i = 0; i < firstWeekday; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const goPrev = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); }
+    else setViewMonth(viewMonth - 1);
+  };
+  const goNext = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); }
+    else setViewMonth(viewMonth + 1);
+  };
+
+  return (
+    <div className="bg-slate-950 border border-slate-700 rounded-xl p-4 select-none">
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={goPrev}
+          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          aria-label="Mese precedente"
+        >
+          ←
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-white font-medium">{monthNames[viewMonth]}</span>
+          <input
+            type="number"
+            value={viewYear}
+            onChange={(e) => setViewYear(parseInt(e.target.value || '0', 10) || viewYear)}
+            className="w-20 bg-transparent border border-slate-700 rounded px-2 py-0.5 text-white text-sm text-center focus:outline-none focus:border-indigo-500"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={goNext}
+          className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          aria-label="Mese successivo"
+        >
+          →
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {dayNames.map((n, i) => (
+          <div key={i} className="text-center text-[11px] text-slate-500 font-medium py-1">{n}</div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((d, idx) => {
+          if (d === null) return <div key={idx} />;
+          const iso = isoFor(d);
+          const isSelected = iso === selectedISO;
+          const isToday = (today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === d);
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => onChange(iso)}
+              className={`aspect-square flex items-center justify-center rounded-lg text-sm transition-all ${
+                isSelected
+                  ? 'bg-indigo-600 text-white font-semibold ring-2 ring-indigo-400/40'
+                  : isToday
+                    ? 'bg-slate-800 text-amber-300 hover:bg-slate-700'
+                    : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+
+      {value && (
+        <p className="text-xs text-slate-400 mt-3 text-center">
+          Selezionato: <span className="text-indigo-300 font-medium">{new Date(value).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+function OperatorsDropdown({ label, value, onChange }: { label: string; value?: string; onChange: (id: string, name: string) => void }) {  const [operators, setOperators] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
   const [loading, setLoading] = useState(true);
   const { token } = useAuthStore();
 
@@ -2334,13 +2441,11 @@ function NewPracticeDesktop() {
                           <div className="space-y-6">
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Data Installazione</label>
-                              <input 
-                                type="date" 
-                                value={data.appointmentData || ''} 
-                                onChange={(e) => setData({ appointmentData: e.target.value })}
-                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                              {/* ===== SPRINT — Mini-calendario inline (no nuove dipendenze) ===== */}
+                              <MiniCalendar
+                                value={data.appointmentData || ''}
+                                onChange={(iso) => setData({ appointmentData: iso })}
                               />
-                              <p className="text-xs text-slate-500 mt-1">Apri il calendario per scegliere la data</p>
                             </div>
 
                             {/* ===== SPRINT (point 12) — Fasce orarie predefinite =====

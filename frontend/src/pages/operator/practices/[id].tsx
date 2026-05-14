@@ -33,7 +33,6 @@ import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
 import type { PracticeDetail as IPracticeDetail } from '@/types/practice';
-import QuickEditModal from '@/components/practices/QuickEditModal';
 
 // 🔥 HELPER: Converte valori potenzialmente oggetto/null in stringa sicura
 const safeString = (value: any): string => {
@@ -119,6 +118,126 @@ const sanitizePracticeData = (data: any): IPracticeDetail => {
   return data as IPracticeDetail;
 };
 
+// ===== SPRINT — Helper inline edit: matita + dropdown =====
+interface InlineUserFieldProps {
+  label: string;
+  value: string;
+  currentUserId?: string;
+  canEdit: boolean;
+  teamUsers: Array<{ id: string; firstName: string; lastName: string }>;
+  onSave: (userId: string) => Promise<void>;
+  testid?: string;
+}
+function InlineUserField({ label, value, currentUserId, canEdit, teamUsers, onSave, testid }: InlineUserFieldProps) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(currentUserId || '');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(currentUserId || ''); }, [currentUserId]);
+  const handleSave = async () => {
+    setSaving(true);
+    try { await onSave(val); setEditing(false); } finally { setSaving(false); }
+  };
+  return (
+    <div data-testid={testid ? `inline-${testid}` : undefined}>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <label className="text-sm text-slate-500">{label}</label>
+        {canEdit && !editing && (
+          <button
+            data-testid={testid ? `${testid}-edit-btn` : undefined}
+            onClick={() => setEditing(true)}
+            className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
+            title={`Modifica ${label}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <select
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+          >
+            <option value="">— Seleziona operatore —</option>
+            {teamUsers.map((u) => (
+              <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+            ))}
+          </select>
+          <button onClick={handleSave} disabled={saving} className="p-1.5 text-emerald-400 hover:bg-emerald-600/20 rounded transition-colors" title="Salva">
+            <Check className="w-4 h-4" />
+          </button>
+          <button onClick={() => { setEditing(false); setVal(currentUserId || ''); }} className="p-1.5 text-rose-400 hover:bg-rose-600/20 rounded transition-colors" title="Annulla">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <p className="text-white">{value || <span className="text-slate-500 italic">Non assegnato</span>}</p>
+      )}
+    </div>
+  );
+}
+
+// Inline edit generico select (Tecnologia, Metodo pagamento, ecc.)
+interface InlineSelectFieldProps {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  canEdit: boolean;
+  onSave: (newValue: string) => Promise<void>;
+  testid?: string;
+}
+function InlineSelectField({ label, value, options, canEdit, onSave, testid }: InlineSelectFieldProps) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value || '');
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setVal(value || ''); }, [value]);
+  const handleSave = async () => {
+    setSaving(true);
+    try { await onSave(val); setEditing(false); } finally { setSaving(false); }
+  };
+  const display = options.find((o) => o.value === value)?.label || value;
+  return (
+    <div data-testid={testid ? `inline-${testid}` : undefined}>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <label className="text-xs text-slate-500">{label}</label>
+        {canEdit && !editing && (
+          <button
+            data-testid={testid ? `${testid}-edit-btn` : undefined}
+            onClick={() => setEditing(true)}
+            className="p-1 text-slate-500 hover:text-emerald-400 transition-colors"
+            title={`Modifica ${label}`}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <select
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+          >
+            <option value="">— Seleziona —</option>
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <button onClick={handleSave} disabled={saving} className="p-1.5 text-emerald-400 hover:bg-emerald-600/20 rounded transition-colors" title="Salva">
+            <Check className="w-4 h-4" />
+          </button>
+          <button onClick={() => { setEditing(false); setVal(value || ''); }} className="p-1.5 text-rose-400 hover:bg-rose-600/20 rounded transition-colors" title="Annulla">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <p className="text-white font-medium">{display || <span className="text-slate-500 italic">—</span>}</p>
+      )}
+    </div>
+  );
+}
+
 export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -145,15 +264,12 @@ export default function PracticeDetail() {
   const [pendingSkyTvStatus, setPendingSkyTvStatus] = useState<string | null>(null);
   const [skyTvKoReason, setSkyTvKoReason] = useState('');
 
-  // ===== SPRINT — Stato globale pratica (NON_COMPLETATA / COMPLETATA) =====
-  const [globalStatusLoading, setGlobalStatusLoading] = useState(false);
+  // ===== SPRINT — Stato globale (vincoli + banner) =====
   const [completionBlockers, setCompletionBlockers] = useState<string[]>([]);
   const [showCompletionError, setShowCompletionError] = useState(false);
 
-  // ===== SPRINT — Quick Edit dal dettaglio pratica =====
-  const [quickEditOpen, setQuickEditOpen] = useState(false);
+  // ===== SPRINT — Team operatori per dropdown inline (Venduto/Inserito da) =====
   const [teamUsers, setTeamUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
-
   useEffect(() => {
     if (!canEditPractices) return;
     (async () => {
@@ -164,40 +280,14 @@ export default function PracticeDetail() {
     })();
   }, [canEditPractices]);
 
-  const handleMarkCompleted = async () => {
-    if (!id) return;
-    setGlobalStatusLoading(true);
-    setShowCompletionError(false);
+  // Helper inline: salva un campo via stepKey=quick-edit
+  const saveQuickField = async (data: Record<string, any>) => {
     try {
-      await api.patch(`/practices/${id}/global-status`, { status: 'COMPLETATA' });
-      setCompletionBlockers([]);
+      await api.put(`/practices/${id}/step`, { stepKey: 'quick-edit', data });
       fetchPractice();
-    } catch (err: any) {
-      const errs = err?.response?.data?.errors || err?.response?.data?.message?.errors;
-      if (Array.isArray(errs) && errs.length > 0) {
-        setCompletionBlockers(errs);
-        setShowCompletionError(true);
-      } else {
-        setCompletionBlockers(['Impossibile completare la pratica. Verifica i vincoli.']);
-        setShowCompletionError(true);
-      }
-    } finally {
-      setGlobalStatusLoading(false);
-    }
-  };
-
-  const handleMarkNotCompleted = async () => {
-    if (!id) return;
-    setGlobalStatusLoading(true);
-    try {
-      await api.patch(`/practices/${id}/global-status`, { status: 'NON_COMPLETATA' });
-      setShowCompletionError(false);
-      setCompletionBlockers([]);
-      fetchPractice();
+      return true;
     } catch {
-      // ignore
-    } finally {
-      setGlobalStatusLoading(false);
+      return false;
     }
   };
 
@@ -510,48 +600,11 @@ export default function PracticeDetail() {
                 </span>
               )}
 
-              {/* ===== SPRINT — Badge stato globale separato (NON_COMPLETATA/COMPLETATA) ===== */}
-              <span
-                data-testid="global-status-badge"
-                className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium border ${
-                  practice.globalStatus === 'COMPLETATA'
-                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
-                }`}
-              >
-                {practice.globalStatus === 'COMPLETATA' ? '✓ Pratica completata' : 'Pratica non completata'}
-              </span>
-
               <span className="text-slate-500 text-[10px] md:text-sm">Step {practice.currentStep}/9</span>
             </div>
             <h1 className="text-lg md:text-3xl font-bold text-white break-words">{practice.offerName}</h1>
 
-            {/* ===== SPRINT — Pulsanti gestione stato globale + banner vincoli ===== */}
-            {canEditPractices && (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {practice.globalStatus !== 'COMPLETATA' ? (
-                  <button
-                    onClick={handleMarkCompleted}
-                    disabled={globalStatusLoading}
-                    data-testid="mark-completed-btn"
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {globalStatusLoading ? 'Verifica...' : 'Segna come completata'}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleMarkNotCompleted}
-                    disabled={globalStatusLoading}
-                    data-testid="mark-not-completed-btn"
-                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
-                  >
-                    Riapri come non completata
-                  </button>
-                )}
-              </div>
-            )}
-
+            {/* ===== SPRINT — Banner vincoli (compare se l'utente tenta COMPLETATA con vincoli non ok) ===== */}
             {showCompletionError && completionBlockers.length > 0 && (
               <div
                 data-testid="completion-blockers-banner"
@@ -597,6 +650,83 @@ export default function PracticeDetail() {
                   {getOperationalStatusLabel(s)}
                 </button>
               ))}
+            </div>
+
+            {/* ===== SPRINT — Stato vecchia linea (solo Migrazione) — riga di bottoni come Stato nuova linea ===== */}
+            {canEditPractices && practice.lineType === 'MIGRAZIONE' && (
+              <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap" data-testid="old-line-status-row">
+                <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Stato vecchia linea:</span>
+                {(['DA_DISATTIVARE','IN_DISATTIVAZIONE','DISATTIVATA'] as const).map((s) => {
+                  const labels: Record<typeof s, string> = { DA_DISATTIVARE: 'Da Disattivare', IN_DISATTIVAZIONE: 'In Disattivazione', DISATTIVATA: 'Disattivata' };
+                  const colors: Record<typeof s, string> = {
+                    DA_DISATTIVARE: 'bg-rose-600/20 text-rose-300 border border-rose-500/40',
+                    IN_DISATTIVAZIONE: 'bg-amber-600/20 text-amber-300 border border-amber-500/40',
+                    DISATTIVATA: 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40',
+                  };
+                  const isActive = practice.oldLineStatus === s;
+                  return (
+                    <button
+                      key={s}
+                      data-testid={`old-line-status-${s}`}
+                      onClick={async () => {
+                        try {
+                          await api.put(`/practices/${id}/step`, { stepKey: 'quick-edit', data: { oldLineStatus: s } });
+                          fetchPractice();
+                        } catch { /* ignore */ }
+                      }}
+                      disabled={isActive}
+                      className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
+                        isActive ? colors[s] : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      {labels[s]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ===== SPRINT — Stato globale (sempre visibile) — riga di bottoni come Stato nuova linea ===== */}
+            <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap" data-testid="global-status-row">
+              <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Stato globale:</span>
+              {(['NON_COMPLETATA','COMPLETATA'] as const).map((s) => {
+                const labels: Record<typeof s, string> = { NON_COMPLETATA: 'Non completata', COMPLETATA: 'Completata' };
+                const colors: Record<typeof s, string> = {
+                  NON_COMPLETATA: 'bg-slate-700/40 text-slate-300 border border-slate-500/40',
+                  COMPLETATA: 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/40',
+                };
+                const isActive = practice.globalStatus === s;
+                return (
+                  <button
+                    key={s}
+                    data-testid={`global-status-${s}`}
+                    onClick={async () => {
+                      if (!canEditPractices || isActive) return;
+                      try {
+                        await api.patch(`/practices/${id}/global-status`, { status: s });
+                        setShowCompletionError(false);
+                        setCompletionBlockers([]);
+                        fetchPractice();
+                      } catch (err: any) {
+                        const errs = err?.response?.data?.errors || err?.response?.data?.message?.errors;
+                        if (Array.isArray(errs) && errs.length > 0) {
+                          setCompletionBlockers(errs);
+                          setShowCompletionError(true);
+                        } else {
+                          setCompletionBlockers(['Impossibile cambiare lo stato. Verifica i vincoli.']);
+                          setShowCompletionError(true);
+                        }
+                      }
+                    }}
+                    disabled={!canEditPractices || isActive}
+                    className={`px-2 md:px-3 py-1 md:py-1.5 rounded-lg text-[10px] md:text-xs font-medium transition-all ${
+                      isActive ? colors[s] : 'bg-slate-800 text-slate-400 hover:bg-slate-700 disabled:opacity-50'
+                    }`}
+                  >
+                    {labels[s]}
+                  </button>
+                );
+              })}
             </div>
 
             {pendingStatus && isKoStatus(pendingStatus) && (
@@ -716,18 +846,6 @@ export default function PracticeDetail() {
             </button>
           )}
           
-          {canEditPractices && (
-            <button
-              data-testid="practice-quick-edit-btn"
-              onClick={() => setQuickEditOpen(true)}
-              className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/30 rounded-xl transition-all text-xs md:text-sm"
-            >
-              <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
-              <span className="hidden sm:inline">Modifica veloce</span>
-              <span className="sm:hidden">Veloce</span>
-            </button>
-          )}
-
           {canEditPractices && (
             <Link href={`/operator/practices/new?edit=${id}`}>
               <button data-testid="practice-edit-btn" className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all text-xs md:text-sm">
@@ -903,19 +1021,27 @@ export default function PracticeDetail() {
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {practice.soldBy && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Venduto Da</label>
-                    <p className="text-white">{safeString(practice.soldBy)}</p>
-                  </div>
-                )}
-                
-                {practice.enteredBy && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Inserito Da</label>
-                    <p className="text-white">{safeString(practice.enteredBy)}</p>
-                  </div>
-                )}
+                {/* ===== SPRINT — Venduto Da inline edit (matita + dropdown) ===== */}
+                <InlineUserField
+                  label="Venduto Da"
+                  value={safeString(practice.soldBy)}
+                  currentUserId={practice.soldById}
+                  canEdit={canEditPractices}
+                  teamUsers={teamUsers}
+                  onSave={async (userId) => { await saveQuickField({ soldById: userId }); }}
+                  testid="sold-by"
+                />
+
+                {/* ===== SPRINT — Inserito Da inline edit (matita + dropdown) ===== */}
+                <InlineUserField
+                  label="Inserito Da"
+                  value={safeString(practice.enteredBy)}
+                  currentUserId={practice.enteredById}
+                  canEdit={canEditPractices}
+                  teamUsers={teamUsers}
+                  onSave={async (userId) => { await saveQuickField({ enteredById: userId }); }}
+                  testid="entered-by"
+                />
               </div>
 
               {practice.customerId && (
@@ -1139,12 +1265,20 @@ export default function PracticeDetail() {
                         </span>
                       </div>
                     )}
-                    {/* ===== SPRINT — Tecnologia provenienza ===== */}
+                    {/* ===== SPRINT — Tecnologia provenienza con inline edit ===== */}
                     {practice.lineType === 'MIGRAZIONE' && (
-                      <div data-testid="old-line-technology-detail">
-                        <span className="text-slate-500 block text-xs mb-1">Tecnologia Provenienza</span>
-                        <span className="text-white font-medium">{practice.oldLineTechnology || '—'}</span>
-                      </div>
+                      <InlineSelectField
+                        label="Tecnologia Provenienza"
+                        value={practice.oldLineTechnology || ''}
+                        options={[
+                          { value: 'FTTC', label: 'FTTC' },
+                          { value: 'FTTH', label: 'FTTH' },
+                          { value: 'FWA', label: 'FWA' },
+                        ]}
+                        canEdit={canEditPractices}
+                        onSave={async (v) => { await saveQuickField({ oldLineTechnology: v || null }); }}
+                        testid="old-line-technology"
+                      />
                     )}
                     {safeString(practice.oldLineData.oldPhoneNumber) && (
                       <div>
@@ -1321,6 +1455,23 @@ export default function PracticeDetail() {
               </div>
 
               <div className="space-y-3">
+                {/* ===== SPRINT — Metodo pagamento (tipo) con inline edit ===== */}
+                <div className="p-3 bg-slate-800/50 rounded-xl">
+                  <InlineSelectField
+                    label="Tipo Pagamento"
+                    value={(practice.paymentMethod as any)?.method || ''}
+                    options={[
+                      { value: 'RID', label: 'RID' },
+                      { value: 'BOLLETTINO', label: 'Bollettino' },
+                      { value: 'CARTA', label: 'Carta di Credito' },
+                      { value: 'POSTEPAY', label: 'PostePay' },
+                    ]}
+                    canEdit={canEditPractices}
+                    onSave={async (v) => { await saveQuickField({ paymentMethod: { method: v || null } }); }}
+                    testid="payment-method"
+                  />
+                </div>
+
                 {safeString(practice.paymentMethod.iban) && (
                   <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
                     <span className="text-slate-400">IBAN</span>
@@ -1513,8 +1664,10 @@ export default function PracticeDetail() {
               perché unificata nella card centrale "Indirizzo di Installazione
               e Appuntamento" (vedi colonna sinistra). */}
 
-          {/* SPRINT (point 9) — Se la pratica è globalmente COMPLETATA,
-              nascondo lo stepper di Progresso e mostro un badge verde dedicato. */}
+          {/* SPRINT — Se la pratica è globalmente COMPLETATA, nascondiamo
+              completamente lo stepper di Progresso (anche la lista step)
+              e mostriamo solo il badge "Pratica compilata correttamente".
+              Quando NON COMPLETATA, mostriamo la lista step come prima. */}
           {practice.globalStatus === 'COMPLETATA' ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -1528,8 +1681,8 @@ export default function PracticeDetail() {
                   <CheckCircle className="w-6 h-6" weight="fill" />
                 </div>
                 <div>
-                  <h3 className="text-emerald-200 font-semibold">Pratica completata</h3>
-                  <p className="text-emerald-300/70 text-xs mt-0.5">Tutti i vincoli sono soddisfatti.</p>
+                  <h3 className="text-emerald-200 font-semibold">Pratica compilata correttamente</h3>
+                  <p className="text-emerald-300/70 text-xs mt-0.5">Tutti gli step sono stati completati.</p>
                 </div>
               </div>
             </motion.div>
@@ -1591,15 +1744,7 @@ export default function PracticeDetail() {
         </div>{/* /lg:col-span-1 */}
       </div>{/* /lg:grid-cols-3 */}
 
-      {/* ===== SPRINT — Quick Edit Modal ===== */}
-      <QuickEditModal
-        isOpen={quickEditOpen}
-        onClose={() => setQuickEditOpen(false)}
-        practice={practice}
-        teamUsers={teamUsers}
-        canEdit={canEditPractices}
-        onSaved={() => { setQuickEditOpen(false); fetchPractice(); }}
-      />
+      {/* ===== SPRINT — Card unificata: Indirizzo + Appuntamento ===== */}
     </OperatorLayout>
   );
 }

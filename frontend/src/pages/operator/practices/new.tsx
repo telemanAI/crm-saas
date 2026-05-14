@@ -141,9 +141,14 @@ interface WizardStep {
 // per selezionarlo. Salva in formato ISO YYYY-MM-DD coerente col backend.
 function MiniCalendar({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
   const today = new Date();
-  const initial = value ? new Date(value) : today;
-  const [viewYear, setViewYear] = useState(initial.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initial.getMonth()); // 0-11
+  // ===== SPRINT — Apertura sempre sul mese corrente. Se il value salvato è
+  // una data "anomala" (>10 anni dal presente, o data invalida), apriamo
+  // comunque sul mese corrente per non disorientare l'operatore. =====
+  const parsed = value ? new Date(value) : null;
+  const parsedYear = parsed && !isNaN(parsed.getTime()) ? parsed.getFullYear() : null;
+  const useToday = !parsedYear || Math.abs(parsedYear - today.getFullYear()) > 10;
+  const [viewYear, setViewYear] = useState(useToday ? today.getFullYear() : (parsedYear as number));
+  const [viewMonth, setViewMonth] = useState(useToday ? today.getMonth() : (parsed as Date).getMonth());
 
   const monthNames = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
   const dayNames = ['L','M','M','G','V','S','D'];
@@ -2441,9 +2446,12 @@ function NewPracticeDesktop() {
                           <div className="space-y-6">
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Data Installazione</label>
-                              {/* ===== SPRINT — Mini-calendario inline (no nuove dipendenze) ===== */}
+                              {/* ===== SPRINT — Precompila con data odierna se vuoto ===== */}
                               <MiniCalendar
-                                value={data.appointmentData || ''}
+                                value={data.appointmentData || (() => {
+                                  const t = new Date();
+                                  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+                                })()}
                                 onChange={(iso) => setData({ appointmentData: iso })}
                               />
                             </div>

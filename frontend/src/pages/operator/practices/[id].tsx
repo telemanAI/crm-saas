@@ -298,6 +298,283 @@ function InlineTextField({ label, value, canEdit, placeholder, uppercase, mono, 
   );
 }
 
+// ===== SPRINT — EditableCard: pattern "una sola matita per card".
+// Quando l'utente clicca la matita, l'intera card entra in editMode
+// e tutti i sub-campi diventano editabili. Una sola chiamata di save
+// invia un unico payload coerente al backend. =====
+function EditableCard({
+  title,
+  icon,
+  borderClass,
+  iconBgClass,
+  canEdit,
+  onSave,
+  initialDraft,
+  children,
+  testid,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  borderClass?: string;
+  iconBgClass?: string;
+  canEdit: boolean;
+  onSave: (draft: any) => Promise<void> | void;
+  initialDraft: any;
+  children: (ctx: { editing: boolean; draft: any; setDraft: (patch: any) => void }) => React.ReactNode;
+  testid?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraftState] = useState<any>(initialDraft);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (!editing) setDraftState(initialDraft); }, [initialDraft, editing]);
+  const setDraft = (patch: any) => setDraftState((prev: any) => ({ ...prev, ...patch }));
+  const handleSave = async () => {
+    setSaving(true);
+    try { await onSave(draft); setEditing(false); } finally { setSaving(false); }
+  };
+  const handleCancel = () => { setDraftState(initialDraft); setEditing(false); };
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      data-testid={testid}
+      className={`bg-slate-900/80 backdrop-blur-xl border ${borderClass || 'border-slate-800'} rounded-2xl p-6`}
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl ${iconBgClass || 'bg-indigo-600/20 text-indigo-400'} flex items-center justify-center`}>
+            {icon}
+          </div>
+          <h2 className="text-xl font-semibold text-white">{title}</h2>
+        </div>
+        {canEdit && (
+          editing ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                data-testid={testid ? `${testid}-save` : undefined}
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" /> {saving ? 'Salvo...' : 'Salva'}
+              </button>
+              <button
+                data-testid={testid ? `${testid}-cancel` : undefined}
+                onClick={handleCancel}
+                disabled={saving}
+                className="flex items-center gap-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              data-testid={testid ? `${testid}-edit` : undefined}
+              onClick={() => setEditing(true)}
+              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800/50 rounded-lg transition-colors"
+              title="Modifica"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )
+        )}
+      </div>
+      {children({ editing, draft, setDraft })}
+    </motion.div>
+  );
+}
+
+// Helper di rendering field dentro EditableCard
+function FieldView({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs text-slate-500 block mb-1">{label}</label>
+      <div className="text-white">{children}</div>
+    </div>
+  );
+}
+
+// ===== SPRINT — Blocco editabile "Dati Linea Precedente" con una sola matita.
+// Tutti i campi della vecchia linea (numero, codice migrazione, gestore, ecc.)
+// + oldLineStatus + oldLineTechnology entrano insieme in edit-mode con una matita
+// in alto a destra del blocco. Save unico via stepKey='line-old' allineato a new.tsx. =====
+function OldLineEditableBlock({
+  practice,
+  canEdit,
+  saveStepKey,
+}: {
+  practice: any;
+  canEdit: boolean;
+  saveStepKey: (stepKey: string, payload: Record<string, any>) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const initial = {
+    oldPhoneNumber: practice.oldLineData?.oldPhoneNumber ?? '',
+    migrationCode: practice.oldLineData?.migrationCode ?? '',
+    gestore: practice.oldLineData?.gestore ?? '',
+    gestoreAltro: practice.oldLineData?.gestoreAltro ?? '',
+    fiscalCodeOldLine: practice.oldLineData?.fiscalCodeOldLine ?? '',
+    prodottiRestituire: practice.oldLineData?.prodottiRestituire ?? '',
+    notes: practice.oldLineData?.notes ?? '',
+    oldLineStatus: practice.oldLineStatus ?? '',
+    oldLineTechnology: practice.oldLineTechnology ?? '',
+  };
+  const [draft, setDraft] = useState<typeof initial>(initial);
+  useEffect(() => { if (!editing) setDraft(initial); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [practice, editing]);
+  const upd = (patch: Partial<typeof initial>) => setDraft((p) => ({ ...p, ...patch }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveStepKey('line-old', {
+        oldLineData: {
+          oldPhoneNumber: draft.oldPhoneNumber || null,
+          migrationCode: draft.migrationCode || null,
+          gestore: draft.gestore || null,
+          gestoreAltro: draft.gestoreAltro || null,
+          fiscalCodeOldLine: draft.fiscalCodeOldLine || null,
+          prodottiRestituire: draft.prodottiRestituire || null,
+          notes: draft.notes || null,
+        },
+        oldLineStatus: draft.oldLineStatus || null,
+        oldLineTechnology: draft.oldLineTechnology || null,
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 pt-6 border-t border-slate-800">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-amber-400 flex items-center gap-2">
+          <Clock className="w-4 h-4" /> Dati Linea Precedente (Migrazione)
+        </h3>
+        {canEdit && (
+          editing ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                data-testid="old-line-block-save"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                <Check className="w-3.5 h-3.5" /> {saving ? 'Salvo...' : 'Salva'}
+              </button>
+              <button
+                data-testid="old-line-block-cancel"
+                onClick={() => { setDraft(initial); setEditing(false); }}
+                className="flex items-center gap-1 px-2 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs rounded-lg transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              data-testid="old-line-block-edit"
+              onClick={() => setEditing(true)}
+              className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-slate-800/50 rounded-lg transition-colors"
+              title="Modifica Dati Linea Precedente"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          )
+        )}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
+        <FieldView label="Stato Vecchia Linea">
+          {editing ? (
+            <select value={draft.oldLineStatus} onChange={(e) => upd({ oldLineStatus: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50">
+              <option value="">— Seleziona —</option>
+              <option value="DA_DISATTIVARE">Da Disattivare</option>
+              <option value="IN_DISATTIVAZIONE">In Disattivazione</option>
+              <option value="DISATTIVATA">Disattivata</option>
+            </select>
+          ) : (
+            <span className={`inline-flex px-2 py-1 rounded-md text-xs font-medium ${
+              practice.oldLineStatus === 'DISATTIVATA' ? 'bg-emerald-600/20 text-emerald-300' :
+              practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'bg-amber-600/20 text-amber-300' :
+              practice.oldLineStatus === 'DA_DISATTIVARE' ? 'bg-rose-600/20 text-rose-300' :
+              'bg-slate-700/40 text-slate-400'
+            }`}>
+              {practice.oldLineStatus === 'DA_DISATTIVARE' ? 'Da Disattivare' :
+               practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'In Disattivazione' :
+               practice.oldLineStatus === 'DISATTIVATA' ? 'Disattivata' : 'Non impostato'}
+            </span>
+          )}
+        </FieldView>
+        <FieldView label="Tecnologia Provenienza">
+          {editing ? (
+            <select value={draft.oldLineTechnology} onChange={(e) => upd({ oldLineTechnology: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50">
+              <option value="">— Seleziona —</option>
+              <option value="FTTC">FTTC</option>
+              <option value="FTTH">FTTH</option>
+              <option value="FWA">FWA</option>
+            </select>
+          ) : (
+            <span className="font-medium">{practice.oldLineTechnology || <span className="text-slate-500 italic">—</span>}</span>
+          )}
+        </FieldView>
+        <FieldView label="Numero Attuale">
+          {editing ? (
+            <input value={draft.oldPhoneNumber} onChange={(e) => upd({ oldPhoneNumber: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <span>{practice.oldLineData?.oldPhoneNumber || <span className="text-slate-500 italic">—</span>}</span>
+          )}
+        </FieldView>
+        <FieldView label="Codice Migrazione">
+          {editing ? (
+            <input value={draft.migrationCode} onChange={(e) => upd({ migrationCode: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <span className="font-mono">{practice.oldLineData?.migrationCode || <span className="text-slate-500 italic font-sans">—</span>}</span>
+          )}
+        </FieldView>
+        <FieldView label="Gestore">
+          {editing ? (
+            <input value={draft.gestore} onChange={(e) => upd({ gestore: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <span>{practice.oldLineData?.gestore || <span className="text-slate-500 italic">—</span>}</span>
+          )}
+        </FieldView>
+        <FieldView label="Altro Gestore">
+          {editing ? (
+            <input value={draft.gestoreAltro} onChange={(e) => upd({ gestoreAltro: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <span>{practice.oldLineData?.gestoreAltro || <span className="text-slate-500 italic">—</span>}</span>
+          )}
+        </FieldView>
+        <FieldView label="CF Vecchia Linea">
+          {editing ? (
+            <input value={draft.fiscalCodeOldLine} onChange={(e) => upd({ fiscalCodeOldLine: e.target.value.toUpperCase() })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:border-emerald-500/50" />
+          ) : (
+            <span className="font-mono text-sm">{practice.oldLineData?.fiscalCodeOldLine || <span className="text-slate-500 italic font-sans">—</span>}</span>
+          )}
+        </FieldView>
+        <div className="sm:col-span-2">
+          <FieldView label="Prodotti da Restituire">
+            {editing ? (
+              <input value={draft.prodottiRestituire} onChange={(e) => upd({ prodottiRestituire: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+            ) : (
+              <span>{practice.oldLineData?.prodottiRestituire || <span className="text-slate-500 italic">—</span>}</span>
+            )}
+          </FieldView>
+        </div>
+        <div className="sm:col-span-2">
+          <FieldView label="Note Vecchia Linea">
+            {editing ? (
+              <textarea value={draft.notes} onChange={(e) => upd({ notes: e.target.value })} rows={2} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+            ) : (
+              <p className="text-slate-300 text-sm whitespace-pre-wrap">{practice.oldLineData?.notes || <span className="text-slate-500 italic">—</span>}</p>
+            )}
+          </FieldView>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PracticeDetail() {
   const router = useRouter();
   const { id } = router.query;
@@ -1299,18 +1576,9 @@ export default function PracticeDetail() {
                   </div>
                 )}
 
-                {safeString(practice.installationAddress?.street) && (
-                  <div className="col-span-2">
-                    <label className="text-sm text-slate-500 block mb-1">Indirizzo Installazione</label>
-                    <p className="text-white flex items-start gap-2">
-                      <MapPin className="w-4 h-4 text-slate-400 mt-1 flex-shrink-0" />
-                      {safeString(practice.installationAddress?.street)}
-                      {safeString(practice.installationAddress?.comune) && `, ${safeString(practice.installationAddress?.comune)}`}
-                      {safeString(practice.installationAddress?.citta) && ` (${safeString(practice.installationAddress?.citta)})`}
-                      {safeString(practice.installationAddress?.cap) && ` - ${safeString(practice.installationAddress?.cap)}`}
-                    </p>
-                  </div>
-                )}
+                {/* ===== SPRINT — Indirizzo Installazione rimosso da qui perché ripetuto.
+                    Visualizzazione e modifica sono unificate nella card centrale
+                    "Indirizzo di Installazione e Appuntamento". ===== */}
 
                 {practice.lavorazioniPostAttivazione && (
                   <div className="col-span-2">
@@ -1322,368 +1590,227 @@ export default function PracticeDetail() {
                 )}
               </div>
 
-              {practice.oldLineData && Object.keys(practice.oldLineData).length > 0 && (
-                <div className="mt-6 pt-6 border-t border-slate-800">
-                  <h3 className="text-sm font-medium text-amber-400 mb-3 flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Dati Linea Precedente (Migrazione)
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
-                    {/* ===== SPRINT — Stato vecchia linea (solo Migrazione) ===== */}
-                    {practice.lineType === 'MIGRAZIONE' && (
-                      <div data-testid="old-line-status-detail">
-                        <span className="text-slate-500 block text-xs mb-1">Stato Vecchia Linea</span>
-                        <span className={`inline-flex px-2 py-1 rounded-md text-xs font-medium ${
-                          practice.oldLineStatus === 'DISATTIVATA' ? 'bg-emerald-600/20 text-emerald-300' :
-                          practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'bg-amber-600/20 text-amber-300' :
-                          practice.oldLineStatus === 'DA_DISATTIVARE' ? 'bg-rose-600/20 text-rose-300' :
-                          'bg-slate-700/40 text-slate-400'
-                        }`}>
-                          {practice.oldLineStatus === 'DA_DISATTIVARE' ? 'Da Disattivare' :
-                           practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'In Disattivazione' :
-                           practice.oldLineStatus === 'DISATTIVATA' ? 'Disattivata' : 'Non impostato'}
-                        </span>
-                      </div>
-                    )}
-                    {/* ===== SPRINT — Tecnologia provenienza (stepKey 'line-old' allineato a new.tsx) ===== */}
-                    {practice.lineType === 'MIGRAZIONE' && (
-                      <InlineSelectField
-                        label="Tecnologia Provenienza"
-                        value={practice.oldLineTechnology || ''}
-                        options={[
-                          { value: 'FTTC', label: 'FTTC' },
-                          { value: 'FTTH', label: 'FTTH' },
-                          { value: 'FWA', label: 'FWA' },
-                        ]}
-                        canEdit={canEditPractices}
-                        onSave={async (v) => {
-                          await saveStepKey('line-old', {
-                            oldLineData: practice.oldLineData || {},
-                            oldLineStatus: practice.oldLineStatus ?? null,
-                            oldLineTechnology: v || null,
-                          });
-                        }}
-                        testid="old-line-technology"
-                      />
-                    )}
-                    {safeString(practice.oldLineData.oldPhoneNumber) && (
-                      <div>
-                        <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
-                        <span className="text-white font-medium">{safeString(practice.oldLineData.oldPhoneNumber)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.migrationCode) && (
-                      <div>
-                        <span className="text-slate-500 block text-xs mb-1">Codice Migrazione</span>
-                        <span className="text-white font-mono">{safeString(practice.oldLineData.migrationCode)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.gestore) && (
-                      <div>
-                        <span className="text-slate-500 block text-xs mb-1">Gestore</span>
-                        <span className="text-white font-medium">{safeString(practice.oldLineData.gestore)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.gestoreAltro) && (
-                      <div>
-                        <span className="text-slate-500 block text-xs mb-1">Altro Gestore</span>
-                        <span className="text-white font-medium">{safeString(practice.oldLineData.gestoreAltro)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.fiscalCodeOldLine) && (
-                      <div>
-                        <span className="text-slate-500 block text-xs mb-1">CF Vecchia Linea</span>
-                        <span className="text-white font-mono text-sm">{safeString(practice.oldLineData.fiscalCodeOldLine)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.prodottiRestituire) && (
-                      <div className="col-span-2">
-                        <span className="text-slate-500 block text-xs mb-1">Prodotti da Restituire</span>
-                        <span className="text-white">{safeString(practice.oldLineData.prodottiRestituire)}</span>
-                      </div>
-                    )}
-                    {safeString(practice.oldLineData.notes) && (
-                      <div className="col-span-2">
-                        <span className="text-slate-500 block text-xs mb-1">Note Vecchia Linea</span>
-                        <p className="text-slate-300 text-sm">{safeString(practice.oldLineData.notes)}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+              {/* ===== SPRINT — Dati Linea Precedente: una sola matita per il blocco intero.
+                  Click matita → tutti i campi diventano editabili → ✓ salva con UN solo PUT (stepKey 'line-old'). ===== */}
+              {practice.lineType === 'MIGRAZIONE' && (
+                <OldLineEditableBlock
+                  practice={practice}
+                  canEdit={canEditPractices}
+                  saveStepKey={saveStepKey}
+                />
               )}
             </motion.div>
           )}
           
-          {/* ===== SPRINT (point 10) — Card unificata: Indirizzo Installazione + Appuntamento =====
-              Sempre visibile se l'utente può editare; altrimenti solo se ha dati. ===== */}
+          {/* ===== SPRINT — Card unificata Indirizzo + Appuntamento: una sola matita.
+              Click matita → tutti i sub-campi (Via, Comune, Città, CAP, Data, Ora, Note)
+              diventano editabili → ✓ salva con DUE PUT (line-new + appointment). ===== */}
           {(canEditPractices || practice.appointmentData || hasAddressData) && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              data-testid="install-and-appointment-card"
-              className="bg-slate-900/80 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
+            <EditableCard
+              title="Indirizzo di Installazione e Appuntamento"
+              icon={<MapPin className="w-5 h-5" />}
+              iconBgClass="bg-indigo-600/20 text-indigo-400"
+              borderClass="border-indigo-500/30"
+              canEdit={canEditPractices}
+              testid="install-and-appointment-card"
+              initialDraft={{
+                street: practice.installationAddress?.street ?? '',
+                comune: practice.installationAddress?.comune ?? '',
+                citta: practice.installationAddress?.citta ?? '',
+                cap: practice.installationAddress?.cap ?? '',
+                data: practice.appointmentData?.data ?? '',
+                ora: practice.appointmentData?.ora ?? '',
+                oraFine: practice.appointmentData?.oraFine ?? '',
+                accordi: practice.appointmentData?.accordi ?? '',
+              }}
+              onSave={async (d) => {
+                // 1) Salvataggio indirizzo (stepKey 'line-new' allineato a new.tsx riga 883)
+                await saveStepKey('line-new', {
+                  lineType: practice.lineType ?? null,
+                  installationAddress: {
+                    street: d.street || null,
+                    comune: d.comune || null,
+                    citta: d.citta || null,
+                    cap: d.cap || null,
+                  },
+                  technology: practice.technology ?? null,
+                  notes: practice.newLineNotes ?? null,
+                  convergenza: practice.convergenza ?? null,
+                  lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? null,
+                });
+                // 2) Salvataggio appuntamento (stepKey 'appointment' allineato a new.tsx riga 906)
+                await saveStepKey('appointment', {
+                  data: d.data || null,
+                  ora: d.ora || null,
+                  oraFine: d.oraFine || null,
+                  accordi: d.accordi || null,
+                  lavorazioniPost: (practice.appointmentData as any)?.lavorazioniPost ?? null,
+                });
+              }}
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Indirizzo di Installazione e Appuntamento</h2>
-              </div>
-
-              {/* Blocco indirizzo — inline edit allineato a new.tsx case 'line-new' */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  Indirizzo Installazione
-                </h3>
-                <div className="space-y-3 text-sm bg-slate-950/40 p-4 rounded-xl border border-slate-800">
-                  <InlineTextField
-                    label="Indirizzo"
-                    value={safeString(practice.installationAddress?.street)}
-                    canEdit={canEditPractices}
-                    placeholder="Via Roma 123"
-                    onSave={async (v) => {
-                      await saveStepKey('line-new', {
-                        lineType: practice.lineType ?? null,
-                        installationAddress: { ...(practice.installationAddress || {}), street: v || null },
-                        technology: practice.technology ?? null,
-                        notes: practice.newLineNotes ?? null,
-                        convergenza: practice.convergenza ?? null,
-                        lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? null,
-                      });
-                    }}
-                    testid="install-street"
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <InlineTextField
-                      label="Comune"
-                      value={safeString(practice.installationAddress?.comune)}
-                      canEdit={canEditPractices}
-                      onSave={async (v) => {
-                        await saveStepKey('line-new', {
-                          lineType: practice.lineType ?? null,
-                          installationAddress: { ...(practice.installationAddress || {}), comune: v || null },
-                          technology: practice.technology ?? null,
-                          notes: practice.newLineNotes ?? null,
-                          convergenza: practice.convergenza ?? null,
-                          lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? null,
-                        });
-                      }}
-                      testid="install-comune"
-                    />
-                    <InlineTextField
-                      label="Città"
-                      value={safeString(practice.installationAddress?.citta)}
-                      canEdit={canEditPractices}
-                      onSave={async (v) => {
-                        await saveStepKey('line-new', {
-                          lineType: practice.lineType ?? null,
-                          installationAddress: { ...(practice.installationAddress || {}), citta: v || null },
-                          technology: practice.technology ?? null,
-                          notes: practice.newLineNotes ?? null,
-                          convergenza: practice.convergenza ?? null,
-                          lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? null,
-                        });
-                      }}
-                      testid="install-citta"
-                    />
-                    <InlineTextField
-                      label="CAP"
-                      value={safeString(practice.installationAddress?.cap)}
-                      canEdit={canEditPractices}
-                      mono
-                      onSave={async (v) => {
-                        await saveStepKey('line-new', {
-                          lineType: practice.lineType ?? null,
-                          installationAddress: { ...(practice.installationAddress || {}), cap: v || null },
-                          technology: practice.technology ?? null,
-                          notes: practice.newLineNotes ?? null,
-                          convergenza: practice.convergenza ?? null,
-                          lavorazioniPostAttivazione: practice.lavorazioniPostAttivazione ?? null,
-                        });
-                      }}
-                      testid="install-cap"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Blocco appuntamento — inline edit allineato a new.tsx case 'appointment' */}
-              <div>
-                <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Appuntamento Installazione
-                </h3>
-                <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <InlineTextField
-                      label="Data (YYYY-MM-DD)"
-                      value={safeString(practice.appointmentData?.data)}
-                      canEdit={canEditPractices}
-                      placeholder="2026-09-15"
-                      onSave={async (v) => {
-                        await saveStepKey('appointment', {
-                          data: v || null,
-                          ora: practice.appointmentData?.ora ?? null,
-                          oraFine: practice.appointmentData?.oraFine ?? null,
-                          accordi: practice.appointmentData?.accordi ?? null,
-                          lavorazioniPost: (practice.appointmentData as any)?.lavorazioniPost ?? null,
-                        });
-                      }}
-                      testid="appointment-data"
-                    />
-                    <div className="grid grid-cols-2 gap-2">
-                      <InlineTextField
-                        label="Ora Inizio"
-                        value={safeString(practice.appointmentData?.ora)}
-                        canEdit={canEditPractices}
-                        placeholder="08:00"
-                        onSave={async (v) => {
-                          await saveStepKey('appointment', {
-                            data: practice.appointmentData?.data ?? null,
-                            ora: v || null,
-                            oraFine: practice.appointmentData?.oraFine ?? null,
-                            accordi: practice.appointmentData?.accordi ?? null,
-                            lavorazioniPost: (practice.appointmentData as any)?.lavorazioniPost ?? null,
-                          });
-                        }}
-                        testid="appointment-ora"
-                      />
-                      <InlineTextField
-                        label="Ora Fine"
-                        value={safeString(practice.appointmentData?.oraFine)}
-                        canEdit={canEditPractices}
-                        placeholder="12:00"
-                        onSave={async (v) => {
-                          await saveStepKey('appointment', {
-                            data: practice.appointmentData?.data ?? null,
-                            ora: practice.appointmentData?.ora ?? null,
-                            oraFine: v || null,
-                            accordi: practice.appointmentData?.accordi ?? null,
-                            lavorazioniPost: (practice.appointmentData as any)?.lavorazioniPost ?? null,
-                          });
-                        }}
-                        testid="appointment-orafine"
-                      />
+              {({ editing, draft, setDraft }) => (
+                <>
+                  {/* Blocco indirizzo */}
+                  <div className="mb-6">
+                    <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" /> Indirizzo Installazione
+                    </h3>
+                    <div className="space-y-3 text-sm bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                      <FieldView label="Indirizzo">
+                        {editing ? (
+                          <input data-testid="install-street-input" type="text" value={draft.street} onChange={(e) => setDraft({ street: e.target.value })} placeholder="Via Roma 123" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                        ) : (
+                          <span>{safeString(practice.installationAddress?.street) || <span className="text-slate-500 italic">—</span>}</span>
+                        )}
+                      </FieldView>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FieldView label="Comune">
+                          {editing ? (
+                            <input data-testid="install-comune-input" type="text" value={draft.comune} onChange={(e) => setDraft({ comune: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span>{safeString(practice.installationAddress?.comune) || <span className="text-slate-500 italic">—</span>}</span>
+                          )}
+                        </FieldView>
+                        <FieldView label="Città">
+                          {editing ? (
+                            <input data-testid="install-citta-input" type="text" value={draft.citta} onChange={(e) => setDraft({ citta: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span>{safeString(practice.installationAddress?.citta) || <span className="text-slate-500 italic">—</span>}</span>
+                          )}
+                        </FieldView>
+                        <FieldView label="CAP">
+                          {editing ? (
+                            <input data-testid="install-cap-input" type="text" value={draft.cap} onChange={(e) => setDraft({ cap: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span className="font-mono text-sm">{safeString(practice.installationAddress?.cap) || <span className="text-slate-500 italic font-sans">—</span>}</span>
+                          )}
+                        </FieldView>
+                      </div>
                     </div>
                   </div>
-                  {practice.appointmentData?.data && (
-                    <p className="text-xs text-slate-400">
-                      Selezionato: <span className="text-indigo-300 font-medium">{new Date(practice.appointmentData.data).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                    </p>
-                  )}
-                  <InlineTextField
-                    label="Note / Accordi"
-                    value={safeString(practice.appointmentData?.accordi)}
-                    canEdit={canEditPractices}
-                    placeholder="Note per l'installazione..."
-                    onSave={async (v) => {
-                      await saveStepKey('appointment', {
-                        data: practice.appointmentData?.data ?? null,
-                        ora: practice.appointmentData?.ora ?? null,
-                        oraFine: practice.appointmentData?.oraFine ?? null,
-                        accordi: v || null,
-                        lavorazioniPost: (practice.appointmentData as any)?.lavorazioniPost ?? null,
-                      });
-                    }}
-                    testid="appointment-accordi"
-                  />
-                </div>
-              </div>
-            </motion.div>
+
+                  {/* Blocco appuntamento */}
+                  <div>
+                    <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                      <Calendar className="w-4 h-4" /> Appuntamento Installazione
+                    </h3>
+                    <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <FieldView label="Data">
+                          {editing ? (
+                            <input data-testid="appointment-data-input" type="date" value={draft.data} onChange={(e) => setDraft({ data: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span>{practice.appointmentData?.data ? new Date(practice.appointmentData.data).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : <span className="text-slate-500 italic">—</span>}</span>
+                          )}
+                        </FieldView>
+                        <FieldView label="Ora Inizio">
+                          {editing ? (
+                            <input data-testid="appointment-ora-input" type="time" value={draft.ora} onChange={(e) => setDraft({ ora: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span>{safeString(practice.appointmentData?.ora) || <span className="text-slate-500 italic">—</span>}</span>
+                          )}
+                        </FieldView>
+                        <FieldView label="Ora Fine">
+                          {editing ? (
+                            <input data-testid="appointment-orafine-input" type="time" value={draft.oraFine} onChange={(e) => setDraft({ oraFine: e.target.value })} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                          ) : (
+                            <span>{safeString(practice.appointmentData?.oraFine) || <span className="text-slate-500 italic">—</span>}</span>
+                          )}
+                        </FieldView>
+                      </div>
+                      <FieldView label="Note / Accordi">
+                        {editing ? (
+                          <textarea data-testid="appointment-accordi-input" value={draft.accordi} onChange={(e) => setDraft({ accordi: e.target.value })} placeholder="Note per l'installazione..." rows={3} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50" />
+                        ) : (
+                          <p className="text-slate-300 text-sm whitespace-pre-wrap">{safeString(practice.appointmentData?.accordi) || <span className="text-slate-500 italic">—</span>}</p>
+                        )}
+                      </FieldView>
+                    </div>
+                  </div>
+                </>
+              )}
+            </EditableCard>
           )}
 
-          {/* ===== SPRINT — Card Metodo di Pagamento allineata 1:1 a new.tsx case 'payment'.
-              Tre soli campi: IBAN (text), PostePay (text), Bollettino postale (checkbox).
-              Stesso payload { paymentMethod: { iban, postePay, bollettino } } usato in creazione. ===== */}
+          {/* ===== SPRINT — Card Metodo di Pagamento: una sola matita per la card.
+              Click matita → tutti i campi diventano editabili → ✓ salva tutto in un solo PUT. ===== */}
           {(canEditPractices || (practice.paymentMethod && Object.keys(practice.paymentMethod).length > 0)) && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl p-6"
+            <EditableCard
+              title="Metodo di Pagamento"
+              icon={<CreditCard className="w-5 h-5" />}
+              iconBgClass="bg-violet-600/20 text-violet-400"
+              canEdit={canEditPractices}
+              testid="payment-card"
+              initialDraft={{
+                iban: practice.paymentMethod?.iban ?? '',
+                postePay: practice.paymentMethod?.postePay ?? '',
+                bollettino: !!practice.paymentMethod?.bollettino,
+              }}
+              onSave={async (d) => {
+                await saveStepKey('payment', {
+                  paymentMethod: {
+                    iban: d.iban?.toUpperCase() || null,
+                    postePay: d.postePay || null,
+                    bollettino: !!d.bollettino,
+                  },
+                });
+              }}
             >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center">
-                  <CreditCard className="w-5 h-5" />
-                </div>
-                <h2 className="text-xl font-semibold text-white">Metodo di Pagamento</h2>
-              </div>
-
-              <div className="space-y-3">
-                {/* IBAN inline edit */}
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <InlineTextField
-                    label="IBAN"
-                    value={safeString(practice.paymentMethod?.iban)}
-                    canEdit={canEditPractices}
-                    placeholder="IT00 X000 0000 0000 0000 0000 000"
-                    uppercase
-                    mono
-                    onSave={async (v) => {
-                      await saveStepKey('payment', {
-                        paymentMethod: {
-                          iban: v || null,
-                          postePay: practice.paymentMethod?.postePay ?? null,
-                          bollettino: practice.paymentMethod?.bollettino ?? false,
-                        },
-                      });
-                    }}
-                    testid="payment-iban"
-                  />
-                </div>
-
-                {/* PostePay inline edit */}
-                <div className="p-3 bg-slate-800/50 rounded-xl">
-                  <InlineTextField
-                    label="PostePay"
-                    value={safeString(practice.paymentMethod?.postePay)}
-                    canEdit={canEditPractices}
-                    placeholder="Numero PostePay"
-                    onSave={async (v) => {
-                      await saveStepKey('payment', {
-                        paymentMethod: {
-                          iban: practice.paymentMethod?.iban ?? null,
-                          postePay: v || null,
-                          bollettino: practice.paymentMethod?.bollettino ?? false,
-                        },
-                      });
-                    }}
-                    testid="payment-postepay"
-                  />
-                </div>
-
-                {/* Bollettino postale toggle */}
-                <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
-                  <span className="text-slate-400 flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Bollettino Postale
-                  </span>
-                  {canEditPractices ? (
-                    <label className="inline-flex items-center cursor-pointer">
+              {({ editing, draft, setDraft }) => (
+                <div className="space-y-3">
+                  <div className="p-3 bg-slate-800/50 rounded-xl">
+                    <label className="text-xs text-slate-500 block mb-1">IBAN</label>
+                    {editing ? (
                       <input
-                        data-testid="payment-bollettino-toggle"
-                        type="checkbox"
-                        checked={!!practice.paymentMethod?.bollettino}
-                        onChange={async (e) => {
-                          await saveStepKey('payment', {
-                            paymentMethod: {
-                              iban: practice.paymentMethod?.iban ?? null,
-                              postePay: practice.paymentMethod?.postePay ?? null,
-                              bollettino: e.target.checked,
-                            },
-                          });
-                        }}
-                        className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600 cursor-pointer"
+                        data-testid="payment-iban-input"
+                        type="text"
+                        value={draft.iban}
+                        onChange={(e) => setDraft({ iban: e.target.value.toUpperCase() })}
+                        placeholder="IT00 X000 0000 0000 0000 0000 000"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm font-mono focus:outline-none focus:border-emerald-500/50"
                       />
-                    </label>
-                  ) : (
-                    <span className="text-white">{practice.paymentMethod?.bollettino ? 'Sì' : 'No'}</span>
-                  )}
+                    ) : (
+                      <p className="text-white font-mono text-sm">{safeString(practice.paymentMethod?.iban) || <span className="text-slate-500 italic font-sans">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div className="p-3 bg-slate-800/50 rounded-xl">
+                    <label className="text-xs text-slate-500 block mb-1">PostePay</label>
+                    {editing ? (
+                      <input
+                        data-testid="payment-postepay-input"
+                        type="text"
+                        value={draft.postePay}
+                        onChange={(e) => setDraft({ postePay: e.target.value })}
+                        placeholder="Numero PostePay"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-sm focus:outline-none focus:border-emerald-500/50"
+                      />
+                    ) : (
+                      <p className="text-white">{safeString(practice.paymentMethod?.postePay) || <span className="text-slate-500 italic">—</span>}</p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
+                    <span className="text-slate-400 flex items-center gap-2 text-sm">
+                      <FileText className="w-4 h-4" /> Bollettino Postale
+                    </span>
+                    {editing ? (
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          data-testid="payment-bollettino-input"
+                          type="checkbox"
+                          checked={!!draft.bollettino}
+                          onChange={(e) => setDraft({ bollettino: e.target.checked })}
+                          className="w-5 h-5 rounded border-slate-700 bg-slate-950 text-indigo-600 cursor-pointer"
+                        />
+                      </label>
+                    ) : (
+                      <span className="text-white text-sm">{practice.paymentMethod?.bollettino ? 'Sì' : 'No'}</span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              )}
+            </EditableCard>
           )}
 
           {practice.newLineNotes && (

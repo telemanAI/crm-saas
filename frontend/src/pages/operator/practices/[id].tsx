@@ -33,6 +33,7 @@ import api from '@/lib/axios';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import Link from 'next/link';
 import type { PracticeDetail as IPracticeDetail } from '@/types/practice';
+import QuickEditModal from '@/components/practices/QuickEditModal';
 
 // 🔥 HELPER: Converte valori potenzialmente oggetto/null in stringa sicura
 const safeString = (value: any): string => {
@@ -143,6 +144,62 @@ export default function PracticeDetail() {
   const [koReason, setKoReason] = useState('');
   const [pendingSkyTvStatus, setPendingSkyTvStatus] = useState<string | null>(null);
   const [skyTvKoReason, setSkyTvKoReason] = useState('');
+
+  // ===== SPRINT — Stato globale pratica (NON_COMPLETATA / COMPLETATA) =====
+  const [globalStatusLoading, setGlobalStatusLoading] = useState(false);
+  const [completionBlockers, setCompletionBlockers] = useState<string[]>([]);
+  const [showCompletionError, setShowCompletionError] = useState(false);
+
+  // ===== SPRINT — Quick Edit dal dettaglio pratica =====
+  const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+
+  useEffect(() => {
+    if (!canEditPractices) return;
+    (async () => {
+      try {
+        const res = await api.get('/users/team');
+        setTeamUsers(res.data || []);
+      } catch { /* ignore */ }
+    })();
+  }, [canEditPractices]);
+
+  const handleMarkCompleted = async () => {
+    if (!id) return;
+    setGlobalStatusLoading(true);
+    setShowCompletionError(false);
+    try {
+      await api.patch(`/practices/${id}/global-status`, { status: 'COMPLETATA' });
+      setCompletionBlockers([]);
+      fetchPractice();
+    } catch (err: any) {
+      const errs = err?.response?.data?.errors || err?.response?.data?.message?.errors;
+      if (Array.isArray(errs) && errs.length > 0) {
+        setCompletionBlockers(errs);
+        setShowCompletionError(true);
+      } else {
+        setCompletionBlockers(['Impossibile completare la pratica. Verifica i vincoli.']);
+        setShowCompletionError(true);
+      }
+    } finally {
+      setGlobalStatusLoading(false);
+    }
+  };
+
+  const handleMarkNotCompleted = async () => {
+    if (!id) return;
+    setGlobalStatusLoading(true);
+    try {
+      await api.patch(`/practices/${id}/global-status`, { status: 'NON_COMPLETATA' });
+      setShowCompletionError(false);
+      setCompletionBlockers([]);
+      fetchPractice();
+    } catch {
+      // ignore
+    } finally {
+      setGlobalStatusLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (id && token) fetchPractice();
@@ -452,10 +509,77 @@ export default function PracticeDetail() {
                   {practice.statoGlobale === 'completo' ? 'Completa' : 'Da Completare'}
                 </span>
               )}
-              
-              <span className="text-slate-500 text-[10px] md:text-sm">Step {practice.currentStep}/8</span>
+
+              {/* ===== SPRINT — Badge stato globale separato (NON_COMPLETATA/COMPLETATA) ===== */}
+              <span
+                data-testid="global-status-badge"
+                className={`px-2 md:px-3 py-0.5 md:py-1 rounded-full text-[10px] md:text-xs font-medium border ${
+                  practice.globalStatus === 'COMPLETATA'
+                    ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-slate-700/40 text-slate-300 border-slate-600/40'
+                }`}
+              >
+                {practice.globalStatus === 'COMPLETATA' ? '✓ Pratica completata' : 'Pratica non completata'}
+              </span>
+
+              <span className="text-slate-500 text-[10px] md:text-sm">Step {practice.currentStep}/9</span>
             </div>
             <h1 className="text-lg md:text-3xl font-bold text-white break-words">{practice.offerName}</h1>
+
+            {/* ===== SPRINT — Pulsanti gestione stato globale + banner vincoli ===== */}
+            {canEditPractices && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {practice.globalStatus !== 'COMPLETATA' ? (
+                  <button
+                    onClick={handleMarkCompleted}
+                    disabled={globalStatusLoading}
+                    data-testid="mark-completed-btn"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    {globalStatusLoading ? 'Verifica...' : 'Segna come completata'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleMarkNotCompleted}
+                    disabled={globalStatusLoading}
+                    data-testid="mark-not-completed-btn"
+                    className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-slate-200 text-xs md:text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    Riapri come non completata
+                  </button>
+                )}
+              </div>
+            )}
+
+            {showCompletionError && completionBlockers.length > 0 && (
+              <div
+                data-testid="completion-blockers-banner"
+                className="mt-3 p-3 md:p-4 bg-amber-950/30 border border-amber-500/40 rounded-xl"
+              >
+                <div className="flex items-start gap-2.5">
+                  <Warning className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" weight="duotone" />
+                  <div className="flex-1">
+                    <p className="text-amber-300 text-sm font-medium mb-2">Impossibile completare la pratica</p>
+                    <ul className="space-y-1">
+                      {completionBlockers.map((b, i) => (
+                        <li key={i} className="text-amber-200/90 text-xs md:text-sm flex items-start gap-2">
+                          <span className="text-amber-400">•</span>
+                          <span>{b}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => setShowCompletionError(false)}
+                    className="text-amber-400 hover:text-amber-300 p-1"
+                    aria-label="Chiudi"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
             
             <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap">
               <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Stato nuova linea:</span>
@@ -592,6 +716,18 @@ export default function PracticeDetail() {
             </button>
           )}
           
+          {canEditPractices && (
+            <button
+              data-testid="practice-quick-edit-btn"
+              onClick={() => setQuickEditOpen(true)}
+              className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/30 rounded-xl transition-all text-xs md:text-sm"
+            >
+              <Pencil className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Modifica veloce</span>
+              <span className="sm:hidden">Veloce</span>
+            </button>
+          )}
+
           {canEditPractices && (
             <Link href={`/operator/practices/new?edit=${id}`}>
               <button data-testid="practice-edit-btn" className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all text-xs md:text-sm">
@@ -987,6 +1123,29 @@ export default function PracticeDetail() {
                     Dati Linea Precedente (Migrazione)
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-amber-900/10 p-4 rounded-xl border border-amber-600/20">
+                    {/* ===== SPRINT — Stato vecchia linea (solo Migrazione) ===== */}
+                    {practice.lineType === 'MIGRAZIONE' && (
+                      <div data-testid="old-line-status-detail">
+                        <span className="text-slate-500 block text-xs mb-1">Stato Vecchia Linea</span>
+                        <span className={`inline-flex px-2 py-1 rounded-md text-xs font-medium ${
+                          practice.oldLineStatus === 'DISATTIVATA' ? 'bg-emerald-600/20 text-emerald-300' :
+                          practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'bg-amber-600/20 text-amber-300' :
+                          practice.oldLineStatus === 'DA_DISATTIVARE' ? 'bg-rose-600/20 text-rose-300' :
+                          'bg-slate-700/40 text-slate-400'
+                        }`}>
+                          {practice.oldLineStatus === 'DA_DISATTIVARE' ? 'Da Disattivare' :
+                           practice.oldLineStatus === 'IN_DISATTIVAZIONE' ? 'In Disattivazione' :
+                           practice.oldLineStatus === 'DISATTIVATA' ? 'Disattivata' : 'Non impostato'}
+                        </span>
+                      </div>
+                    )}
+                    {/* ===== SPRINT — Tecnologia provenienza ===== */}
+                    {practice.lineType === 'MIGRAZIONE' && (
+                      <div data-testid="old-line-technology-detail">
+                        <span className="text-slate-500 block text-xs mb-1">Tecnologia Provenienza</span>
+                        <span className="text-white font-medium">{practice.oldLineTechnology || '—'}</span>
+                      </div>
+                    )}
                     {safeString(practice.oldLineData.oldPhoneNumber) && (
                       <div>
                         <span className="text-slate-500 block text-xs mb-1">Numero Attuale</span>
@@ -1035,62 +1194,112 @@ export default function PracticeDetail() {
             </motion.div>
           )}
           
-          {practice.appointmentData && (
+          {/* ===== SPRINT (point 10) — Card unificata: Indirizzo Installazione + Appuntamento =====
+              Sostituisce la card "Appuntamento Installazione" separata che era
+              presente nella colonna destra. Ora indirizzo e appuntamento sono
+              raggruppati in un unico blocco centrale per coerenza visiva
+              con il gruppo "Informazioni indirizzo di installazione e appuntamento"
+              della Quick Edit. */}
+          {(practice.appointmentData || hasAddressData) && (
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
+              data-testid="install-and-appointment-card"
               className="bg-slate-900/80 backdrop-blur-xl border border-indigo-500/30 rounded-2xl p-6"
             >
               <div className="flex items-center gap-3 mb-6">
                 <div className="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center">
-                  <Calendar className="w-5 h-5" />
+                  <MapPin className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">Appuntamento Installazione</h2>
+                <h2 className="text-xl font-semibold text-white">Indirizzo di Installazione e Appuntamento</h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {practice.appointmentData.data && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Data</label>
-                    <p className="text-white font-medium text-lg">
-                      {new Date(practice.appointmentData.data).toLocaleDateString('it-IT', {
-                        weekday: 'long',
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                )}
-                {(practice.appointmentData.ora || practice.appointmentData.oraFine) && (
-                  <div>
-                    <label className="text-sm text-slate-500 block mb-1">Orario</label>
-                    <p className="text-white font-medium text-lg">
-                      {safeString(practice.appointmentData.ora) || '--:--'} - {safeString(practice.appointmentData.oraFine) || '--:--'}
-                    </p>
-                  </div>
-                )}
-              </div>
-              
-              {safeString(practice.appointmentData.accordi) && (
-                <div className="mt-4 pt-4 border-t border-slate-800">
-                  <label className="text-sm text-slate-500 block mb-2">Accordi con il Cliente</label>
-                  <div className="bg-indigo-900/10 border border-indigo-500/20 rounded-xl p-4">
-                    <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                      {safeString(practice.appointmentData.accordi)}
-                    </p>
+              {/* Blocco indirizzo */}
+              {hasAddressData && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Indirizzo Installazione
+                  </h3>
+                  <div className="space-y-3 text-sm bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                    {safeString(practice.installationAddress?.street) && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-slate-400 w-20 flex-shrink-0">Indirizzo:</span>
+                        <span className="text-white font-medium">{safeString(practice.installationAddress?.street)}</span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-3 gap-2">
+                      {safeString(practice.installationAddress?.comune) && (
+                        <div>
+                          <span className="text-slate-500 text-xs block mb-1">Comune</span>
+                          <span className="text-white font-medium">{safeString(practice.installationAddress?.comune)}</span>
+                        </div>
+                      )}
+                      {safeString(practice.installationAddress?.citta) && (
+                        <div>
+                          <span className="text-slate-500 text-xs block mb-1">Città</span>
+                          <span className="text-white font-medium">{safeString(practice.installationAddress?.citta)}</span>
+                        </div>
+                      )}
+                      {safeString(practice.installationAddress?.cap) && (
+                        <div>
+                          <span className="text-slate-500 text-xs block mb-1">CAP</span>
+                          <span className="text-white font-mono bg-slate-800/50 px-2 py-0.5 rounded">{safeString(practice.installationAddress?.cap)}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
-              
-              {safeString(practice.appointmentData.lavorazioniPost) && (
-                <div className="mt-4">
-                  <label className="text-sm text-slate-500 block mb-2">Lavorazioni Post Attivazione</label>
-                  <div className="bg-slate-950/50 border border-slate-700 rounded-xl p-4">
-                    <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                      {safeString(practice.appointmentData.lavorazioniPost)}
-                    </p>
+
+              {/* Blocco appuntamento */}
+              {practice.appointmentData && (
+                <div>
+                  <h3 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    Appuntamento Installazione
+                  </h3>
+                  <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {practice.appointmentData.data && (
+                        <div>
+                          <label className="text-sm text-slate-500 block mb-1">Data</label>
+                          <p className="text-white font-medium">
+                            {new Date(practice.appointmentData.data).toLocaleDateString('it-IT', {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                      {(practice.appointmentData.ora || practice.appointmentData.oraFine) && (
+                        <div>
+                          <label className="text-sm text-slate-500 block mb-1">Fascia oraria</label>
+                          <p className="text-white font-medium">
+                            {safeString(practice.appointmentData.ora) || '--:--'} — {safeString(practice.appointmentData.oraFine) || '--:--'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                    {safeString(practice.appointmentData.accordi) && (
+                      <div className="pt-3 border-t border-slate-800">
+                        <label className="text-sm text-slate-500 block mb-2">Note / Accordi</label>
+                        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                          {safeString(practice.appointmentData.accordi)}
+                        </p>
+                      </div>
+                    )}
+                    {safeString(practice.appointmentData.lavorazioniPost) && (
+                      <div className="pt-3 border-t border-slate-800">
+                        <label className="text-sm text-slate-500 block mb-2">Lavorazioni Post Attivazione</label>
+                        <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                          {safeString(practice.appointmentData.lavorazioniPost)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -1108,7 +1317,7 @@ export default function PracticeDetail() {
                 <div className="w-10 h-10 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center">
                   <CreditCard className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-semibold text-white">Pagamento</h2>
+                <h2 className="text-xl font-semibold text-white">Metodo di Pagamento</h2>
               </div>
 
               <div className="space-y-3">
@@ -1300,51 +1509,31 @@ export default function PracticeDetail() {
             </div>
           </motion.div>
 
-          {hasAddressData && (
-            <motion.div 
+          {/* SPRINT (point 10) — Card "Indirizzo Installazione" rimossa da qui
+              perché unificata nella card centrale "Indirizzo di Installazione
+              e Appuntamento" (vedi colonna sinistra). */}
+
+          {/* SPRINT (point 9) — Se la pratica è globalmente COMPLETATA,
+              nascondo lo stepper di Progresso e mostro un badge verde dedicato. */}
+          {practice.globalStatus === 'COMPLETATA' ? (
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-900/80 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-6"
+              transition={{ delay: 0.1 }}
+              data-testid="practice-completed-badge"
+              className="bg-emerald-950/40 backdrop-blur-xl border border-emerald-500/40 rounded-2xl p-6"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 flex items-center justify-center">
-                  <MapPin className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-600/30 text-emerald-300 flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6" weight="fill" />
                 </div>
-                <h2 className="text-lg font-semibold text-white">Indirizzo Installazione</h2>
-              </div>
-
-              <div className="space-y-3 text-sm">
-                {safeString(practice.installationAddress?.street) && (
-                  <div className="flex items-start gap-2">
-                    <span className="text-slate-400 w-20 flex-shrink-0">Indirizzo:</span>
-                    <span className="text-white font-medium">{safeString(practice.installationAddress?.street)}</span>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-3 gap-2">
-                  {safeString(practice.installationAddress?.comune) && (
-                    <div>
-                      <span className="text-slate-500 text-xs block mb-1">Comune</span>
-                      <span className="text-white font-medium">{safeString(practice.installationAddress?.comune)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.installationAddress?.citta) && (
-                    <div>
-                      <span className="text-slate-500 text-xs block mb-1">Città</span>
-                      <span className="text-white font-medium">{safeString(practice.installationAddress?.citta)}</span>
-                    </div>
-                  )}
-                  {safeString(practice.installationAddress?.cap) && (
-                    <div>
-                      <span className="text-slate-500 text-xs block mb-1">CAP</span>
-                      <span className="text-white font-mono bg-slate-800/50 px-2 py-0.5 rounded">{safeString(practice.installationAddress?.cap)}</span>
-                    </div>
-                  )}
+                <div>
+                  <h3 className="text-emerald-200 font-semibold">Pratica completata</h3>
+                  <p className="text-emerald-300/70 text-xs mt-0.5">Tutti i vincoli sono soddisfatti.</p>
                 </div>
               </div>
             </motion.div>
-          )}
-
+          ) : (
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1398,8 +1587,19 @@ export default function PracticeDetail() {
               </div>
             )}
           </motion.div>
+          )}
         </div>{/* /lg:col-span-1 */}
       </div>{/* /lg:grid-cols-3 */}
+
+      {/* ===== SPRINT — Quick Edit Modal ===== */}
+      <QuickEditModal
+        isOpen={quickEditOpen}
+        onClose={() => setQuickEditOpen(false)}
+        practice={practice}
+        teamUsers={teamUsers}
+        canEdit={canEditPractices}
+        onSaved={() => { setQuickEditOpen(false); fetchPractice(); }}
+      />
     </OperatorLayout>
   );
 }

@@ -389,6 +389,17 @@ export default function PracticesList() {
                           {practice.statoGlobale === 'completo' ? 'Convergenza OK' : 'Conv. da Chiudere'}
                         </span>
                       )}
+                      {/* ===== SPRINT — Badge stato globale (NON_COMPLETATA/COMPLETATA) ===== */}
+                      <span
+                        data-testid={`global-status-badge-${practice.id}`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] md:text-xs font-medium border ${
+                          (practice as any).globalStatus === 'COMPLETATA'
+                            ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/40'
+                            : 'bg-slate-700/30 text-slate-300 border-slate-600/40'
+                        }`}
+                      >
+                        {(practice as any).globalStatus === 'COMPLETATA' ? '✓ Completata' : 'Non completata'}
+                      </span>
                     </div>
                   </div>
                   </div>
@@ -428,7 +439,7 @@ export default function PracticesList() {
                         <span>{getStatusLabel(practice.status)}</span>
                       </div>
                       <div className="text-[10px] md:text-xs text-slate-500">
-                        Step {practice.currentStep}/8
+                        Step {practice.currentStep}/9
                       </div>
                     </div>
                     <div className="text-right text-[10px] md:text-sm text-slate-500 whitespace-nowrap shrink-0">

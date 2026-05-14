@@ -479,6 +479,9 @@ function NewPracticeDesktop() {
         technology: practice.technology,
         oldPhoneNumber: practice.oldLineData?.oldPhoneNumber,
         migrationCode: practice.oldLineData?.migrationCode,
+        // ===== SPRINT: precarica nuovi campi vecchia linea =====
+        oldLineStatus: practice.oldLineStatus ?? null,
+        oldLineTechnology: practice.oldLineTechnology ?? null,
         iban: practice.paymentMethod?.iban,
         postePay: practice.paymentMethod?.postePay,
         bollettino: practice.paymentMethod?.bollettino,
@@ -1849,10 +1852,31 @@ function NewPracticeDesktop() {
                             <div>
                               <label className="block text-sm font-medium text-slate-300 mb-2">Tipo Linea</label>
                               <div className="flex gap-4">
-                                <button onClick={() => setData({ lineType: 'NUOVA' })} className={`flex-1 p-4 rounded-xl border-2 transition-all ${data.lineType === 'NUOVA' ? 'border-emerald-500 bg-emerald-600/10 text-emerald-400' : 'border-slate-700 text-slate-400'}`}>
+                                <button
+                                  onClick={() => setData({ lineType: 'NUOVA' })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${data.lineType === 'NUOVA' ? 'border-emerald-500 bg-emerald-600/10 text-emerald-400' : 'border-slate-700 text-slate-400'}`}
+                                >
                                   <div className="font-bold">Nuova Attivazione</div>
                                 </button>
-                                <button onClick={() => setData({ lineType: 'MIGRAZIONE' })} className={`flex-1 p-4 rounded-xl border-2 transition-all ${data.lineType === 'MIGRAZIONE' ? 'border-amber-500 bg-amber-600/10 text-amber-400' : 'border-slate-700 text-slate-400'}`}>
+                                <button
+                                  onClick={() => setData({
+                                    lineType: 'MIGRAZIONE',
+                                    // ===== SPRINT (point 7) — Inizializzazione difensiva quando si passa
+                                    // da Nuova a Migrazione in modifica pratica: garantiamo che i campi
+                                    // dello step "Dati vecchia linea" siano inizializzati a valori safe,
+                                    // evitando crash su undefined al rendering successivo.
+                                    oldPhoneNumber: data.oldPhoneNumber ?? '',
+                                    migrationCode: data.migrationCode ?? '',
+                                    gestore: data.gestore ?? '',
+                                    gestoreAltro: data.gestoreAltro ?? '',
+                                    fiscalCodeOldLine: data.fiscalCodeOldLine ?? '',
+                                    prodottiRestituire: data.prodottiRestituire ?? '',
+                                    oldLineNotes: data.oldLineNotes ?? '',
+                                    oldLineStatus: data.oldLineStatus ?? null,
+                                    oldLineTechnology: data.oldLineTechnology ?? null,
+                                  })}
+                                  className={`flex-1 p-4 rounded-xl border-2 transition-all ${data.lineType === 'MIGRAZIONE' ? 'border-amber-500 bg-amber-600/10 text-amber-400' : 'border-slate-700 text-slate-400'}`}
+                                >
                                   <div className="font-bold">Migrazione</div>
                                 </button>
                               </div>
@@ -2316,8 +2340,50 @@ function NewPracticeDesktop() {
                                 onChange={(e) => setData({ appointmentData: e.target.value })}
                                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
                               />
+                              <p className="text-xs text-slate-500 mt-1">Apri il calendario per scegliere la data</p>
                             </div>
-                            
+
+                            {/* ===== SPRINT (point 12) — Fasce orarie predefinite =====
+                                Mantiene retrocompatibilità con appointmentOra/appointmentOraFine (string).
+                                Selezionare una fascia popola automaticamente i due campi orario.
+                                "Personalizzata" mostra i picker orario manuali. */}
+                            {(() => {
+                              const fasce = [
+                                { id: '08-12', label: '08:00 — 12:00', start: '08:00', end: '12:00' },
+                                { id: '09-13', label: '09:00 — 13:00', start: '09:00', end: '13:00' },
+                                { id: '14-18', label: '14:00 — 18:00', start: '14:00', end: '18:00' },
+                                { id: '15-19', label: '15:00 — 19:00', start: '15:00', end: '19:00' },
+                                { id: 'all-day', label: 'Giornata intera', start: '08:00', end: '18:00' },
+                              ];
+                              const currentFascia = fasce.find(f => f.start === data.appointmentOra && f.end === data.appointmentOraFine);
+                              const selectedId = currentFascia?.id || (data.appointmentOra || data.appointmentOraFine ? 'custom' : '');
+                              return (
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Fascia oraria</label>
+                                  <select
+                                    value={selectedId}
+                                    onChange={(e) => {
+                                      const id = e.target.value;
+                                      if (id === '' || id === 'custom') {
+                                        if (id === '') setData({ appointmentOra: '', appointmentOraFine: '' });
+                                        // 'custom' lascia i valori attuali per editing manuale
+                                        return;
+                                      }
+                                      const f = fasce.find(x => x.id === id);
+                                      if (f) setData({ appointmentOra: f.start, appointmentOraFine: f.end });
+                                    }}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                  >
+                                    <option value="">-- Seleziona fascia --</option>
+                                    {fasce.map(f => (
+                                      <option key={f.id} value={f.id}>{f.label}</option>
+                                    ))}
+                                    <option value="custom">Personalizzata...</option>
+                                  </select>
+                                </div>
+                              );
+                            })()}
+
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Dalle</label>

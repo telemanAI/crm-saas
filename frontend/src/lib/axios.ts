@@ -102,17 +102,52 @@ api.interceptors.request.use((config) => {
 });
 
 // Interceptor risposta: gestisce 401 con refresh token automatico
+// + SPRINT: Logout forzato operatore revocato: se anche dopo il refresh
+//   (o senza refresh disponibile) la risposta è 401/403, puliamo lo stato
+//   di autenticazione e redirigiamo a /login.
+function forceLogout() {
+  if (typeof window === 'undefined') return;
+  try {
+    setRefreshToken(null);
+    window.localStorage.removeItem('authRememberMe');
+    window.localStorage.removeItem('auth-storage-master');
+    window.localStorage.removeItem('auth-storage');
+    window.sessionStorage.removeItem('auth-storage');
+    const tabId = window.sessionStorage.getItem('tabId');
+    if (tabId) window.sessionStorage.removeItem(`auth-storage-${tabId}`);
+  } catch { /* ignore */ }
+  if (!window.location.pathname.startsWith('/login')) {
+    window.location.href = '/login';
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
     if (!originalRequest) return Promise.reject(error);
 
+    const status = error.response?.status;
+    const url: string = originalRequest.url || '';
+    // Non auto-redirect su endpoint pubblici di auth
+    const isAuthEndpoint = /\/auth\/(login|refresh|otp|verify|register|google|facebook)/i.test(url);
+
+    // Se 403 con messaggio di revoca esplicita → logout immediato
+    if (status === 403 && !isAuthEndpoint) {
+      const msg: string = error.response?.data?.message || '';
+      if (/revocat|membership/i.test(msg)) {
+        forceLogout();
+        return Promise.reject(error);
+      }
+    }
+
     // Se la risposta è 401 e non abbiamo già provato a fare refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = getRefreshToken();
       if (!refreshToken) {
-        // Nessun refresh token disponibile → logout
+        // Nessun refresh token disponibile → logout forzato (operatore revocato
+        // o sessione scaduta senza remember-me).
+        forceLogout();
         return Promise.reject(error);
       }
 
@@ -148,11 +183,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         // Refresh fallito → pulisci token e redirect al login
-        setRefreshToken(null);
-        if (typeof window !== 'undefined') {
-          window.localStorage.removeItem('authRememberMe');
-          window.location.href = '/login';
-        }
+        forceLogout();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -161,6 +161,11 @@ export default function QuickEditModal({ isOpen, onClose, practice, teamUsers, c
   if (!isOpen || !practice) return null;
 
   const isMigrazione = practice.lineType === 'MIGRAZIONE';
+  // ===== SPRINT — Category-aware: mostra/nasconde i campi rilevanti per
+  // FIXED_LINE / MOBILE / ENERGY. Per Mobile/Energy non esiste vecchia linea
+  // né indirizzo di installazione, quindi nascondiamo i blocchi non pertinenti. =====
+  const category: 'FIXED_LINE' | 'MOBILE' | 'ENERGY' = practice.category || 'FIXED_LINE';
+  const showFixedLineFields = category === 'FIXED_LINE';
 
   return (
     <AnimatePresence>
@@ -212,17 +217,19 @@ export default function QuickEditModal({ isOpen, onClose, practice, teamUsers, c
               onChange={(val: string) => handleSave('operationalStatus', val)}
             />
 
-            {/* Stato Nuova Linea */}
-            <SelectField
-              label="Stato Nuova Linea"
-              value={form.lineStatus}
-              options={lineStatuses}
-              field="lineStatus"
-              onChange={(val: string) => handleSave('lineStatus', val)}
-            />
+            {/* Stato Nuova Linea — solo Fixed Line */}
+            {showFixedLineFields && (
+              <SelectField
+                label="Stato Nuova Linea"
+                value={form.lineStatus}
+                options={lineStatuses}
+                field="lineStatus"
+                onChange={(val: string) => handleSave('lineStatus', val)}
+              />
+            )}
 
-            {/* Stato Vecchia Linea — solo Migrazione */}
-            {isMigrazione && (
+            {/* Stato Vecchia Linea — solo Migrazione (Fixed Line) */}
+            {showFixedLineFields && isMigrazione && (
               <SelectField
                 label="Stato Vecchia Linea"
                 value={form.oldLineStatus}
@@ -232,8 +239,8 @@ export default function QuickEditModal({ isOpen, onClose, practice, teamUsers, c
               />
             )}
 
-            {/* Tecnologia Provenienza — solo Migrazione */}
-            {isMigrazione && (
+            {/* Tecnologia Provenienza — solo Migrazione (Fixed Line) */}
+            {showFixedLineFields && isMigrazione && (
               <SelectField
                 label="Tecnologia Provenienza"
                 value={form.oldLineTechnology}
@@ -270,7 +277,9 @@ export default function QuickEditModal({ isOpen, onClose, practice, teamUsers, c
               />
             </div>
 
-            {/* Indirizzo Installazione */}
+            {/* Indirizzo Installazione + Appuntamento — solo Fixed Line */}
+            {showFixedLineFields && (
+              <>
             <div className="border border-slate-800 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm text-slate-300 mb-2">
                 <MapPin className="w-4 h-4 text-blue-400" />
@@ -322,6 +331,8 @@ export default function QuickEditModal({ isOpen, onClose, practice, teamUsers, c
                 Salva Appuntamento
               </button>
             </div>
+              </>
+            )}
           </div>
 
           {/* Footer */}

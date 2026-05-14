@@ -281,6 +281,9 @@ export class PracticesService {
       practice.status = 'in_progress';
     }
 
+    // ===== SPRINT — Ricalcolo automatico stato globale dopo step =====
+    this.recomputeGlobalStatus(practice);
+
     await this.practiceRepo.save(practice);
 
     // Notifica real-time: pratica completata dall'operatore
@@ -316,6 +319,18 @@ export class PracticesService {
     userId: string,
   ): Promise<void> {
     const d = dto.data || {};
+
+    // ===== SPRINT — Supporto Quick Edit per Mobile =====
+    // I campi sono solo quelli rilevanti per Mobile (no oldLine*, no installationAddress).
+    if (dto.stepKey === 'quick-edit') {
+      if (d.operationalStatus !== undefined) practice.operationalStatus = d.operationalStatus;
+      if (d.soldById !== undefined) practice.soldById = d.soldById;
+      if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+      if (d.paymentMethod !== undefined) {
+        practice.paymentMethod = { ...(practice.paymentMethod || {}), ...d.paymentMethod };
+      }
+      return;
+    }
 
     if (dto.stepNumber === 1) {
       if (d.type !== undefined) practice.type = d.type;
@@ -386,6 +401,17 @@ export class PracticesService {
     userId: string,
   ): Promise<void> {
     const d = dto.data || {};
+
+    // ===== SPRINT — Supporto Quick Edit per Energy =====
+    if (dto.stepKey === 'quick-edit') {
+      if (d.operationalStatus !== undefined) practice.operationalStatus = d.operationalStatus;
+      if (d.soldById !== undefined) practice.soldById = d.soldById;
+      if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+      if (d.paymentMethod !== undefined) {
+        practice.paymentMethod = { ...(practice.paymentMethod || {}), ...d.paymentMethod };
+      }
+      return;
+    }
 
     if (dto.stepNumber === 1) {
       if (d.type !== undefined) practice.type = d.type;
@@ -634,29 +660,47 @@ export class PracticesService {
 
   /**
    * Valida i vincoli per impostare globalStatus = COMPLETATA.
+   * La regola si adatta alla categoria della pratica:
+   *  - FIXED_LINE: 9 step + linea attivata (+ vecchia linea disattivata se Migrazione)
+   *  - MOBILE / ENERGY: 6 step + linea attivata (no concetto di vecchia linea fisica)
+   *  - Pratiche FIXED_LINE senza migrazione: stessa logica ma nessun controllo oldLineStatus
    * Ritorna array di messaggi di errore (vuoto = OK).
    */
   private validateGlobalStatusCompletion(practice: Practice): string[] {
     const errors: string[] = [];
 
-    // 1) Tutti gli step completati (wizard rete fissa = 9 step)
-    const totalSteps = 9;
+    const category: PracticeCategory = (practice.category as PracticeCategory) || 'FIXED_LINE';
+    const totalSteps = category === 'FIXED_LINE' ? 9 : 6;
     const completedCount = practice.completedSteps?.length || 0;
     if (completedCount < totalSteps) {
       errors.push(`Impossibile completare: ${totalSteps - completedCount} step non compilati`);
     }
 
-    // 2) La nuova linea deve essere ATTIVA
+    // La nuova linea / attivazione deve essere ATTIVATA
     if (practice.operationalStatus !== 'ACTIVATED') {
       errors.push('Impossibile completare: la nuova linea non risulta attiva');
     }
 
-    // 3) Se Migrazione → vecchia linea deve essere DISATTIVATA
-    if (practice.lineType === 'MIGRAZIONE' && practice.oldLineStatus !== 'DISATTIVATA') {
+    // Vecchia linea: vincolo SOLO per FIXED_LINE con lineType === 'MIGRAZIONE'.
+    // Per pratiche senza migrazione (NUOVA / Mobile / Energy) il check viene
+    // saltato: niente vecchia linea = vincolo automaticamente soddisfatto.
+    if (category === 'FIXED_LINE' && practice.lineType === 'MIGRAZIONE' && practice.oldLineStatus !== 'DISATTIVATA') {
       errors.push('Impossibile completare: la vecchia linea non risulta disattivata');
     }
 
     return errors;
+  }
+
+  /**
+   * Helper interno: ricalcola e applica globalStatus quando lo stato operativo
+   * cambia. Se tutti i vincoli sono soddisfatti la pratica diventa COMPLETATA
+   * automaticamente. Se invece torna a non-attivata (KO, rejected, ecc.)
+   * la pratica viene riportata a NON_COMPLETATA.
+   * Non solleva eccezioni — è "silent" e va chiamato a fine save.
+   */
+  private recomputeGlobalStatus(practice: Practice): void {
+    const errors = this.validateGlobalStatusCompletion(practice);
+    practice.globalStatus = errors.length === 0 ? 'COMPLETATA' : 'NON_COMPLETATA';
   }
 
   /**
@@ -885,6 +929,12 @@ export class PracticesService {
     if (status === 'ACTIVATED' || isKo) {
       practice.status = 'completed';
     }
+
+    // ===== SPRINT — Ricalcolo automatico stato globale =====
+    // Quando l'operatore cambia lo stato operativo, ricalcoliamo se la
+    // pratica deve essere marcata COMPLETATA (linea attiva + step ok +
+    // vecchia linea disattivata se Migrazione) o tornare NON_COMPLETATA.
+    this.recomputeGlobalStatus(practice);
 
     await this.practiceRepo.save(practice);
     await this.competitionEntries.syncPracticeEntries(practiceId).catch((err) => {

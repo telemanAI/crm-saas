@@ -22,6 +22,8 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import OperatorLayout from '@/components/layout/OperatorLayout';
 import api from '@/lib/axios';
+import QuickEditModal from '@/components/practices/QuickEditModal';
+import { usePermission } from '@/hooks/usePermission';
 
 function formatDate(date: string | undefined) {
   if (!date) return '—';
@@ -66,6 +68,21 @@ export default function MobilePracticeDetail() {
   const [savingNote, setSavingNote] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [koReason, setKoReason] = useState('');
+
+  // ===== SPRINT — Quick Edit dal dettaglio Mobile =====
+  const canEditPractices = usePermission('canEditPractices');
+  const [quickEditOpen, setQuickEditOpen] = useState(false);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
+
+  useEffect(() => {
+    if (!canEditPractices) return;
+    (async () => {
+      try {
+        const res = await api.get('/users/team');
+        setTeamUsers(res.data || []);
+      } catch { /* ignore */ }
+    })();
+  }, [canEditPractices]);
 
   useEffect(() => {
     if (!id || typeof id !== 'string' || !token) return;
@@ -310,6 +327,17 @@ export default function MobilePracticeDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap lg:flex-nowrap">
+          {canEditPractices && (
+            <button
+              data-testid="mobile-practice-quick-edit-btn"
+              onClick={() => setQuickEditOpen(true)}
+              className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-600/30 rounded-xl transition-all text-xs md:text-sm"
+            >
+              <PencilSimple className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden sm:inline">Modifica veloce</span>
+              <span className="sm:hidden">Veloce</span>
+            </button>
+          )}
           <Link href={`/operator/practices/mobile/new?edit=${practice.id}`}>
             <button className="flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 border border-indigo-600/30 rounded-xl transition-all text-xs md:text-sm">
               <PencilSimple className="w-3.5 h-3.5 md:w-4 md:h-4" /> Modifica
@@ -556,6 +584,16 @@ export default function MobilePracticeDetail() {
           )}
         </div>
       </div>
+
+      {/* ===== SPRINT — Quick Edit Modal ===== */}
+      <QuickEditModal
+        isOpen={quickEditOpen}
+        onClose={() => setQuickEditOpen(false)}
+        practice={practice}
+        teamUsers={teamUsers}
+        canEdit={canEditPractices}
+        onSaved={() => { setQuickEditOpen(false); fetchPractice(); }}
+      />
     </OperatorLayout>
   );
 }

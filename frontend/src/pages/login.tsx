@@ -24,6 +24,8 @@ interface FieldInputProps {
   required?: boolean;
   trailing?: React.ReactNode;
   testid?: string;
+  name?: string;
+  autoComplete?: string;
 }
 
 function FieldInput({
@@ -36,6 +38,8 @@ function FieldInput({
   required,
   trailing,
   testid,
+  name,
+  autoComplete,
 }: FieldInputProps) {
   return (
     <div className="space-y-1.5">
@@ -47,6 +51,8 @@ function FieldInput({
         <input
           data-testid={testid}
           type={type}
+          name={name}
+          autoComplete={autoComplete}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
@@ -128,17 +134,28 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
 
-  // Precompila email dall'ultimo login riuscito
+  // Precompila email dall'ultimo login riuscito.
+  // SPRINT — "Resta connesso": se il flag è attivo, la password viene
+  // pre-compilata dal password manager del browser grazie agli attributi
+  // autoComplete="current-password" e name="password" sull'input. Lo
+  // useEffect carica l'email dal localStorage; la password resta in mano
+  // al browser per ragioni di sicurezza (no chiaro nello storage).
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const lastEmail = window.localStorage.getItem('lastLoginEmail');
+      const stayLogged = window.localStorage.getItem('authRememberMe') === 'true';
       if (lastEmail) setEmail(lastEmail);
+      // Allinea l'UI col flag effettivo persistente
+      if (stayLogged) setRememberMe(true);
     }
   }, []);
 
   const applyRememberMe = (value: boolean) => {
     if (typeof window !== 'undefined') {
       window.localStorage.setItem('authRememberMe', value ? 'true' : 'false');
+      if (value && email) {
+        window.localStorage.setItem('lastLoginEmail', email);
+      }
     }
   };
 
@@ -289,7 +306,7 @@ export default function Login() {
             </div>
 
             {mode === 'password' ? (
-              <form onSubmit={handlePasswordLogin} className="space-y-4">
+              <form onSubmit={handlePasswordLogin} className="space-y-4" autoComplete="on">
                 <FieldInput
                   icon={<Envelope className="w-5 h-5" />}
                   type="email"
@@ -298,6 +315,8 @@ export default function Login() {
                   onChange={setEmail}
                   placeholder="nome@azienda.it"
                   testid="email-input"
+                  name="email"
+                  autoComplete="username"
                   required
                 />
                 <FieldInput
@@ -308,6 +327,8 @@ export default function Login() {
                   onChange={setPassword}
                   placeholder="••••••••"
                   testid="password-input"
+                  name="password"
+                  autoComplete="current-password"
                   required
                   trailing={
                     <button

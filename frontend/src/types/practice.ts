@@ -23,6 +23,11 @@ export type SkyTvStatus =
   | 'KO_COPERTURA'
   | 'KO_RINUNCIA_CLIENTE';
 
+// ===== SPRINT: Nuovi stati linea =====
+export type GlobalStatus = 'NON_COMPLETATA' | 'COMPLETATA';
+export type OldLineStatus = 'DA_DISATTIVARE' | 'IN_DISATTIVAZIONE' | 'DISATTIVATA';
+export type OldLineTechnology = 'FTTC' | 'FTTH' | 'FWA';
+
 export interface CustomerBase {
   firstName: string;
   lastName: string;
@@ -131,6 +136,16 @@ export interface PracticeListItem {
     attiva: boolean;
     tipo: 'daChiudere' | 'chiusa';
   };
+  // ===== SPRINT =====
+  globalStatus?: GlobalStatus;
+  oldLineStatus?: OldLineStatus | null;
+  oldLineTechnology?: OldLineTechnology | null;
+  lineType?: string;
+  paymentMethod?: PaymentMethod;
+  installationAddress?: InstallationAddress;
+  appointmentData?: AppointmentData;
+  soldById?: string;
+  enteredById?: string;
 }
 
 export interface PracticeDetail {
@@ -174,4 +189,8 @@ export interface PracticeDetail {
   statoGlobale?: 'completo' | 'non_completo' | null;
   lavorazioniPostAttivazione?: string;
   privacyData?: PrivacyData;
+  // ===== SPRINT =====
+  globalStatus?: GlobalStatus;
+  oldLineStatus?: OldLineStatus | null;
+  oldLineTechnology?: OldLineTechnology | null;
 }

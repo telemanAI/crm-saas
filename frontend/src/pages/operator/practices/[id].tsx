@@ -617,21 +617,30 @@ export default function PracticeDetail() {
     })();
   }, [canEditPractices]);
 
-  // Helper inline: salva un campo allineato ai veri stepKey di new.tsx.
-  // ===== SPRINT — Optimistic update: aggiorna SUBITO lo state locale con i
-  // dati nuovi (così l'UI cambia istantaneamente), poi conferma con fetch.
-  // Se l'API fallisce, il refetch riporta lo stato corretto. =====
+  // Helper: salva un campo allineato ai veri stepKey di new.tsx.
+  // ===== SPRINT — Optimistic update PROFONDO: per oggetti annidati (paymentMethod,
+  // installationAddress, appointmentData, oldLineData) fa MERGE invece di overwrite,
+  // così non si perdono sub-campi non toccati dall'update. =====
   const saveStepKey = async (stepKey: string, payload: Record<string, any>) => {
-    // 1) Optimistic update locale (rendering istantaneo)
-    setPractice((prev) => prev ? { ...prev, ...payload } as any : prev);
+    // 1) Optimistic update locale (UI istantanea)
+    setPractice((prev) => {
+      if (!prev) return prev;
+      const next: any = { ...prev };
+      const nestedKeys = ['paymentMethod', 'installationAddress', 'appointmentData', 'oldLineData'];
+      for (const k of Object.keys(payload)) {
+        if (nestedKeys.includes(k) && payload[k] && typeof payload[k] === 'object') {
+          next[k] = { ...(prev as any)[k], ...payload[k] };
+        } else {
+          next[k] = payload[k];
+        }
+      }
+      return next as IPracticeDetail;
+    });
     try {
       const res = await api.put(`/practices/${id}/step`, { stepKey, data: payload });
-      // 2) Se il backend ritorna la pratica aggiornata, usiamo quella (fonte di verità)
-      if (res?.data && (res.data.id === id || res.data.id === undefined)) {
-        setPractice((prev) => prev ? sanitizePracticeData({ ...prev, ...res.data }) : prev);
-      } else {
-        // fallback: refetch silenzioso
-        fetchPractice();
+      if (res?.data) {
+        // Backend ritorna PracticeResponseDto completo → fonte di verità
+        setPractice(sanitizePracticeData(res.data));
       }
       return true;
     } catch (err) {
@@ -741,21 +750,27 @@ export default function PracticeDetail() {
   const doUpdateStatus = async (newStatus: string, reason?: string) => {
     if (!practice) return;
     setStatusLoading(true);
+    // ===== SPRINT — Optimistic update istantaneo =====
+    const prevStatus = practice.operationalStatus;
+    setOperationalStatus(newStatus);
+    setPractice((prev) => prev ? { ...prev, operationalStatus: newStatus } as any : prev);
     try {
       const payload: any = { status: newStatus };
       if (reason) payload.koReason = reason;
-      await api.put(`/practices/${id}/operational-status`, payload,
+      const res = await api.put(`/practices/${id}/operational-status`, payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setOperationalStatus(newStatus);
+      // Backend ritorna la pratica aggiornata → usala come fonte di verità
+      if (res?.data) setPractice(sanitizePracticeData(res.data));
       setPendingStatus(null);
       setKoReason('');
-      fetchPractice();
     } catch (err: any) {
       console.error('Errore cambio stato:', err);
       alert('Errore aggiornamento stato: ' + (err?.response?.data?.message || err?.message || ''));
-      if (practice.operationalStatus) {
-        setOperationalStatus(practice.operationalStatus);
+      // Rollback
+      if (prevStatus) {
+        setOperationalStatus(prevStatus);
+        setPractice((prev) => prev ? { ...prev, operationalStatus: prevStatus } as any : prev);
       }
     } finally {
       setStatusLoading(false);
@@ -1022,12 +1037,9 @@ export default function PracticeDetail() {
                         if (isActive) return;
                         // SPRINT — Optimistic: cambia subito lo stato locale per UI istantanea
                         setPractice((prev) => prev ? { ...prev, oldLineStatus: s } as any : prev);
-                        // Allineato a new.tsx case 'line-old' (riga 891): mando l'intero oldLineData esistente
-                        const ok = await saveStepKey('line-old', {
-                          oldLineData: practice.oldLineData || {},
-                          oldLineStatus: s,
-                          oldLineTechnology: practice.oldLineTechnology ?? null,
-                        });
+                        // SPRINT FIX — Mando SOLO oldLineStatus, niente oldLineData né oldLineTechnology
+                        // così il backend non sovrascrive dati esistenti con null/vuoti.
+                        const ok = await saveStepKey('line-old', { oldLineStatus: s });
                         if (!ok) fetchPractice();
                       }}
                       disabled={isActive}

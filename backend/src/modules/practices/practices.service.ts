@@ -612,20 +612,39 @@ export class PracticesService {
         if (dto.data?.washConfig !== undefined) {
           practice.washConfig = dto.data.washConfig;
         }
-        if (dto.data?.oldLineData !== undefined || dto.data?.oldPhoneNumber !== undefined) {
-          const old = dto.data?.oldLineData || dto.data;
+        // ===== SPRINT FIX — Merge sicuro per non perdere dati esistenti =====
+        if (dto.data?.oldLineData && typeof dto.data.oldLineData === 'object') {
+          const old = dto.data.oldLineData as any;
+          const hasAny = Object.values(old).some((v) => v !== undefined && v !== null && v !== '');
+          if (hasAny) {
+            const current = (practice.oldLineData as any) || {};
+            practice.oldLineData = {
+              oldPhoneNumber: old.oldPhoneNumber ?? current.oldPhoneNumber ?? null,
+              migrationCode: old.migrationCode ?? current.migrationCode ?? null,
+              gestore: old.gestore ?? current.gestore ?? null,
+              gestoreAltro: old.gestoreAltro ?? current.gestoreAltro ?? null,
+              fiscalCodeOldLine: old.fiscalCodeOldLine ?? current.fiscalCodeOldLine ?? null,
+              prodottiRestituire: old.prodottiRestituire ?? current.prodottiRestituire ?? null,
+              notes: old.notes ?? current.notes ?? null,
+            };
+          }
+        } else if (dto.data?.oldPhoneNumber !== undefined) {
           practice.oldLineData = {
-            oldPhoneNumber: old?.oldPhoneNumber ?? null,
-            migrationCode: old?.migrationCode ?? null,
-            gestore: old?.gestore ?? null,
-            gestoreAltro: old?.gestoreAltro ?? null,
-            fiscalCodeOldLine: old?.fiscalCodeOldLine ?? null,
-            prodottiRestituire: old?.prodottiRestituire ?? null,
-            notes: old?.notes ?? null,
+            oldPhoneNumber: dto.data?.oldPhoneNumber ?? null,
+            migrationCode: dto.data?.migrationCode ?? null,
+            gestore: dto.data?.gestore ?? null,
+            gestoreAltro: dto.data?.gestoreAltro ?? null,
+            fiscalCodeOldLine: dto.data?.fiscalCodeOldLine ?? null,
+            prodottiRestituire: dto.data?.prodottiRestituire ?? null,
+            notes: dto.data?.notes ?? null,
           };
         }
-        if (dto.data?.oldLineStatus !== undefined) practice.oldLineStatus = dto.data.oldLineStatus;
-        if (dto.data?.oldLineTechnology !== undefined) practice.oldLineTechnology = dto.data.oldLineTechnology;
+        if (dto.data && Object.prototype.hasOwnProperty.call(dto.data, 'oldLineStatus')) {
+          practice.oldLineStatus = dto.data.oldLineStatus || null;
+        }
+        if (dto.data && Object.prototype.hasOwnProperty.call(dto.data, 'oldLineTechnology')) {
+          practice.oldLineTechnology = dto.data.oldLineTechnology || null;
+        }
         break;
 
       case 6:
@@ -800,20 +819,45 @@ export class PracticesService {
         break;
 
       case 'line-old':
-        if (d.oldLineData !== undefined || d.oldPhoneNumber !== undefined) {
-          const old = d.oldLineData || d;
+        // ===== SPRINT FIX — Merge sicuro per non perdere dati esistenti.
+        // Se d.oldLineData è popolato con almeno una chiave non vuota, fai
+        // merge con quello esistente; altrimenti NON toccare oldLineData.
+        // Distingue "campo non inviato" da "campo inviato a null" usando hasOwnProperty. =====
+        if (d.oldLineData && typeof d.oldLineData === 'object') {
+          const old = d.oldLineData as any;
+          const hasAny = Object.values(old).some((v) => v !== undefined && v !== null && v !== '');
+          if (hasAny) {
+            const current = (practice.oldLineData as any) || {};
+            practice.oldLineData = {
+              oldPhoneNumber: old.oldPhoneNumber ?? current.oldPhoneNumber ?? null,
+              migrationCode: old.migrationCode ?? current.migrationCode ?? null,
+              gestore: old.gestore ?? current.gestore ?? null,
+              gestoreAltro: old.gestoreAltro ?? current.gestoreAltro ?? null,
+              fiscalCodeOldLine: old.fiscalCodeOldLine ?? current.fiscalCodeOldLine ?? null,
+              prodottiRestituire: old.prodottiRestituire ?? current.prodottiRestituire ?? null,
+              notes: old.notes ?? current.notes ?? null,
+            };
+          }
+        } else if (d.oldPhoneNumber !== undefined) {
+          // Compat con vecchio payload flat
           practice.oldLineData = {
-            oldPhoneNumber: old?.oldPhoneNumber ?? null,
-            migrationCode: old?.migrationCode ?? null,
-            gestore: old?.gestore ?? null,
-            gestoreAltro: old?.gestoreAltro ?? null,
-            fiscalCodeOldLine: old?.fiscalCodeOldLine ?? null,
-            prodottiRestituire: old?.prodottiRestituire ?? null,
-            notes: old?.notes ?? null,
+            oldPhoneNumber: d.oldPhoneNumber ?? null,
+            migrationCode: d.migrationCode ?? null,
+            gestore: d.gestore ?? null,
+            gestoreAltro: d.gestoreAltro ?? null,
+            fiscalCodeOldLine: d.fiscalCodeOldLine ?? null,
+            prodottiRestituire: d.prodottiRestituire ?? null,
+            notes: d.notes ?? null,
           };
         }
-        if (d.oldLineStatus !== undefined) practice.oldLineStatus = d.oldLineStatus;
-        if (d.oldLineTechnology !== undefined) practice.oldLineTechnology = d.oldLineTechnology;
+        // oldLineStatus / oldLineTechnology: salva solo se la chiave è
+        // esplicitamente presente nel payload (anche se valore vuoto).
+        if (Object.prototype.hasOwnProperty.call(d, 'oldLineStatus')) {
+          practice.oldLineStatus = d.oldLineStatus || null;
+        }
+        if (Object.prototype.hasOwnProperty.call(d, 'oldLineTechnology')) {
+          practice.oldLineTechnology = d.oldLineTechnology || null;
+        }
         break;
 
       case 'payment':

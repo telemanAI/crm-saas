@@ -253,32 +253,40 @@ export class PracticesService {
       }
     }
 
-    if (dto.data?.completed === true) {
-      practice.status = 'completed';
-      practice.operationalStatus = 'IN_PROGRESS';
-      practice.currentStep = dto.stepNumber;
-      if (!practice.completedSteps.includes(dto.stepNumber)) {
-        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
-      }
-      for (let i = 1; i < dto.stepNumber; i++) {
-        if (!practice.completedSteps.includes(i)) {
-          practice.completedSteps.push(i);
-        }
-      }
-    } else {
-      if (!practice.completedSteps.includes(dto.stepNumber)) {
-        practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
-      }
-      const maxCompleted = Math.max(...practice.completedSteps, 0);
-      const maxStepByCategory = category === 'FIXED_LINE' ? 9 : 6;
-      practice.currentStep = Math.max(
-        practice.currentStep,
-        Math.min(maxCompleted + 1, maxStepByCategory),
-      );
-    }
+    // ===== SPRINT FIX — Quando il payload non contiene stepNumber (Quick Edit
+    // o salvataggio inline via stepKey dalla pagina dettaglio) NON tocchiamo
+    // né currentStep né completedSteps: l'edit non avanza lo stepper. =====
+    const hasStepNumber =
+      typeof dto.stepNumber === 'number' && Number.isFinite(dto.stepNumber) && dto.stepNumber > 0;
 
-    if (practice.status === 'draft' && dto.stepNumber >= 2) {
-      practice.status = 'in_progress';
+    if (hasStepNumber) {
+      if (dto.data?.completed === true) {
+        practice.status = 'completed';
+        practice.operationalStatus = 'IN_PROGRESS';
+        practice.currentStep = dto.stepNumber;
+        if (!practice.completedSteps.includes(dto.stepNumber)) {
+          practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
+        }
+        for (let i = 1; i < dto.stepNumber; i++) {
+          if (!practice.completedSteps.includes(i)) {
+            practice.completedSteps.push(i);
+          }
+        }
+      } else {
+        if (!practice.completedSteps.includes(dto.stepNumber)) {
+          practice.completedSteps = [...practice.completedSteps, dto.stepNumber];
+        }
+        const maxCompleted = Math.max(...practice.completedSteps, 0);
+        const maxStepByCategory = category === 'FIXED_LINE' ? 9 : 6;
+        practice.currentStep = Math.max(
+          practice.currentStep,
+          Math.min(maxCompleted + 1, maxStepByCategory),
+        );
+      }
+
+      if (practice.status === 'draft' && dto.stepNumber >= 2) {
+        practice.status = 'in_progress';
+      }
     }
 
     // ===== SPRINT — Ricalcolo automatico stato globale dopo step =====

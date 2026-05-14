@@ -784,7 +784,9 @@ function NewPracticeDesktop() {
             oldPhoneNumber: data.oldPhoneNumber, migrationCode: data.migrationCode,
             gestore: data.gestore, gestoreAltro: data.gestoreAltro, fiscalCodeOldLine: data.fiscalCodeOldLine,
             prodottiRestituire: data.prodottiRestituire, notes: data.oldLineNotes
-          } : {} 
+          } : {},
+          oldLineStatus: data.lineType === 'MIGRAZIONE' ? data.oldLineStatus : null,
+          oldLineTechnology: data.lineType === 'MIGRAZIONE' ? data.oldLineTechnology : null,
         };
       case 'payment': 
         return { paymentMethod: { iban: data.iban, postePay: data.postePay, bollettino: data.bollettino } };
@@ -2081,6 +2083,36 @@ function NewPracticeDesktop() {
                               </div>
                             ) : (
                               <>
+                                {/* Stato Vecchia Linea */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Stato Vecchia Linea</label>
+                                  <select
+                                    value={data.oldLineStatus || ''}
+                                    onChange={(e) => setData({ oldLineStatus: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                  >
+                                    <option value="">-- Seleziona stato --</option>
+                                    <option value="DA_DISATTIVARE">Da Disattivare</option>
+                                    <option value="IN_DISATTIVAZIONE">In Disattivazione</option>
+                                    <option value="DISATTIVATA">Disattivata</option>
+                                  </select>
+                                </div>
+
+                                {/* Tecnologia Provenienza */}
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-300 mb-2">Tecnologia Provenienza</label>
+                                  <select
+                                    value={data.oldLineTechnology || ''}
+                                    onChange={(e) => setData({ oldLineTechnology: e.target.value })}
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
+                                  >
+                                    <option value="">-- Seleziona tecnologia --</option>
+                                    <option value="FTTC">FTTC</option>
+                                    <option value="FTTH">FTTH</option>
+                                    <option value="FWA">FWA</option>
+                                  </select>
+                                </div>
+
                                 <div>
                                   <label className="block text-sm font-medium text-slate-300 mb-2">Numero Attuale</label>
                                   <input 

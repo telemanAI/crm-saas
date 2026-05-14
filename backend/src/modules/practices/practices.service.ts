@@ -598,6 +598,8 @@ export class PracticesService {
             notes: old?.notes ?? null,
           };
         }
+        if (dto.data?.oldLineStatus !== undefined) practice.oldLineStatus = dto.data.oldLineStatus;
+        if (dto.data?.oldLineTechnology !== undefined) practice.oldLineTechnology = dto.data.oldLineTechnology;
         break;
 
       case 6:
@@ -628,6 +630,33 @@ export class PracticesService {
         }
         break;
     }
+  }
+
+  /**
+   * Valida i vincoli per impostare globalStatus = COMPLETATA.
+   * Ritorna array di messaggi di errore (vuoto = OK).
+   */
+  private validateGlobalStatusCompletion(practice: Practice): string[] {
+    const errors: string[] = [];
+
+    // 1) Tutti gli step completati
+    const totalSteps = 8; // wizard rete fissa ha 8 step
+    const completedCount = practice.completedSteps?.length || 0;
+    if (completedCount < totalSteps) {
+      errors.push(`Step non compilati: ${totalSteps - completedCount} step rimanenti`);
+    }
+
+    // 2) La nuova linea deve essere ATTIVA
+    if (practice.operationalStatus !== 'ACTIVATED') {
+      errors.push('La nuova linea non risulta attiva');
+    }
+
+    // 3) Se Migrazione → vecchia linea deve essere DISATTIVATA
+    if (practice.lineType === 'MIGRAZIONE' && practice.oldLineStatus !== 'DISATTIVATA') {
+      errors.push('La vecchia linea non risulta disattivata');
+    }
+
+    return errors;
   }
 
   private async applyFixedLineStepByKey(
@@ -697,6 +726,8 @@ export class PracticesService {
             notes: old?.notes ?? null,
           };
         }
+        if (d.oldLineStatus !== undefined) practice.oldLineStatus = d.oldLineStatus;
+        if (d.oldLineTechnology !== undefined) practice.oldLineTechnology = d.oldLineTechnology;
         break;
 
       case 'payment':
@@ -726,6 +757,25 @@ export class PracticesService {
             oraFine: d.oraFine ?? practice.appointmentData?.oraFine,
             accordi: d.accordi ?? practice.appointmentData?.accordi,
           };
+        }
+        break;
+
+      case 'quick-edit':
+        // Quick Edit: merge profondo dei dati esistenti
+        if (d.operationalStatus !== undefined) practice.operationalStatus = d.operationalStatus;
+        if (d.lineStatus !== undefined) practice.operationalStatus = d.lineStatus;
+        if (d.oldLineStatus !== undefined) practice.oldLineStatus = d.oldLineStatus;
+        if (d.oldLineTechnology !== undefined) practice.oldLineTechnology = d.oldLineTechnology;
+        if (d.soldById !== undefined) practice.soldById = d.soldById;
+        if (d.enteredById !== undefined) practice.enteredById = d.enteredById;
+        if (d.paymentMethod !== undefined) {
+          practice.paymentMethod = { ...(practice.paymentMethod || {}), ...d.paymentMethod };
+        }
+        if (d.installationAddress !== undefined) {
+          practice.installationAddress = { ...(practice.installationAddress || {}), ...d.installationAddress };
+        }
+        if (d.appointmentData !== undefined) {
+          practice.appointmentData = { ...(practice.appointmentData || {}), ...d.appointmentData };
         }
         break;
 

@@ -9,6 +9,9 @@ export type OperationalStatus = 'PENDING' | 'IN_PROGRESS' | 'ACTIVATED' | 'REJEC
 export type SkyTvStatus = 'IN_LAVORAZIONE' | 'IN_VERIFICA_WM' | 'NON_SALITA_ARCADIA' | 'ATTIVO' | 'KO_GENERICO' | 'KO_CREDITO' | 'KO_COPERTURA' | 'KO_RINUNCIA_CLIENTE';
 export type PracticeCategory = 'FIXED_LINE' | 'MOBILE' | 'ENERGY';
 export type StatoGlobale = 'completo' | 'non_completo' | null;
+export type OldLineStatus = 'DA_DISATTIVARE' | 'IN_DISATTIVAZIONE' | 'DISATTIVATA' | null;
+export type GlobalStatus = 'NON_COMPLETATA' | 'COMPLETATA';
+export type OldLineTechnology = 'FTTC' | 'FTTH' | 'FWA' | null;
 
 @Entity('practices')
 @Index(['tenantId', 'createdAt'])
@@ -82,6 +85,33 @@ export class Practice {
     name: 'stato_globale',
   })
   statoGlobale: StatoGlobale;
+
+  // ===== SPRINT: Stato globale pratica (NON_COMPLETATA / COMPLETATA) =====
+  @Column({
+    name: 'global_status',
+    type: 'enum',
+    enum: ['NON_COMPLETATA', 'COMPLETATA'],
+    default: 'NON_COMPLETATA',
+  })
+  globalStatus: GlobalStatus;
+
+  // ===== SPRINT: Stato vecchia linea (solo per Migrazione) =====
+  @Column({
+    name: 'old_line_status',
+    type: 'enum',
+    enum: ['DA_DISATTIVARE', 'IN_DISATTIVAZIONE', 'DISATTIVATA'],
+    nullable: true,
+  })
+  oldLineStatus: OldLineStatus;
+
+  // ===== SPRINT: Tecnologia provenienza vecchia linea =====
+  @Column({
+    name: 'old_line_technology',
+    type: 'enum',
+    enum: ['FTTC', 'FTTH', 'FWA'],
+    nullable: true,
+  })
+  oldLineTechnology: OldLineTechnology;
 
   @Column({
     name: 'convergenza',

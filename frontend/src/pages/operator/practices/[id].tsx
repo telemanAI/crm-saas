@@ -458,7 +458,7 @@ export default function PracticeDetail() {
             <h1 className="text-lg md:text-3xl font-bold text-white break-words">{practice.offerName}</h1>
             
             <div className="flex items-center gap-1.5 mt-2 md:mt-3 flex-wrap">
-              <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Cambia Stato:</span>
+              <span className="text-[10px] md:text-xs text-slate-400 mr-1 md:mr-2 w-full md:w-auto">Stato nuova linea:</span>
               {(['PENDING','IN_PROGRESS','ACTIVATED','REJECTED','KO_CREDITO','KO_COPERTURA'] as const).map((s) => (
                 <button
                   key={s}
@@ -786,7 +786,7 @@ export default function PracticeDetail() {
                 <Link href={`/operator/customers/${practice.customerId}`}>
                   <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 text-cyan-400 hover:bg-cyan-600/30 border border-cyan-600/30 rounded-xl transition-all text-sm font-medium group">
                     <User className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    Vai al Cliente
+                    Anagrafica cliente
                     <NavigationArrow className="w-4 h-4 opacity-50 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </Link>
@@ -1394,7 +1394,7 @@ export default function PracticeDetail() {
             
             {practice.status?.toLowerCase() === 'completed' && (
               <div className="mt-4 p-3 bg-emerald-600/10 border border-emerald-600/20 rounded-xl text-center">
-                <span className="text-emerald-400 text-sm font-medium">✓ Pratica Completata</span>
+                <span className="text-emerald-400 text-sm font-medium">✓ Pratica Compilata</span>
               </div>
             )}
           </motion.div>

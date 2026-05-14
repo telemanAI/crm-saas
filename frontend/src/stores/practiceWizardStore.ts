@@ -106,6 +106,8 @@ export interface PracticeData {
   convergenza?: ConvergenzaConfig;
   lavorazioniPostAttivazione?: string;
   statoGlobale?: 'completo' | 'non_completo' | null;
+  oldLineStatus?: 'DA_DISATTIVARE' | 'IN_DISATTIVAZIONE' | 'DISATTIVATA' | null;
+  oldLineTechnology?: 'FTTC' | 'FTTH' | 'FWA' | null;
 }
 
 // ... resto del file invariato (WIZARD_STEPS, ADDITIONAL_PACKAGES, ecc.) ...

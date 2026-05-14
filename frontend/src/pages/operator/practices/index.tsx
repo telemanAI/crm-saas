@@ -10,7 +10,9 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  PencilSimple,
 } from 'phosphor-react';
+import QuickEditModal from '@/components/practices/QuickEditModal';
 import { useAuthStore } from '@/stores/authStore';
 import { usePermission } from '@/hooks/usePermission';
 import api from '@/lib/axios';
@@ -91,10 +93,13 @@ export default function PracticesList() {
   const { token, isAuthenticated } = useAuthStore();
   // Phase B — Permessi granulari
   const canCreatePractices = usePermission('canCreatePractices');
+  const canEditPractices = usePermission('canEditPractices');
   const [practices, setPractices] = useState<PracticeListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
+  const [quickEditPractice, setQuickEditPractice] = useState<any>(null);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: string; firstName: string; lastName: string }>>([]);
   const [operationalStatusFilter, setOperationalStatusFilter] = useState<OpStatusFilter>('ALL');
   const [skyTvStatusFilter, setSkyTvStatusFilter] = useState<SkyTvFilter>('ALL');
   const [statoGlobaleFilter, setStatoGlobaleFilter] = useState<'ALL' | 'completo' | 'non_completo' | 'daChiudere'>('ALL');
@@ -102,7 +107,18 @@ export default function PracticesList() {
   useEffect(() => {
     if (!isAuthenticated) return;
     fetchPractices();
+    fetchTeamUsers();
   }, [isAuthenticated]);
+
+  const fetchTeamUsers = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await api.get('/users/team', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTeamUsers(res.data || []);
+    } catch { /* ignore */ }
+  };
 
   const fetchPractices = async () => {
     try {
@@ -378,6 +394,22 @@ export default function PracticesList() {
                   </div>
 
                   <div className="shrink-0 flex items-center gap-2 sm:gap-4 justify-between sm:justify-end pt-2 sm:pt-0 border-t sm:border-0 border-slate-800/50 flex-wrap sm:flex-nowrap min-w-0">
+                    {/* Quick Edit */}
+                    {canEditPractices && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setQuickEditPractice(practice);
+                        }}
+                        className="shrink-0 relative z-10 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5"
+                        title="Modifica rapida"
+                      >
+                        <PencilSimple className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Modifica</span>
+                      </button>
+                    )}
+
                     {practice.status?.toLowerCase() === 'draft' && canCreatePractices && (
                       <button
                         onClick={(e) => {
@@ -410,6 +442,15 @@ export default function PracticesList() {
           })}
         </div>
       )}
+      {/* Quick Edit Modal */}
+      <QuickEditModal
+        isOpen={!!quickEditPractice}
+        onClose={() => setQuickEditPractice(null)}
+        practice={quickEditPractice}
+        teamUsers={teamUsers}
+        canEdit={canEditPractices}
+        onSaved={() => { setQuickEditPractice(null); fetchPractices(); }}
+      />
     </OperatorLayout>
   );
 }

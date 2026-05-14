@@ -2088,7 +2088,7 @@ function NewPracticeDesktop() {
                                   <label className="block text-sm font-medium text-slate-300 mb-2">Stato Vecchia Linea</label>
                                   <select
                                     value={data.oldLineStatus || ''}
-                                    onChange={(e) => setData({ oldLineStatus: e.target.value })}
+                                    onChange={(e) => setData({ oldLineStatus: (e.target.value || null) as 'DA_DISATTIVARE' | 'IN_DISATTIVAZIONE' | 'DISATTIVATA' | null })}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
                                   >
                                     <option value="">-- Seleziona stato --</option>
@@ -2103,7 +2103,7 @@ function NewPracticeDesktop() {
                                   <label className="block text-sm font-medium text-slate-300 mb-2">Tecnologia Provenienza</label>
                                   <select
                                     value={data.oldLineTechnology || ''}
-                                    onChange={(e) => setData({ oldLineTechnology: e.target.value })}
+                                    onChange={(e) => setData({ oldLineTechnology: (e.target.value || null) as 'FTTC' | 'FTTH' | 'FWA' | null })}
                                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-slate-200"
                                   >
                                     <option value="">-- Seleziona tecnologia --</option>

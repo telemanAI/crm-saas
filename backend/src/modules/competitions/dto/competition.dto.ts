@@ -72,6 +72,11 @@ export class TargetDto {
   @IsInt()
   @Min(0)
   sortOrder?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  revenuePerPiece?: number;
 }
 
 export class PrizeDto {
@@ -167,6 +172,11 @@ export class CreateCompetitionDto {
   @ValidateNested({ each: true })
   @Type(() => PrizeDto)
   prizes?: PrizeDto[];
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  founderCompensation?: number;
 }
 
 export class UpdateCompetitionDto {
@@ -226,6 +236,11 @@ export class UpdateCompetitionDto {
   @ValidateNested({ each: true })
   @Type(() => PrizeDto)
   prizes?: PrizeDto[];
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  founderCompensation?: number;
 }
 
 export class CopyCompetitionDto {

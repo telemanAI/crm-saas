@@ -395,7 +395,7 @@ export class CompetitionEntriesService {
       provider,
       offerName: practice.offerName || null,
       pieces: 1,
-      revenue: null,
+      revenue: target?.revenuePerPiece ? target.revenuePerPiece * 1 : null,
       // Campo aggiunto in Tappa 3.1
       shopId: practice.tenantId,
     } as any;

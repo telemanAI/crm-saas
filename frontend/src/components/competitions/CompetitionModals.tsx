@@ -54,6 +54,7 @@ export interface CompetitionTarget {
   matchPracticeTypes: string[];
   targetPieces: number;
   sortOrder?: number;
+  revenuePerPiece?: number;
 }
 
 export interface CompetitionPrize {
@@ -79,6 +80,7 @@ export interface Competition {
   templateKey: string | null;
   scopeType?: CompetitionScope;
   isHidden?: boolean;
+  founderCompensation?: number;
   targets: CompetitionTarget[];
   prizes: CompetitionPrize[];
   createdAt: string;
@@ -206,6 +208,7 @@ export function CompetitionModal({
   const [isHidden, setIsHidden] = useState(false);
   const [templateKey, setTemplateKey] = useState('');
   // Tappa 3.2 — sotto-selezione shop per gare scope=company
+  const [founderCompensation, setFounderCompensation] = useState<number>(0);
   const [selectedShopIds, setSelectedShopIds] = useState<string[]>([]);
   const [companyShops, setCompanyShops] = useState<Array<{
     shopId: string;
@@ -227,6 +230,7 @@ export function CompetitionModal({
       setIsActive(initial?.isActive ?? true);
       setScopeType((initial?.scopeType as CompetitionScope) || 'shop');
       setIsHidden(initial?.isHidden ?? false);
+      setFounderCompensation(initial?.founderCompensation ?? 0);
       setTemplateKey(initial?.templateKey || '');
       setSelectedShopIds((initial as any)?.selectedShopIds || []);
       // Carica lista shop della company (best-effort)
@@ -279,6 +283,7 @@ export function CompetitionModal({
         matchOfferKeywords: (t.matchOfferKeywords || []).filter(Boolean).map((s) => s.trim().toUpperCase()),
         matchPracticeTypes: (t.matchPracticeTypes || []).filter(Boolean),
         targetPieces: Number(t.targetPieces) || 0,
+        revenuePerPiece: Number(t.revenuePerPiece) || 0,
         sortOrder: i,
       }));
       const cleanPrizes = prizes.map((p, i) => ({
@@ -297,6 +302,7 @@ export function CompetitionModal({
         title: title.trim(),
         description: description.trim() || undefined,
         startDate, endDate, isActive, scopeType, isHidden,
+        founderCompensation: Number(founderCompensation) || 0,
         templateKey: templateKey.trim() || undefined,
         // Tappa 3.2 — invia shop selezionati solo se scope=company
         selectedShopIds:
@@ -490,13 +496,30 @@ export function CompetitionModal({
                 </div>
               </label>
 
-              <div>
-                <label className="text-sm text-slate-300 mb-1 block">
-                  Template Key <span className="text-xs text-slate-500">(per aggregare gare gemelle)</span>
-                </label>
-                <input type="text" value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}
-                  placeholder="Es. AUTO-2026-04"
-                  className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm text-slate-300 mb-1 block">
+                    Template Key <span className="text-xs text-slate-500">(per aggregare gare gemelle)</span>
+                  </label>
+                  <input type="text" value={templateKey} onChange={(e) => setTemplateKey(e.target.value)}
+                    placeholder="Es. AUTO-2026-04"
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm font-mono" />
+                </div>
+                <div>
+                  <label className="text-sm text-slate-300 mb-1 block">
+                    Compenso Founder <span className="text-xs text-slate-500">(€ fisso per la gara)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={founderCompensation}
+                    onChange={(e) => setFounderCompensation(Number(e.target.value) || 0)}
+                    placeholder="0,00"
+                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white text-sm"
+                    data-testid="comp-founder-compensation"
+                  />
+                </div>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} className="w-4 h-4" />
@@ -667,11 +690,25 @@ function TargetRow({
             {Object.entries(CATEGORY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </div>
-        <div className="col-span-3">
+        <div className="col-span-2">
           <label className="text-xs text-slate-400 mb-1 block">Pezzi target</label>
           <input type="number" min={0} value={target.targetPieces}
             onChange={(e) => onUpdate({ targetPieces: Number(e.target.value) })}
             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm" />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-slate-400 mb-1 block">
+            Ricavo/pezzo <span className="text-slate-600">(€)</span>
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={target.revenuePerPiece ?? 0}
+            onChange={(e) => onUpdate({ revenuePerPiece: Number(e.target.value) || 0 })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
+            data-testid={`target-revenue-${idx}`}
+          />
         </div>
         <div className="col-span-1 flex items-end justify-end h-full">
           <button onClick={onRemove} className="p-1.5 text-rose-400 hover:bg-rose-500/20 rounded"><Trash className="w-4 h-4" /></button>

@@ -127,6 +127,7 @@ export class CompetitionsService {
           dto.scopeType === 'company' && Array.isArray(dto.selectedShopIds) && dto.selectedShopIds.length
             ? dto.selectedShopIds
             : null,
+        founderCompensation: dto.founderCompensation ?? 0,
         createdById: createdBy,
       });
       const saved = await compRepo.save(comp);
@@ -184,6 +185,7 @@ export class CompetitionsService {
         c.selectedShopIds = null;
       }
       if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
+      if (dto.founderCompensation !== undefined) c.founderCompensation = dto.founderCompensation;
       await compRepo.save(c);
 
       if (dto.targets !== undefined) {
@@ -427,11 +429,7 @@ export class CompetitionsService {
       operatorRanking: await this.enrichOperatorRanking(
         Array.from(byOperator.values()).sort((a, b) => b.pieces - a.pieces),
       ),
-      totals: {
-        pieces: totalPieces,
-        revenue: Math.round(totalRevenue * 100) / 100,
-        entriesCount: entries.length,
-      },
+      totals: this.buildTotals(comp, entries, totalPieces, totalRevenue, byOperator),
       companyAggregate,
       // Lista dettagliata pratiche-pezzo (per dropdown UI):
       // ogni entry = una pratica con offerta, gestore, venditore, data
@@ -448,6 +446,45 @@ export class CompetitionsService {
    * direttamente, senza dipendere da endpoint esterni `/users/team`.
    * Funziona anche per founder/admin di altri shop in scope COMPANY.
    */
+  /**
+   * Calcola i totali della gara: ricavo, uscite (premi), compenso founder, ricavo netto.
+   */
+  private buildTotals(
+    comp: Competition,
+    entries: CompetitionEntry[],
+    totalPieces: number,
+    totalRevenue: number,
+    byOperator: Map<string, { userId: string; pieces: number; revenue: number }>,
+  ) {
+    // Calcolo premi raggiunti
+    const topOperatorPieces = byOperator.size > 0
+      ? Math.max(...Array.from(byOperator.values()).map((o) => o.pieces))
+      : 0;
+
+    let totalPrizes = 0;
+    for (const prize of comp.prizes || []) {
+      let current = 0;
+      if (prize.scope === 'OPERATOR') current = topOperatorPieces;
+      else if (prize.scope === 'SHOP') current = totalPieces;
+      else current = totalPieces; // COMPANY = totale gara
+      if (prize.threshold > 0 && current >= prize.threshold && prize.prizeValue) {
+        totalPrizes += Number(prize.prizeValue);
+      }
+    }
+
+    const founderCompensation = Number(comp.founderCompensation ?? 0);
+    const netRevenue = Math.round((totalRevenue - founderCompensation - totalPrizes) * 100) / 100;
+
+    return {
+      pieces: totalPieces,
+      revenue: Math.round(totalRevenue * 100) / 100,
+      prizes: Math.round(totalPrizes * 100) / 100,
+      founderCompensation: Math.round(founderCompensation * 100) / 100,
+      netRevenue,
+      entriesCount: entries.length,
+    };
+  }
+
   private async enrichOperatorRanking(
     rows: Array<{ userId: string; pieces: number; revenue: number }>,
   ): Promise<Array<any>> {
@@ -720,6 +757,7 @@ export class CompetitionsService {
       matchPracticeTypes: dto.matchPracticeTypes || [],
       targetPieces: dto.targetPieces,
       sortOrder: dto.sortOrder ?? sortIdx,
+      revenuePerPiece: dto.revenuePerPiece ?? 0,
     });
   }
 

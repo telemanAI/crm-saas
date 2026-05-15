@@ -134,19 +134,21 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState<boolean>(true);
 
-  // Precompila email dall'ultimo login riuscito.
-  // SPRINT — "Resta connesso": se il flag è attivo, la password viene
-  // pre-compilata dal password manager del browser grazie agli attributi
-  // autoComplete="current-password" e name="password" sull'input. Lo
-  // useEffect carica l'email dal localStorage; la password resta in mano
-  // al browser per ragioni di sicurezza (no chiaro nello storage).
+  // Precompila email e password dall'ultimo login riuscito.
+  // Se l'utente ha fatto login con "Resta connesso", salviamo email e
+  // password (offuscata in base64) nel localStorage. Il logout NON
+  // cancella questi campi, così al rientro i campi sono precompilati.
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const lastEmail = window.localStorage.getItem('lastLoginEmail');
-      const stayLogged = window.localStorage.getItem('authRememberMe') === 'true';
+      const lastPasswordB64 = window.localStorage.getItem('lastLoginPassword');
       if (lastEmail) setEmail(lastEmail);
-      // Allinea l'UI col flag effettivo persistente
-      if (stayLogged) setRememberMe(true);
+      if (lastPasswordB64) {
+        try {
+          setPassword(atob(lastPasswordB64));
+          setRememberMe(true);
+        } catch { /* ignore corrupted data */ }
+      }
     }
   }, []);
 
@@ -168,6 +170,10 @@ export default function Login() {
       const { user, access_token, refresh_token, shops } = result;
       if (!user || !access_token) throw new Error('Risposta del server non valida');
       applyRememberMe(rememberMe);
+      // Salva password offuscata (base64) solo se "Resta connesso" è attivo
+      if (rememberMe && password && typeof window !== 'undefined') {
+        window.localStorage.setItem('lastLoginPassword', btoa(password));
+      }
       if (refresh_token) setRefreshToken(refresh_token);
       setAuth(user, access_token, shops || []);
       if (user.role === 'SUPER_ADMIN') return router.push('/admin/dashboard');
@@ -359,7 +365,13 @@ export default function Login() {
                   <input
                     type="checkbox"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setRememberMe(checked);
+                      if (!checked && typeof window !== 'undefined') {
+                        window.localStorage.removeItem('lastLoginPassword');
+                      }
+                    }}
                     data-testid="remember-me-checkbox"
                     className="w-4 h-4 rounded accent-indigo-500 bg-slate-950 border-slate-700"
                   />
@@ -387,7 +399,13 @@ export default function Login() {
                   <input
                     type="checkbox"
                     checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setRememberMe(checked);
+                      if (!checked && typeof window !== 'undefined') {
+                        window.localStorage.removeItem('lastLoginPassword');
+                      }
+                    }}
                     data-testid="remember-me-otp-checkbox"
                     className="w-4 h-4 rounded accent-indigo-500 bg-slate-950 border-slate-700"
                   />

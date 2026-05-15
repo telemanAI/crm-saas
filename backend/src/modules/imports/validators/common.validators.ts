@@ -72,25 +72,62 @@ export class CommonValidators {
       };
       return statusMap[normalized] || 'draft';
     } else {
-      const operationalMap = {
+      const operationalMap: Record<string, string> = {
+        // PENDING — grigio
         'pending': 'PENDING',
         'in attesa': 'PENDING',
         'da fare': 'PENDING',
-        'da inserire': 'PENDING',        // ← NUOVO: "DA INSERIRE" → PENDING
+        'da inserire': 'PENDING',
+        'da attivare': 'PENDING',
+        'nuova': 'PENDING',
+        'bozza': 'PENDING',
+        'new': 'PENDING',
+        'aperta': 'PENDING',
+        'stand by': 'PENDING',
+        'sospesa': 'PENDING',
         
+        // IN_PROGRESS — giallo
         'in lavorazione': 'IN_PROGRESS',
         'in corso': 'IN_PROGRESS',
         'processing': 'IN_PROGRESS',
-        'in delivery': 'IN_PROGRESS',     // ← NUOVO: "IN DELIVERY" → IN_PROGRESS
+        'in delivery': 'IN_PROGRESS',
+        'inviata': 'IN_PROGRESS',
+        'presa in carico': 'IN_PROGRESS',
+        'working': 'IN_PROGRESS',
+        'lavorazione': 'IN_PROGRESS',
+        'esecuzione': 'IN_PROGRESS',
+        'in gestione': 'IN_PROGRESS',
         
+        // ACTIVATED — verde
         'attivata': 'ACTIVATED',
         'attiva': 'ACTIVATED',
         'completed': 'ACTIVATED',
+        'completata': 'ACTIVATED',
+        'finita': 'ACTIVATED',
+        'conclusa': 'ACTIVATED',
+        'terminata': 'ACTIVATED',
+        'installata': 'ACTIVATED',
+        'attivo': 'ACTIVATED',
+        'done': 'ACTIVATED',
+        'ok': 'ACTIVATED',
+        'successo': 'ACTIVATED',
+        'chiusa positivamente': 'ACTIVATED',
         
+        // REJECTED — rosso
         'rifiutata': 'REJECTED',
         'rejected': 'REJECTED',
         'ko': 'REJECTED',
-        'annullata': 'REJECTED',          // ← NUOVO: "ANNULLATA" → REJECTED (front mostrerà "ko")
+        'annullata': 'REJECTED',
+        'cancellata': 'REJECTED',
+        'chiusa': 'REJECTED',
+        'fallita': 'REJECTED',
+        'errata': 'REJECTED',
+        'rifiutato': 'REJECTED',
+        'annullato': 'REJECTED',
+        'cancellato': 'REJECTED',
+        'negativo': 'REJECTED',
+        'respinta': 'REJECTED',
+        'chiusa negativamente': 'REJECTED',
       };
       return operationalMap[normalized] || 'PENDING';
     }

@@ -63,7 +63,7 @@ const getOperationalStatusBadge = (status?: OperationalStatus) => {
     case 'IN_PROGRESS':
       return { label: 'In Lavorazione', class: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30' };
     case 'PENDING':
-      return { label: 'In Attesa', class: 'bg-amber-500/20 text-amber-400 border-amber-500/30' };
+      return { label: 'Da Inserire', class: 'bg-slate-500/20 text-slate-400 border-slate-500/30' };
     case 'KO_CREDITO':
       return { label: 'KO Credito', class: 'bg-rose-500/20 text-rose-400 border-rose-500/30' };
     case 'KO_COPERTURA':
@@ -103,6 +103,7 @@ export default function PracticesList() {
   const [operationalStatusFilter, setOperationalStatusFilter] = useState<OpStatusFilter>('ALL');
   const [skyTvStatusFilter, setSkyTvStatusFilter] = useState<SkyTvFilter>('ALL');
   const [statoGlobaleFilter, setStatoGlobaleFilter] = useState<'ALL' | 'completo' | 'non_completo' | 'daChiudere'>('ALL');
+  const [globalStatusFilter, setGlobalStatusFilter] = useState<'ALL_GLOBAL' | 'NON_COMPLETATA' | 'COMPLETATA'>('ALL_GLOBAL');
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -162,7 +163,9 @@ export default function PracticesList() {
       }
     }
 
-    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesSkyTv && matchesCategory && matchesStatoGlobale;
+    const matchesGlobalStatus = globalStatusFilter === 'ALL_GLOBAL' || p.globalStatus === globalStatusFilter;
+
+    return matchesSearch && matchesFilter && matchesOperationalStatus && matchesSkyTv && matchesCategory && matchesStatoGlobale && matchesGlobalStatus;
   });
 
   const getStatusIcon = (status: string) => {
@@ -300,6 +303,19 @@ export default function PracticesList() {
             <option value="daChiudere">Convergenze da Chiudere</option>
           </select>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Funnel className="w-4 h-4 md:w-5 md:h-5 text-slate-500 shrink-0" />
+          <select
+            value={globalStatusFilter}
+            onChange={(e) => setGlobalStatusFilter(e.target.value as any)}
+            className="flex-1 lg:flex-none bg-slate-950 border border-slate-700 rounded-xl px-3 md:px-4 py-2.5 md:py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-xs md:text-sm"
+          >
+            <option value="ALL_GLOBAL">Tutte (stato globale)</option>
+            <option value="NON_COMPLETATA">Non Completate</option>
+            <option value="COMPLETATA">Completate</option>
+          </select>
+        </div>
       </div>
 
       {filteredPractices.length === 0 ? (
@@ -352,7 +368,6 @@ export default function PracticesList() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap min-w-0">
-                      <span className="font-bold text-white text-sm md:text-base">{getTypeLabel(practice.type)}</span>
                       <h3 className="font-semibold text-white truncate text-sm md:text-base max-w-full sm:max-w-[260px]">
                         {practice.offerName}
                       </h3>

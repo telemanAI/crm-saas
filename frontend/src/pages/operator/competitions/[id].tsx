@@ -214,20 +214,16 @@ export default function CompetitionDetailPage() {
       setComp(compRes.data);
       setBoard(boardRes.data);
 
-      // Best-effort: carica nomi utenti del ranking. Se l'endpoint fallisce
-      // (membri team non visibili), mostriamo l'ID truncato come fallback.
-      const ids = (boardRes.data.operatorRanking || []).map((o: OperatorRow) => o.userId);
-      if (ids.length) {
-        try {
-          const teamRes = await api.get('/users/team');
-          const map: Record<string, UserLite> = {};
-          (teamRes.data || []).forEach((u: UserLite) => {
-            map[u.id] = u;
-          });
-          setUsers(map);
-        } catch {
-          /* ignore */
-        }
+      // Carica SEMPRE tutti gli operatori del team (serve per la card Premi Operatori)
+      try {
+        const teamRes = await api.get('/users/team');
+        const map: Record<string, UserLite> = {};
+        (teamRes.data || []).forEach((u: UserLite) => {
+          map[u.id] = u;
+        });
+        setUsers(map);
+      } catch {
+        /* ignore: se il team non è disponibile, la card mostra solo chi ha venduto */
       }
     } catch (err: any) {
       alert(err?.response?.data?.message || 'Errore caricamento gara');
@@ -852,6 +848,63 @@ export default function CompetitionDetailPage() {
               })}
             </div>
           )}
+        </section>
+
+        {/* ====== Premi Operatori (tutti i membri del team) ====== */}
+        <section className="mb-6">
+          <h2 className="text-sm uppercase tracking-wide text-slate-500 mb-3 flex items-center gap-1">
+            <Users className="w-4 h-4" /> Premi Operatori
+          </h2>
+          {(() => {
+            // Combina TUTTI gli operatori del team con i dati della classifica
+            const teamMembers = Object.values(users);
+            if (teamMembers.length === 0) {
+              return (
+                <div className="text-slate-500 text-sm border border-dashed border-slate-700 rounded p-4">
+                  Nessun operatore nel team.
+                </div>
+              );
+            }
+            const prizeByUser = new Map<string, { pieces: number; prize: number }>();
+            for (const row of board.operatorRanking || []) {
+              prizeByUser.set(row.userId, { pieces: row.pieces, prize: row.prize ?? 0 });
+            }
+            const allOperators = teamMembers.map((u) => {
+              const data = prizeByUser.get(u.id);
+              return {
+                userId: u.id,
+                name: userLabel(u, `Utente ${u.id.slice(0, 8)}`),
+                pieces: data?.pieces ?? 0,
+                prize: data?.prize ?? 0,
+              };
+            }).sort((a, b) => b.prize - a.prize || b.pieces - a.pieces);
+
+            return (
+              <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-800 text-[10px] uppercase tracking-wider text-slate-400">
+                  <div className="col-span-5">Operatore</div>
+                  <div className="col-span-3 text-right">Pezzi</div>
+                  <div className="col-span-4 text-right">Compenso</div>
+                </div>
+                {allOperators.map((op) => (
+                  <div
+                    key={op.userId}
+                    className="grid grid-cols-12 gap-2 px-3 py-2.5 border-t border-slate-700/50 items-center"
+                  >
+                    <div className="col-span-5 text-sm text-white truncate">{op.name}</div>
+                    <div className="col-span-3 text-right text-sm text-white font-bold">
+                      {op.pieces}
+                    </div>
+                    <div className="col-span-4 text-right text-sm font-bold text-violet-400">
+                      {op.prize > 0
+                        ? `€ ${op.prize.toLocaleString('it-IT', { minimumFractionDigits: 2 })}`
+                        : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </section>
       </div>
 

@@ -111,25 +111,23 @@ export class CompetitionsService {
       const tRepo = manager.getRepository(CompetitionTarget);
       const pRepo = manager.getRepository(CompetitionPrize);
 
-      const comp = compRepo.create({
-        tenantId,
-        companyId: tenant?.companyId ?? null,
-        title: dto.title.trim(),
-        description: dto.description?.trim() || null,
-        startDate: new Date(dto.startDate) as any,
-        endDate: new Date(dto.endDate) as any,
-        isActive: dto.isActive ?? true,
-        templateKey: dto.templateKey?.trim() || null,
-        scopeType: dto.scopeType ?? 'shop',           // Tappa 3.1
-        isHidden: dto.isHidden ?? false,              // Tappa 3.1
-        // Tappa 3.2: sotto-selezione shop per gare company
-        selectedShopIds:
-          dto.scopeType === 'company' && Array.isArray(dto.selectedShopIds) && dto.selectedShopIds.length
-            ? dto.selectedShopIds
-            : null,
-        founderCompensation: (dto as any).founderCompensation ?? 0,
-        createdById: createdBy,
-      } as any);
+      const comp = new Competition();
+      comp.tenantId = tenantId;
+      comp.companyId = tenant?.companyId ?? null;
+      comp.title = dto.title.trim();
+      comp.description = dto.description?.trim() || null;
+      comp.startDate = new Date(dto.startDate) as any;
+      comp.endDate = new Date(dto.endDate) as any;
+      comp.isActive = dto.isActive ?? true;
+      comp.templateKey = dto.templateKey?.trim() || null;
+      comp.scopeType = dto.scopeType ?? 'shop';
+      comp.isHidden = dto.isHidden ?? false;
+      comp.selectedShopIds =
+        dto.scopeType === 'company' && Array.isArray(dto.selectedShopIds) && dto.selectedShopIds.length
+          ? dto.selectedShopIds
+          : null;
+      comp.founderCompensation = (dto as any).founderCompensation ?? 0;
+      comp.createdById = createdBy;
       const saved = await compRepo.save(comp);
       const savedComp = Array.isArray(saved) ? saved[0] : saved;
 
@@ -186,7 +184,7 @@ export class CompetitionsService {
         c.selectedShopIds = null;
       }
       if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
-      if ((dto as any).founderCompensation !== undefined) (c as any).founderCompensation = (dto as any).founderCompensation;
+      if ((dto as any).founderCompensation !== undefined) c.founderCompensation = (dto as any).founderCompensation;
       await compRepo.save(c);
 
       if (dto.targets !== undefined) {
@@ -473,7 +471,7 @@ export class CompetitionsService {
       }
     }
 
-    const founderCompensation = Number((comp as any).founderCompensation ?? 0);
+    const founderCompensation = Number(comp.founderCompensation ?? 0);
     const netRevenue = Math.round((totalRevenue - founderCompensation - totalPrizes) * 100) / 100;
 
     return {
@@ -743,23 +741,23 @@ export class CompetitionsService {
     sortIdx: number,
     repo: Repository<CompetitionTarget>,
   ): CompetitionTarget {
-    return repo.create({
-      competitionId,
-      label: dto.label.trim(),
-      category: dto.category,
-      // Tappa 3.1: nuovi campi
-      targetType: dto.targetType ?? 'specific',
-      provider: dto.provider?.trim() || null,
-      offerIds: Array.isArray(dto.offerIds) ? dto.offerIds : [],
-      inventoryItemIds: Array.isArray(dto.inventoryItemIds) ? dto.inventoryItemIds : [],
-      // Backward compat Tappa 3
-      matchProviders: (dto.matchProviders || []).map((s) => s.trim().toUpperCase()),
-      matchOfferKeywords: (dto.matchOfferKeywords || []).map((s) => s.trim().toUpperCase()),
-      matchPracticeTypes: dto.matchPracticeTypes || [],
-      targetPieces: dto.targetPieces,
-      sortOrder: dto.sortOrder ?? sortIdx,
-      revenuePerPiece: (dto as any).revenuePerPiece ?? 0,
-    } as any);
+    const target = new CompetitionTarget();
+    target.competitionId = competitionId;
+    target.label = dto.label.trim();
+    target.category = dto.category;
+    // Tappa 3.1: nuovi campi
+    target.targetType = dto.targetType ?? 'specific';
+    target.provider = dto.provider?.trim() || null;
+    target.offerIds = Array.isArray(dto.offerIds) ? dto.offerIds : [];
+    target.inventoryItemIds = Array.isArray(dto.inventoryItemIds) ? dto.inventoryItemIds : [];
+    // Backward compat Tappa 3
+    target.matchProviders = (dto.matchProviders || []).map((s) => s.trim().toUpperCase());
+    target.matchOfferKeywords = (dto.matchOfferKeywords || []).map((s) => s.trim().toUpperCase());
+    target.matchPracticeTypes = dto.matchPracticeTypes || [];
+    target.targetPieces = dto.targetPieces;
+    target.sortOrder = dto.sortOrder ?? sortIdx;
+    target.revenuePerPiece = (dto as any).revenuePerPiece ?? 0;
+    return repo.create(target);
   }
 
   private makePrize(

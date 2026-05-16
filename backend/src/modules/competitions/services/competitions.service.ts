@@ -127,20 +127,21 @@ export class CompetitionsService {
           dto.scopeType === 'company' && Array.isArray(dto.selectedShopIds) && dto.selectedShopIds.length
             ? dto.selectedShopIds
             : null,
-        founderCompensation: dto.founderCompensation ?? 0,
+        founderCompensation: (dto as any).founderCompensation ?? 0,
         createdById: createdBy,
-      });
+      } as any);
       const saved = await compRepo.save(comp);
+      const savedComp = Array.isArray(saved) ? saved[0] : saved;
 
       if (dto.targets?.length) {
-        const targets = dto.targets.map((t, i) => this.makeTarget(t, saved.id, i, tRepo));
+        const targets = dto.targets.map((t, i) => this.makeTarget(t, savedComp.id, i, tRepo));
         await tRepo.save(targets);
       }
       if (dto.prizes?.length) {
-        const prizes = dto.prizes.map((p, i) => this.makePrize(p, saved.id, i, pRepo));
+        const prizes = dto.prizes.map((p, i) => this.makePrize(p, savedComp.id, i, pRepo));
         await pRepo.save(prizes);
       }
-      return saved.id;
+      return savedComp.id;
     });
 
     // Tappa 3.1: ricalcolo retroattivo automatico — assegna pezzi storici alla nuova gara
@@ -185,7 +186,7 @@ export class CompetitionsService {
         c.selectedShopIds = null;
       }
       if (dto.templateKey !== undefined) c.templateKey = dto.templateKey?.trim() || null;
-      if (dto.founderCompensation !== undefined) c.founderCompensation = dto.founderCompensation;
+      if ((dto as any).founderCompensation !== undefined) (c as any).founderCompensation = (dto as any).founderCompensation;
       await compRepo.save(c);
 
       if (dto.targets !== undefined) {
@@ -472,7 +473,7 @@ export class CompetitionsService {
       }
     }
 
-    const founderCompensation = Number(comp.founderCompensation ?? 0);
+    const founderCompensation = Number((comp as any).founderCompensation ?? 0);
     const netRevenue = Math.round((totalRevenue - founderCompensation - totalPrizes) * 100) / 100;
 
     return {
@@ -757,8 +758,8 @@ export class CompetitionsService {
       matchPracticeTypes: dto.matchPracticeTypes || [],
       targetPieces: dto.targetPieces,
       sortOrder: dto.sortOrder ?? sortIdx,
-      revenuePerPiece: dto.revenuePerPiece ?? 0,
-    });
+      revenuePerPiece: (dto as any).revenuePerPiece ?? 0,
+    } as any);
   }
 
   private makePrize(

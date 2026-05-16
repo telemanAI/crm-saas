@@ -101,7 +101,14 @@ interface LeaderboardData {
   targets: LeaderboardTarget[];
   prizes: LeaderboardPrize[];
   operatorRanking: OperatorRow[];
-  totals: { pieces: number; revenue: number; entriesCount: number };
+  totals: {
+    pieces: number;
+    revenue: number;
+    prizes: number;
+    founderCompensation: number;
+    netRevenue: number;
+    entriesCount: number;
+  };
   companyAggregate: CompanyAggregate | null;
   /** Tappa 3.2 — dettaglio per dropdown UI */
   practiceBreakdown?: PracticeBreakdownRow[];
@@ -345,7 +352,7 @@ export default function CompetitionDetailPage() {
         </div>
 
         {/* ====== Totali ====== */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <div className="bg-slate-900 border border-slate-700 rounded-lg p-3" data-testid="totals-pieces">
             <div className="text-xs text-slate-500 flex items-center gap-1">
               <ChartBar className="w-3 h-3" /> Pezzi totali
@@ -356,21 +363,36 @@ export default function CompetitionDetailPage() {
             <div className="text-xs text-slate-500 flex items-center gap-1">
               <CurrencyEur className="w-3 h-3" /> Ricavo
             </div>
-            <div className="text-2xl font-bold text-white mt-1">
+            <div className="text-2xl font-bold text-emerald-400 mt-1">
               € {board.totals.revenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
             </div>
           </div>
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-3">
+          <div className="bg-slate-900 border border-rose-500/30 rounded-lg p-3" data-testid="totals-prizes">
             <div className="text-xs text-slate-500 flex items-center gap-1">
-              <TargetIcon className="w-3 h-3" /> Target attivi
+              <Gift className="w-3 h-3" /> Uscite premi
             </div>
-            <div className="text-2xl font-bold text-white mt-1">{board.targets.length}</div>
+            <div className="text-2xl font-bold text-rose-400 mt-1">
+              € {board.totals.prizes.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </div>
           </div>
-          <div className="bg-slate-900 border border-slate-700 rounded-lg p-3">
+          <div className="bg-slate-900 border border-orange-500/30 rounded-lg p-3" data-testid="totals-founder">
             <div className="text-xs text-slate-500 flex items-center gap-1">
-              <Gift className="w-3 h-3" /> Premi configurati
+              <Storefront className="w-3 h-3" /> Compenso Founder
             </div>
-            <div className="text-2xl font-bold text-white mt-1">{board.prizes.length}</div>
+            <div className="text-2xl font-bold text-orange-400 mt-1">
+              € {board.totals.founderCompensation.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div className="bg-slate-900 border border-amber-500/30 rounded-lg p-3 col-span-2" data-testid="totals-net">
+            <div className="text-xs text-slate-500 flex items-center gap-1">
+              <CurrencyEur className="w-3 h-3" /> Ricavo Netto
+            </div>
+            <div className="text-2xl font-bold text-amber-300 mt-1">
+              € {board.totals.netRevenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </div>
+            <div className="text-[10px] text-slate-500 mt-0.5">
+              Ricavo − Uscite − Compenso Founder
+            </div>
           </div>
         </div>
 
@@ -737,15 +759,18 @@ export default function CompetitionDetailPage() {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 flex items-center gap-3">
-                        <div>
+                        <div className="text-right">
                           <div className="text-white font-bold">{row.pieces}</div>
                           <div className="text-xs text-slate-500">pezzi</div>
-                          {row.revenue > 0 && (
-                            <div className="text-xs text-slate-400">
+                        </div>
+                        {row.revenue > 0 && (
+                          <div className="text-right">
+                            <div className="text-emerald-400 font-bold text-sm">
                               € {row.revenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                             </div>
-                          )}
-                        </div>
+                            <div className="text-xs text-slate-500">ricavo</div>
+                          </div>
+                        )}
                         <span className="text-slate-500 text-xs">
                           {isExpanded ? '▲' : '▼'}
                         </span>

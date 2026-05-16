@@ -10,24 +10,6 @@ import {
 import { CompetitionTarget } from './competition-target.entity';
 import { CompetitionPrize } from './competition-prize.entity';
 
-/**
- * Gara (competition).
- *
- * Tappa 3 (originale): scope "shop" implicito, tenantId sempre valorizzato.
- * Tappa 3.1: aggiunto `scopeType` ('shop' | 'company'). Se 'company', la gara
- * conta i pezzi di TUTTI gli shop della stessa company. Il tenantId resta
- * popolato (= shop "creatore" / "owner") ma diventa info accessoria.
- *
- * Tappa 3.1: aggiunto `isHidden`. Se true, la gara è visibile solo a
- * FOUNDER e SUPER_ADMIN (utile per gare interne / test / bonus segreti).
- *
- * Tappa 3.2 (fix-final4): aggiunto `selectedShopIds`. Permette di creare gare
- * scope=company che includano SOLO un sottoinsieme degli shop della company
- * (es. company con 10 shop → 2 gare separate da 5 shop l'una). Quando
- * `scopeType=company` E `selectedShopIds` non è null/empty, la gara conta
- * solo i pezzi di QUEI shop. Se null/empty su scope=company → tutti gli shop
- * della company (comportamento legacy).
- */
 export type CompetitionScope = 'shop' | 'company';
 
 @Entity('competitions')
@@ -66,7 +48,6 @@ export class Competition {
   @Column({ name: 'template_key', type: 'varchar', length: 80, nullable: true })
   templateKey: string | null;
 
-  /** Tappa 3.1: 'shop' = solo questo shop, 'company' = tutti gli shop della company. */
   @Column({
     name: 'scope_type',
     type: 'varchar',
@@ -75,16 +56,9 @@ export class Competition {
   })
   scopeType: CompetitionScope;
 
-  /** Tappa 3.1: gara nascosta agli operator/admin. Solo FOUNDER+SUPER_ADMIN la vedono. */
   @Column({ name: 'is_hidden', type: 'boolean', default: false })
   isHidden: boolean;
 
-  /**
-   * Tappa 3.2: Sotto-selezione shop per gare scope=company.
-   * NULL o array vuoto = tutti gli shop della company (default legacy).
-   * Array di UUID = solo quegli shop partecipano alla gara.
-   * Ignorato per scope=shop.
-   */
   @Column({
     name: 'selected_shop_ids',
     type: 'uuid',
@@ -92,6 +66,9 @@ export class Competition {
     nullable: true,
   })
   selectedShopIds: string[] | null;
+
+  @Column({ name: 'founder_compensation', type: 'decimal', precision: 14, scale: 2, default: 0 })
+  founderCompensation: number;
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
   createdById: string | null;

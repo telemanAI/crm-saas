@@ -351,9 +351,15 @@ export class CompetitionsService {
 
     // Per target: aggregati pezzi
     const byTarget: Record<string, { targetId: string | null; pieces: number; revenue: number }> = {};
-    const byOperator = new Map<string, { userId: string; pieces: number; revenue: number }>();
+    const byOperator = new Map<string, { userId: string; pieces: number; revenue: number; prize: number }>();
     let totalPieces = 0;
     let totalRevenue = 0;
+    let totalOperatorPrizes = 0;
+    // Mappa targetId -> prizePerPiece per lookup veloce
+    const targetPrizeMap = new Map<string, number>();
+    for (const t of comp.targets || []) {
+      targetPrizeMap.set(t.id, Number(t.prizePerPiece || 0));
+    }
 
     for (const e of entries) {
       const tk = e.targetId || '__no_target__';
@@ -361,13 +367,19 @@ export class CompetitionsService {
       byTarget[tk].pieces += e.pieces;
       byTarget[tk].revenue += Number(e.revenue || 0);
 
-      const op = byOperator.get(e.userId) || { userId: e.userId, pieces: 0, revenue: 0 };
+      // Calcola premio operatore: pezzi × prizePerPiece del target
+      const prizePerPiece = e.targetId ? (targetPrizeMap.get(e.targetId) || 0) : 0;
+      const entryPrize = prizePerPiece * e.pieces;
+
+      const op = byOperator.get(e.userId) || { userId: e.userId, pieces: 0, revenue: 0, prize: 0 };
       op.pieces += e.pieces;
       op.revenue += Number(e.revenue || 0);
+      op.prize += entryPrize;
       byOperator.set(e.userId, op);
 
       totalPieces += e.pieces;
       totalRevenue += Number(e.revenue || 0);
+      totalOperatorPrizes += entryPrize;
     }
 
     // Entries gemelle su altri shop (templateKey)
@@ -428,7 +440,7 @@ export class CompetitionsService {
       operatorRanking: await this.enrichOperatorRanking(
         Array.from(byOperator.values()).sort((a, b) => b.pieces - a.pieces),
       ),
-      totals: this.buildTotals(comp, entries, totalPieces, totalRevenue, byOperator),
+      totals: this.buildTotals(comp, entries, totalPieces, totalRevenue, totalOperatorPrizes, byOperator),
       companyAggregate,
       // Lista dettagliata pratiche-pezzo (per dropdown UI):
       // ogni entry = una pratica con offerta, gestore, venditore, data
@@ -453,9 +465,10 @@ export class CompetitionsService {
     entries: CompetitionEntry[],
     totalPieces: number,
     totalRevenue: number,
-    byOperator: Map<string, { userId: string; pieces: number; revenue: number }>,
+    totalOperatorPrizes: number,
+    byOperator: Map<string, { userId: string; pieces: number; revenue: number; prize: number }>,
   ) {
-    // Calcolo premi raggiunti
+    // Calcolo premi raggiunti (premi a scaglioni configurati sulla gara)
     const topOperatorPieces = byOperator.size > 0
       ? Math.max(...Array.from(byOperator.values()).map((o) => o.pieces))
       : 0;
@@ -472,12 +485,15 @@ export class CompetitionsService {
     }
 
     const founderCompensation = Number(comp.founderCompensation ?? 0);
-    const netRevenue = Math.round((totalRevenue - founderCompensation - totalPrizes) * 100) / 100;
+    const totalPrizesAndCompensation = Math.round((totalPrizes + totalOperatorPrizes) * 100) / 100;
+    const netRevenue = Math.round((totalRevenue - founderCompensation - totalPrizesAndCompensation) * 100) / 100;
 
     return {
       pieces: totalPieces,
       revenue: Math.round(totalRevenue * 100) / 100,
       prizes: Math.round(totalPrizes * 100) / 100,
+      operatorPrizes: Math.round(totalOperatorPrizes * 100) / 100,
+      totalPrizes: totalPrizesAndCompensation,
       founderCompensation: Math.round(founderCompensation * 100) / 100,
       netRevenue,
       entriesCount: entries.length,
@@ -485,7 +501,7 @@ export class CompetitionsService {
   }
 
   private async enrichOperatorRanking(
-    rows: Array<{ userId: string; pieces: number; revenue: number }>,
+    rows: Array<{ userId: string; pieces: number; revenue: number; prize: number }>,
   ): Promise<Array<any>> {
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.userId);
@@ -757,6 +773,7 @@ export class CompetitionsService {
     target.targetPieces = dto.targetPieces;
     target.sortOrder = dto.sortOrder ?? sortIdx;
     target.revenuePerPiece = (dto as any).revenuePerPiece ?? 0;
+    target.prizePerPiece = (dto as any).prizePerPiece ?? 0;
     return repo.create(target);
   }
 

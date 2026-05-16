@@ -18,6 +18,7 @@ import {
   ChartBar,
   CurrencyEur,
   ArrowsClockwise,
+  Users,
 } from 'phosphor-react';
 import {
   Competition,
@@ -52,6 +53,7 @@ interface OperatorRow {
   userId: string;
   pieces: number;
   revenue: number;
+  prize: number;
   rank: number;
   /** Backend (enrichOperatorRanking) — nome reale risolto dal DB */
   displayName?: string;
@@ -105,6 +107,8 @@ interface LeaderboardData {
     pieces: number;
     revenue: number;
     prizes: number;
+    operatorPrizes: number;
+    totalPrizes: number;
     founderCompensation: number;
     netRevenue: number;
     entriesCount: number;
@@ -352,7 +356,7 @@ export default function CompetitionDetailPage() {
         </div>
 
         {/* ====== Totali ====== */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3 mb-6">
           <div className="bg-slate-900 border border-slate-700 rounded-lg p-3" data-testid="totals-pieces">
             <div className="text-xs text-slate-500 flex items-center gap-1">
               <ChartBar className="w-3 h-3" /> Pezzi totali
@@ -369,10 +373,18 @@ export default function CompetitionDetailPage() {
           </div>
           <div className="bg-slate-900 border border-rose-500/30 rounded-lg p-3" data-testid="totals-prizes">
             <div className="text-xs text-slate-500 flex items-center gap-1">
-              <Gift className="w-3 h-3" /> Uscite premi
+              <Gift className="w-3 h-3" /> Premi scaglioni
             </div>
             <div className="text-2xl font-bold text-rose-400 mt-1">
               € {board.totals.prizes.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div className="bg-slate-900 border border-violet-500/30 rounded-lg p-3" data-testid="totals-operator-prizes">
+            <div className="text-xs text-slate-500 flex items-center gap-1">
+              <Users className="w-3 h-3" /> Premi operatori
+            </div>
+            <div className="text-2xl font-bold text-violet-400 mt-1">
+              € {(board.totals.operatorPrizes ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
             </div>
           </div>
           <div className="bg-slate-900 border border-orange-500/30 rounded-lg p-3" data-testid="totals-founder">
@@ -391,7 +403,7 @@ export default function CompetitionDetailPage() {
               € {board.totals.netRevenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
             </div>
             <div className="text-[10px] text-slate-500 mt-0.5">
-              Ricavo − Uscite − Compenso Founder
+              Ricavo − Premi − Operatori − Founder
             </div>
           </div>
         </div>
@@ -769,6 +781,14 @@ export default function CompetitionDetailPage() {
                               € {row.revenue.toLocaleString('it-IT', { minimumFractionDigits: 2 })}
                             </div>
                             <div className="text-xs text-slate-500">ricavo</div>
+                          </div>
+                        )}
+                        {(row.prize ?? 0) > 0 && (
+                          <div className="text-right">
+                            <div className="text-violet-400 font-bold text-sm">
+                              € {(row.prize ?? 0).toLocaleString('it-IT', { minimumFractionDigits: 2 })}
+                            </div>
+                            <div className="text-xs text-slate-500">premio</div>
                           </div>
                         )}
                         <span className="text-slate-500 text-xs">

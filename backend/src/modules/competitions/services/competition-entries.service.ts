@@ -562,6 +562,12 @@ export class CompetitionEntriesService {
     for (const d of desired) {
       const k = `${d.competitionId}|${d.targetId ?? 'null'}|${practice.soldById}`;
       if (!existingKeys.has(k)) {
+        // FIX revenue live sync: calcola revenue dal target.revenuePerPiece
+        const matchedComp = activeCompetitions.find((c) => c.id === d.competitionId);
+        const matchedTarget = matchedComp?.targets?.find((t) => t.id === d.targetId);
+        const entryRevenue = matchedTarget?.revenuePerPiece
+          ? Number(matchedTarget.revenuePerPiece) * 1
+          : null;
         toInsert.push({
           tenantId: practice.tenantId,
           companyId,
@@ -577,7 +583,7 @@ export class CompetitionEntriesService {
               .toUpperCase() || null,
           offerName: practice.offerName || null,
           pieces: 1,
-          revenue: null,
+          revenue: entryRevenue,
           shopId: practice.tenantId,
         });
       }

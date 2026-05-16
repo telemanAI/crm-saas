@@ -55,6 +55,7 @@ export interface CompetitionTarget {
   targetPieces: number;
   sortOrder?: number;
   revenuePerPiece?: number;
+  prizePerPiece?: number;
 }
 
 export interface CompetitionPrize {
@@ -284,6 +285,7 @@ export function CompetitionModal({
         matchPracticeTypes: (t.matchPracticeTypes || []).filter(Boolean),
         targetPieces: Number(t.targetPieces) || 0,
         revenuePerPiece: Number(t.revenuePerPiece) || 0,
+        prizePerPiece: Number(t.prizePerPiece) || 0,
         sortOrder: i,
       }));
       const cleanPrizes = prizes.map((p, i) => ({
@@ -708,6 +710,20 @@ function TargetRow({
             onChange={(e) => onUpdate({ revenuePerPiece: Number(e.target.value) || 0 })}
             className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
             data-testid={`target-revenue-${idx}`}
+          />
+        </div>
+        <div className="col-span-2">
+          <label className="text-xs text-slate-400 mb-1 block">
+            Premio operatore/pezzo <span className="text-slate-600">(€)</span>
+          </label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={target.prizePerPiece ?? 0}
+            onChange={(e) => onUpdate({ prizePerPiece: Number(e.target.value) || 0 })}
+            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white text-sm"
+            data-testid={`target-prize-${idx}`}
           />
         </div>
         <div className="col-span-1 flex items-end justify-end h-full">

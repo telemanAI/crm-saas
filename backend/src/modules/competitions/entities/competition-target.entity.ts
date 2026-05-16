@@ -69,4 +69,7 @@ export class CompetitionTarget {
 
   @Column({ name: 'revenue_per_piece', type: 'decimal', precision: 14, scale: 2, default: 0 })
   revenuePerPiece: number;
+
+  @Column({ name: 'prize_per_piece', type: 'decimal', precision: 14, scale: 2, default: 0 })
+  prizePerPiece: number;
 }

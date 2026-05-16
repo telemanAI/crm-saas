@@ -77,6 +77,11 @@ export class TargetDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   revenuePerPiece?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  prizePerPiece?: number;
 }
 
 export class PrizeDto {
